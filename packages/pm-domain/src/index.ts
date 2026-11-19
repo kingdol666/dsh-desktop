@@ -1,4 +1,4 @@
-/** PolyMechanism domain: entity vocabulary and identifier rules (no runtime dependencies). */
+/** PolyMechanism domain: entity vocabulary, entities, and invariants (no runtime dependencies). */
 
 /** Version of the domain vocabulary. Bump only for breaking entity-shape changes. */
 export const PM_DOMAIN_VERSION = 1 as const
@@ -42,3 +42,6 @@ export function isEntityId(value: string, kind: EntityKind): boolean {
   if (!ENTITY_ID_PATTERN.test(value)) return false
   return value.startsWith(`${ENTITY_PREFIXES[kind]}-`)
 }
+
+export * from './entities.ts'
+export * from './invariants.ts'

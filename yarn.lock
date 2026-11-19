@@ -15508,6 +15508,7 @@ __metadata:
     "@polymechanism/pm-domain": "workspace:*"
     "@types/node": "npm:^22.20.0"
     typescript: "npm:6.0.3"
+    vitest: "npm:4.1.8"
   languageName: unknown
   linkType: soft
 

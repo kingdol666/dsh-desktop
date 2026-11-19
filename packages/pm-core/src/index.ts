@@ -9,3 +9,6 @@ export const PM_CORE_VERSION = 1 as const
 export function pmSurfaceVersions(): { domain: typeof PM_DOMAIN_VERSION; core: typeof PM_CORE_VERSION } {
   return { domain: PM_DOMAIN_VERSION, core: PM_CORE_VERSION }
 }
+
+export * from './evidence-ledger.ts'
+export * from './hypothesis-machine.ts'
