@@ -12,6 +12,9 @@ node_modules/
 
 dsh-plugin-desktop/dist/
 dsh-plugin-desktop/lib/
+plugins/*/lib/
+packages/*/lib/
+ui/*/lib/
 dsh-community-market/lib/
 dsh-tokens-anywhere/lib/
 dsh-acp-bridge/lib/

@@ -15501,6 +15501,25 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@polymechanism/pm-core@workspace:packages/pm-core":
+  version: 0.0.0-use.local
+  resolution: "@polymechanism/pm-core@workspace:packages/pm-core"
+  dependencies:
+    "@polymechanism/pm-domain": "workspace:*"
+    "@types/node": "npm:^22.20.0"
+    typescript: "npm:6.0.3"
+  languageName: unknown
+  linkType: soft
+
+"@polymechanism/pm-domain@workspace:*, @polymechanism/pm-domain@workspace:packages/pm-domain":
+  version: 0.0.0-use.local
+  resolution: "@polymechanism/pm-domain@workspace:packages/pm-domain"
+  dependencies:
+    "@types/node": "npm:^22.20.0"
+    typescript: "npm:6.0.3"
+  languageName: unknown
+  linkType: soft
+
 "@protobufjs/aspromise@npm:^1.1.1, @protobufjs/aspromise@npm:^1.1.2":
   version: 1.1.2
   resolution: "@protobufjs/aspromise@npm:1.1.2"
@@ -19640,6 +19659,7 @@ __metadata:
     node-addon-require-builtin: "npm:^0.1.9"
     node-gyp: "npm:13.0.1"
     papaparse: "npm:^5.5.0"
+    pm-research: "workspace:*"
     pnpm: "npm:11.28.5"
     react: "npm:18.3.1"
     react-dom: "npm:18.3.1"
@@ -23951,6 +23971,28 @@ __metadata:
   checksum: 10c0/af681277c2e541c6aab0ddee57f59459c43beeea1ee7aa2d4218aa39595fb41c068e2d2be3e4abb17e3252eaf2c1b806ecfb1d402fa5a3f4a6e1a7a32c880c9a
   languageName: node
   linkType: hard
+
+"pm-research@workspace:*, pm-research@workspace:plugins/pm-research":
+  version: 0.0.0-use.local
+  resolution: "pm-research@workspace:plugins/pm-research"
+  dependencies:
+    "@deepseek-ai/cordis": "npm:4.0.5"
+    "@deepseek-ai/dsh-host-webserver": "npm:0.2.1-rc.3"
+    "@types/node": "npm:^22.20.0"
+    tsdown: "npm:0.22.2"
+    typescript: "npm:6.0.3"
+    vitest: "npm:4.1.8"
+  languageName: unknown
+  linkType: soft
+
+"pm-workbench@workspace:ui/pm-workbench":
+  version: 0.0.0-use.local
+  resolution: "pm-workbench@workspace:ui/pm-workbench"
+  dependencies:
+    "@types/node": "npm:^22.20.0"
+    typescript: "npm:6.0.3"
+  languageName: unknown
+  linkType: soft
 
 "pngjs@npm:^5.0.0":
   version: 5.0.0

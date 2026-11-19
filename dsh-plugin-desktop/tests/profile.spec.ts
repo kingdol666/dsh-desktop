@@ -338,6 +338,10 @@ virtualStoreDirMaxLength: 60
       name: DESKTOP_PACKAGE_NAME,
       config: { mode: 'advanced' },
     }))
+    expect(inserted).toContainEqual(expect.objectContaining({
+      id: 'pm-research',
+      name: `${DESKTOP_PACKAGE_NAME}/pm`,
+    }))
     expect(patches).toContainEqual(expect.objectContaining({
       id: 'webserver',
       name: '@deepseek-ai/dsh-host-webserver',
