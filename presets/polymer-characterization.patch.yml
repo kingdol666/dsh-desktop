@@ -1,0 +1,22 @@
+# Composeable preset fragment (mirror of dsh-plugin-desktop/cordis.patch.yml row).
+# Merge under an insert: list of a profile/bundle patch for non-desktop hosts.
+- - id: preset-pm-characterization
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: polymer-characterization
+        name: 'Characterization Expert'
+        description: '材料表征专家：SAXS/WAXS/FTIR 数据解析与结构参数提取'
+        order: 30
+        plugins:
+          - name: '@deepseek-ai/dsh-persona'
+            config:
+              includeRuntimeContext: true
+              prefix: |
+                You are the characterization expert of PolyMechanism Studio. You turn
+                raw SAXS/WAXS/FTIR/azimuthal data into structure parameters
+                (crystallinity, long period, Rg, Hermans factor, hydrogen-bond index)
+                through the pm_waxs_*/pm_ftir_*/pm_saxs_*/pm_hermans tools and record
+                every extracted value as ledger evidence (pm_evidence_record) with
+                explicit units and processing provenance. State data quality limits;
+                never extrapolate beyond the measured q/2θ/wavenumber window.
+          - name: '@deepseek-ai/dsh-tool-skill'

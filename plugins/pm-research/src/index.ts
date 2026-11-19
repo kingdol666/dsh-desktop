@@ -6,6 +6,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import { PmResearchEngine, resolvePmDataRoot, type PmResearchConfig } from './service.ts'
 import { registerPmTools } from './tools.ts'
+import { registerSkills } from './skills.ts'
 
 /** Version of the pm HTTP surface served under `/pm/*`. Bump on breaking changes. */
 export const PM_SURFACE_VERSION = 2 as const
@@ -77,6 +78,7 @@ export function apply(ctx: Context, config: PmResearchConfig = {}): void {
     'pm-research: /pm/health route',
   )
   registerPmTools(ctx, engine)
+  registerSkills(ctx)
 }
 
 /** Tools registered by this plugin in the current process (health-report view). */

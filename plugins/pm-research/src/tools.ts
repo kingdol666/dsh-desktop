@@ -6,6 +6,7 @@ import type { PmResearchEngine } from './service.ts'
 import { canUseTool } from './permissions.ts'
 import { registerMechanismTools } from './tools-mechanism.ts'
 import { registerKnowledgeTools } from './tools-knowledge.ts'
+import { registerCaeTools } from './tools-cae.ts'
 
 /**
  * Boundary cast: tool outputs cross the model JSON frontier, so handlers build
@@ -195,6 +196,7 @@ export function registerPmTools(ctx: Context, engine: PmResearchEngine): void {
         hypothesisId: { type: 'string', required: true },
         to: { type: 'string', enum: ['conditional', 'under_test', 'supported', 'refuted', 'archived'], required: true },
         rationale: { type: 'string', required: true },
+        evidenceIds: { type: 'array', items: { type: 'string' } },
         preset: { type: 'string' },
         actor: { type: 'string' },
       },
@@ -202,7 +204,7 @@ export function registerPmTools(ctx: Context, engine: PmResearchEngine): void {
       async execute(args) {
         const denied = authorize('pm_hypothesis_transition', args)
         if (denied !== undefined) return toToolJson(denied)
-        const verdict = await engine.transitionHypothesis(args.projectId, args.hypothesisId, args.to, args.rationale, args.actor ?? `preset:${args.preset ?? 'unknown'}`)
+        const verdict = await engine.transitionHypothesis(args.projectId, args.hypothesisId, args.to, args.rationale, args.actor ?? `preset:${args.preset ?? 'unknown'}`, args.evidenceIds)
         if (!verdict.legal) {
           return toToolJson(failure('GATE_BLOCKED', verdict.reason ?? 'transition blocked', 'cite more/stronger evidence via pm_evidence_record, then retry'))
         }
@@ -212,5 +214,6 @@ export function registerPmTools(ctx: Context, engine: PmResearchEngine): void {
 
     registerMechanismTools(ctx, engine)
     registerKnowledgeTools(ctx, engine)
+    registerCaeTools(ctx, engine)
   })
 }

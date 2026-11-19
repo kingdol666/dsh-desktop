@@ -276,6 +276,38 @@ try {
   if (!presetIds.includes('minimal') || !presetIds.includes('standard')) {
     throw new Error(`assembled Windows profile exposes unexpected presets: ${presetIds.join(', ')}`)
   }
+  // The six prebuilt polymer experts must be selectable in every desktop profile.
+  for (const polymerPreset of [
+    'polymer-scientist',
+    'polymer-physicist',
+    'polymer-characterization',
+    'polymer-modeler',
+    'polymer-literature',
+    'polymer-reviewer',
+  ]) {
+    if (!presetIds.includes(polymerPreset)) {
+      throw new Error(`assembled desktop profile is missing the ${polymerPreset} expert preset`)
+    }
+  }
+  // Polymer methodology skills register asynchronously through pm-research.
+  const skills = ctx.get('skills')
+  if (skills === undefined) {
+    throw new Error('assembled desktop profile is missing the skill registry')
+  }
+  const requiredSkills = ['polymer-physics', 'pva-oblique-stretching', 'mechanism-discovery', 'experiment-design']
+  const skillsDeadline = Date.now() + 15_000
+  let skillNames = []
+  while (Date.now() < skillsDeadline) {
+    const rawSnapshot = skills.snapshot !== undefined ? await skills.snapshot() : await skills.list()
+    skillNames = (Array.isArray(rawSnapshot) ? rawSnapshot : rawSnapshot.skills).map(skill => skill.name)
+    if (requiredSkills.every(name => skillNames.includes(name))) break
+    await delay(100)
+  }
+  for (const polymerSkill of requiredSkills) {
+    if (!skillNames.includes(polymerSkill)) {
+      throw new Error(`assembled desktop profile is missing the ${polymerSkill} skill`)
+    }
+  }
   // The legacy import runs off `loader.await()`, so the preset choice lands after
   // this profile has finished mounting. Waiting for it here is what proves the
   // section and field renames reached a namespace the settings service accepts.

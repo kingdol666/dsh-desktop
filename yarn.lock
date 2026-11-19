@@ -23989,6 +23989,7 @@ __metadata:
     "@deepseek-ai/dsh-sandbox-policy": "npm:0.2.1-rc.3"
     "@deepseek-ai/dsh-scope": "npm:0.2.1-rc.3"
     "@deepseek-ai/dsh-session": "npm:0.2.1-rc.3"
+    "@deepseek-ai/dsh-skill": "npm:0.2.1-rc.3"
     "@deepseek-ai/dsh-system-prompt": "npm:0.2.1-rc.3"
     "@deepseek-ai/dsh-tools": "npm:0.2.1-rc.3"
     "@deepseek-ai/dsh-user-approval": "npm:0.2.1-rc.3"
