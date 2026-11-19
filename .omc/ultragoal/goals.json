@@ -1,7 +1,7 @@
 {
   "version": 1,
   "createdAt": "2026-11-19T15:53:51.168Z",
-  "updatedAt": "2026-11-19T15:53:51.168Z",
+  "updatedAt": "2026-11-19T16:32:52.241Z",
   "briefPath": ".omc/ultragoal/brief.md",
   "goalsPath": ".omc/ultragoal/goals.json",
   "ledgerPath": ".omc/ultragoal/ledger.jsonl",
@@ -11,10 +11,13 @@
       "id": "G001-m0",
       "title": "M0 复用底座可运行",
       "objective": "完成第三方插件采纳冒烟(kb-rag/zotero-skill/记忆)、verify:plugins 脚本、缺失官方包补装、packages/plugins/ui/science 仓库骨架、cordis.patch.yml 领域行与 /pm/health",
-      "status": "pending",
-      "attempt": 0,
+      "status": "complete",
+      "attempt": 1,
       "createdAt": "2026-11-19T15:53:51.168Z",
-      "updatedAt": "2026-11-19T15:53:51.168Z"
+      "updatedAt": "2026-11-19T16:32:52.241Z",
+      "startedAt": "2026-11-19T16:32:40.021Z",
+      "completedAt": "2026-11-19T16:32:52.241Z",
+      "evidence": "PR#2 merged (387a759336): science selftest vs real CAE engine CONVERGED+sha256+provenance; pm-research typecheck/build/vitest 3-3; desktop build + test baseline intact (9 upstream failures unchanged); verify-profile-boot EXIT=0 with /pm/health renderer-200 + anon-403 probes"
     },
     {
       "id": "G002",
