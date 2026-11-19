@@ -1,18 +1,26 @@
 /** Research engine facade: per-project stores rooted at one data root. */
 
 import { createHash } from 'node:crypto'
+import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
   EvidenceLedger,
   HypothesisStore,
   ProjectStore,
+  KnowledgeStore,
+  MechanismGraph,
+  evaluateGate,
+  type GateInput,
+  type GateVerdict,
+  type RecordEvidenceInput,
 } from '@polymechanism/pm-core'
-import type { RecordEvidenceInput } from '@polymechanism/pm-core'
 import type {
   DiscriminatingTest,
   EntityId,
   Evidence,
   Hypothesis,
+  MechanismEdge,
+  MechanismNode,
   ResearchProject,
 } from '@polymechanism/pm-domain'
 
@@ -38,6 +46,7 @@ export function statementHash4(statement: string): string {
 export class PmResearchEngine {
   private projects: ProjectStore | undefined
   private hypothesesStore: HypothesisStore | undefined
+  private knowledgeStore: KnowledgeStore | undefined
   private readonly ledgers = new Map<EntityId, EvidenceLedger>()
   private readonly ledgerAppends = new Map<EntityId, Promise<unknown>>()
 
@@ -195,6 +204,118 @@ export class PmResearchEngine {
     }
     return this.hypothesisStore().transition(projectId, hypothesisId, to, rationale, resolved, actor)
   }
+
+  /** Project-scoped mechanism graph accessor. */
+  mechanismGraph(projectId: EntityId): MechanismGraph {
+    return MechanismGraph.open(join(this.dataRoot, 'projects', projectId, 'mechanism.json'))
+  }
+
+  /** Knowledge-card store accessor. */
+  knowledge(): KnowledgeStore {
+    if (this.knowledgeStore === undefined) this.knowledgeStore = KnowledgeStore.open(join(this.dataRoot, 'knowledge'))
+    return this.knowledgeStore
+  }
+
+  /**
+   * Import the seed mechanism catalog into one project's graph.
+   * @param projectId - owning project.
+   * @param seedPath - absolute path to seed.json.
+   */
+  async importSeed(projectId: EntityId, seedPath: string): Promise<{ nodes: number; edges: number; skipped: string[] }> {
+    const raw = JSON.parse(await readFile(seedPath, 'utf8')) as SeedFile
+    const graph = this.mechanismGraph(projectId)
+    const idByKey = new Map<string, EntityId>()
+    let nodeCount = 0
+    for (const node of raw.nodes) {
+      const created = await graph.upsertNode({
+        projectId,
+        type: node.type,
+        name: node.name,
+        ...(node.symbol === undefined || node.symbol === null ? {} : { symbol: node.symbol }),
+        ...(node.unit === undefined ? {} : { unit: node.unit }),
+        aliases: node.aliases ?? [],
+      })
+      idByKey.set(node.key, created.id)
+      nodeCount += 1
+    }
+    let edgeCount = 0
+    const skipped: string[] = []
+    for (const edge of raw.edges) {
+      const from = idByKey.get(edge.from)
+      const to = idByKey.get(edge.to)
+      if (from === undefined || to === undefined) {
+        skipped.push(`${edge.from}->${edge.to}`)
+        continue
+      }
+      const relation = edge.relation === 'rotates' ? 'mediates' : edge.relation
+      if (!isEdgeRelation(relation)) {
+        skipped.push(`${edge.from}->${edge.to} (relation ${edge.relation})`)
+        continue
+      }
+      const source = edge.source ?? ''
+      const doiPrefix = 'doi:'
+      const isDoi = source.startsWith(doiPrefix)
+      await graph.addEdge({
+        projectId,
+        from,
+        to,
+        relation,
+        ...(edge.equation === undefined ? {} : { equation: edge.equation }),
+        conditions: edge.conditions ?? {},
+        theorySource: isDoi
+          ? { type: 'doi', ref: source.slice(doiPrefix.length).trim() }
+          : { type: 'file', ref: source.length > 0 ? source : 'seed.json' },
+        applicability: edge.applicability,
+        createdBy: 'seed',
+        strongSupportingEvidence: edge.applicability === 'established' ? 1 : 0,
+      })
+      edgeCount += 1
+    }
+    return { nodes: nodeCount, edges: edgeCount, skipped }
+  }
+
+  /**
+   * Gate evaluation with ledger-resolved evidence.
+   * @param projectId - owning project (ledger source).
+   * @param input - gate inputs without evidence; evidence arrives by id.
+   */
+  async gateEvaluate(projectId: EntityId, input: Omit<GateInput, 'evidence'> & { readonly evidenceIds?: readonly EntityId[] }): Promise<GateVerdict> {
+    const resolved: Evidence[] = []
+    if (input.evidenceIds !== undefined) {
+      const projectLedger = await this.ledger(projectId)
+      for (const id of input.evidenceIds) {
+        const record = projectLedger.get(id)
+        if (record !== undefined) resolved.push(record)
+      }
+    }
+    return evaluateGate({ ...input, ...(resolved.length === 0 ? {} : { evidence: resolved }) })
+  }
+}
+
+interface SeedFile {
+  readonly nodes: readonly {
+    readonly key: string
+    readonly type: MechanismNode['type']
+    readonly name: string
+    readonly symbol?: string | null
+    readonly unit?: string
+    readonly aliases?: readonly string[]
+  }[]
+  readonly edges: readonly {
+    readonly from: string
+    readonly to: string
+    readonly relation: string
+    readonly equation?: string
+    readonly conditions?: Record<string, unknown>
+    readonly applicability: 'candidate' | 'established'
+    readonly source?: string
+  }[]
+}
+
+const EDGE_RELATIONS: readonly string[] = ['increases', 'decreases', 'determines', 'couples', 'competes', 'mediates']
+
+function isEdgeRelation(value: string): value is MechanismEdge['relation'] {
+  return EDGE_RELATIONS.includes(value)
 }
 
 /** Not-found error surfaced to tools as INVALID_ARGUMENT-shaped failures. */

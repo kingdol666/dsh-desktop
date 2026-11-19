@@ -4,6 +4,8 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { Context } from '@deepseek-ai/cordis'
 import type { PmResearchEngine } from './service.ts'
 import { canUseTool } from './permissions.ts'
+import { registerMechanismTools } from './tools-mechanism.ts'
+import { registerKnowledgeTools } from './tools-knowledge.ts'
 
 /**
  * Boundary cast: tool outputs cross the model JSON frontier, so handlers build
@@ -207,5 +209,8 @@ export function registerPmTools(ctx: Context, engine: PmResearchEngine): void {
         return toToolJson({ ok: true, data: { hypothesis: verdict.hypothesis } })
       },
     }))
+
+    registerMechanismTools(ctx, engine)
+    registerKnowledgeTools(ctx, engine)
   })
 }

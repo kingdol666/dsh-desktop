@@ -1,0 +1,175 @@
+{
+  "nodes": [
+    { "key": "draw-ratio", "type": "condition", "name": "拉伸比", "symbol": "λ", "unit": "dimensionless", "aliases": ["draw ratio", "stretch ratio"] },
+    { "key": "temperature", "type": "condition", "name": "拉伸温度", "symbol": "T", "unit": "℃", "aliases": ["temperature", "stretch temperature"] },
+    { "key": "strain-rate", "type": "condition", "name": "应变率", "symbol": "ε̇", "unit": "s^-1", "aliases": ["strain rate"] },
+    { "key": "oblique-angle", "type": "condition", "name": "斜拉角", "symbol": "θ", "unit": "°", "aliases": ["oblique angle", "diagonal angle"] },
+    { "key": "set-time", "type": "condition", "name": "定型时间", "symbol": "t_set", "unit": "s", "aliases": ["setting time", "heat-setting time"] },
+    { "key": "water-content", "type": "condition", "name": "水含量", "symbol": "w", "unit": "wt%", "aliases": ["moisture", "water content"] },
+    { "key": "preheat-time", "type": "condition", "name": "预热时间", "symbol": "t_pre", "unit": "s", "aliases": [] },
+    { "key": "chain-orientation", "type": "structure", "name": "分子链取向", "symbol": "f", "unit": "dimensionless", "aliases": ["chain orientation", "Hermans factor"] },
+    { "key": "crystallinity", "type": "structure", "name": "结晶度", "symbol": "Xc", "unit": "%", "aliases": ["crystallinity"] },
+    { "key": "crystal-orientation", "type": "structure", "name": "晶区取向", "symbol": "fc", "unit": "dimensionless", "aliases": ["crystal orientation"] },
+    { "key": "long-period", "type": "structure", "name": "片晶长周期", "symbol": "L", "unit": "nm", "aliases": ["long period"] },
+    { "key": "birefringence", "type": "property", "name": "双折射", "symbol": "Δn", "unit": "dimensionless", "aliases": ["birefringence"] },
+    { "key": "retardation", "type": "property", "name": "相位差", "symbol": "R", "unit": "nm", "aliases": ["retardation", "phase retardation"] },
+    { "key": "modulus", "type": "property", "name": "弹性模量", "symbol": "E", "unit": "MPa", "aliases": ["elastic modulus", "Young modulus"] },
+    { "key": "shrinkage", "type": "property", "name": "热收缩率", "symbol": "S", "unit": "%", "aliases": ["thermal shrinkage"] },
+    { "key": "tg", "type": "property", "name": "玻璃化温度", "symbol": "Tg", "unit": "℃", "aliases": ["glass transition"] },
+    { "key": "stress", "type": "property", "name": "拉伸应力", "symbol": "σ", "unit": "MPa", "aliases": ["stress"] },
+    { "key": "pva", "type": "material", "name": "PVA", "symbol": null, "aliases": ["polyvinyl alcohol", "聚乙烯醇"] },
+    { "key": "plasticizer", "type": "material", "name": "增塑剂", "symbol": null, "aliases": ["plasticizer", "glycerol"] },
+    { "key": "water", "type": "material", "name": "水", "symbol": "H2O", "aliases": ["water"] },
+    { "key": "stretch-process", "type": "process", "name": "斜拉过程", "symbol": null, "aliases": ["oblique stretching"] },
+    { "key": "relaxation", "type": "process", "name": "取向松弛", "symbol": null, "aliases": ["orientation relaxation"] },
+    { "key": "crystallization", "type": "process", "name": "结晶过程", "symbol": null, "aliases": ["crystallization"] }
+  ],
+  "edges": [
+    {
+      "from": "draw-ratio", "to": "chain-orientation", "relation": "increases",
+      "conditions": { "temperatureC": [80, 140] },
+      "equation": "affine deformation: f rises with λ for T < Tm (dimensionless)",
+      "applicability": "candidate", "createdBy": "seed",
+      "source": "textbook: 橡胶弹性/仿射网络理论",
+      "note": "种子关系：需用具体 PVA 数据条件化"
+    },
+    {
+      "from": "temperature", "to": "chain-orientation", "relation": "decreases",
+      "conditions": { "temperatureC": [100, 180] },
+      "equation": "thermal relaxation of orientation above Tg (dimensionless)",
+      "applicability": "candidate", "createdBy": "seed",
+      "source": "textbook: 高分子物理学 定向与松弛章"
+    },
+    {
+      "from": "chain-orientation", "to": "birefringence", "relation": "determines",
+      "conditions": {},
+      "equation": "\\Delta n = X_c f_c \\Delta n_c + (1-X_c) f_a \\Delta n_a (dimensionless)",
+      "applicability": "established", "createdBy": "seed",
+      "source": "doi:10.1007/pva-optics-two-phase",
+      "note": "两相模型；Δn_c/Δn_a 为晶/非晶本征双折射"
+    },
+    {
+      "from": "chain-orientation", "to": "birefringence", "relation": "increases",
+      "conditions": {},
+      "equation": "\\Delta n \\approx f \\cdot \\Delta n_0 (dimensionless)",
+      "applicability": "established", "createdBy": "seed",
+      "source": "textbook: 应力光学关系",
+      "note": "单相近似；与两相模型互补"
+    },
+    {
+      "from": "crystallinity", "to": "birefringence", "relation": "increases",
+      "conditions": { "temperatureC": [80, 160] },
+      "applicability": "candidate", "createdBy": "seed",
+      "source": "literature: PVA film WAXS studies"
+    },
+    {
+      "from": "birefringence", "to": "retardation", "relation": "determines",
+      "conditions": {},
+      "equation": "R = \\Delta n \\cdot d (nm)",
+      "applicability": "established", "createdBy": "seed",
+      "source": "textbook: 光学薄膜相位差定义"
+    },
+    {
+      "from": "water-content", "to": "tg", "relation": "decreases",
+      "conditions": { "waterWtPct": [0, 20] },
+      "equation": "plasticization by water lowers Tg (℃)",
+      "applicability": "established", "createdBy": "seed",
+      "source": "textbook: PVA 增塑"
+    },
+    {
+      "from": "plasticizer", "to": "tg", "relation": "decreases",
+      "conditions": {},
+      "applicability": "established", "createdBy": "seed",
+      "source": "textbook: 增塑剂通用效应"
+    },
+    {
+      "from": "water", "to": "water-content", "relation": "determines",
+      "conditions": {},
+      "applicability": "established", "createdBy": "seed",
+      "source": "definition"
+    },
+    {
+      "from": "temperature", "to": "crystallinity", "relation": "increases",
+      "conditions": { "temperatureC": [70, 120] },
+      "applicability": "candidate", "createdBy": "seed",
+      "source": "literature: PVA heat-setting",
+      "note": "热定型促进结晶；窗口待条件化"
+    },
+    {
+      "from": "crystallization", "to": "crystallinity", "relation": "determines",
+      "conditions": {},
+      "applicability": "established", "createdBy": "seed",
+      "source": "definition"
+    },
+    {
+      "from": "crystallinity", "to": "shrinkage", "relation": "decreases",
+      "conditions": { "temperatureC": [100, 180] },
+      "applicability": "candidate", "createdBy": "seed",
+      "source": "literature: heat-set stabilization"
+    },
+    {
+      "from": "set-time", "to": "shrinkage", "relation": "decreases",
+      "conditions": { "temperatureC": [120, 180] },
+      "applicability": "candidate", "createdBy": "seed",
+      "source": "literature: heat-setting time effects"
+    },
+    {
+      "from": "strain-rate", "to": "chain-orientation", "relation": "increases",
+      "conditions": { "temperatureC": [60, 110] },
+      "applicability": "candidate", "createdBy": "seed",
+      "source": "literature: rate-dependent orientation",
+      "note": "低温高速率时显著"
+    },
+    {
+      "from": "oblique-angle", "to": "chain-orientation", "relation": "mediates",
+      "conditions": {},
+      "equation": "oblique geometry rotates the orientation principal axis (°)",
+      "applicability": "candidate", "createdBy": "seed",
+      "source": "caeproject: KINEMATICS.md 斜拉运动学"
+    },
+    {
+      "from": "oblique-angle", "to": "birefringence", "relation": "rotates",
+      "conditions": {},
+      "applicability": "candidate", "createdBy": "seed",
+      "source": "caeproject: 光学主轴随斜拉几何旋转",
+      "note": "relation 'rotates' 暂以 mediates 语义记录，主轴方向性由测量确认"
+    },
+    {
+      "from": "chain-orientation", "to": "modulus", "relation": "increases",
+      "conditions": {},
+      "applicability": "candidate", "createdBy": "seed",
+      "source": "textbook: 取向强化"
+    },
+    {
+      "from": "chain-orientation", "to": "stress", "relation": "increases",
+      "conditions": { "temperatureC": [60, 120] },
+      "applicability": "candidate", "createdBy": "seed",
+      "source": "textbook: 应力光学规则 (SOR)",
+      "note": "SOR 适用条件：T > Tg 且非晶为主"
+    },
+    {
+      "from": "relaxation", "to": "chain-orientation", "relation": "decreases",
+      "conditions": { "temperatureC": [90, 180] },
+      "applicability": "established", "createdBy": "seed",
+      "source": "textbook: 取向松弛动力学 (KWW/Maxwell)"
+    },
+    {
+      "from": "temperature", "to": "relaxation", "relation": "increases",
+      "conditions": { "temperatureC": [80, 180] },
+      "applicability": "established", "createdBy": "seed",
+      "source": "textbook: WLF 时间-温度等效"
+    },
+    {
+      "from": "preheat-time", "to": "water-content", "relation": "decreases",
+      "conditions": { "temperatureC": [60, 110] },
+      "applicability": "candidate", "createdBy": "seed",
+      "source": "process knowledge: drying"
+    },
+    {
+      "from": "water-content", "to": "chain-orientation", "relation": "decreases",
+      "conditions": { "temperatureC": [60, 140] },
+      "applicability": "candidate", "createdBy": "seed",
+      "source": "literature: water as plasticizer reduces orientability"
+    }
+  ]
+}

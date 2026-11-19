@@ -22,7 +22,40 @@ export const TOOL_PERMISSIONS: Readonly<Record<string, readonly string[]>> = Obj
   ]),
   'pm_hypothesis_propose': Object.freeze(['polymer-scientist', 'polymer-physicist', 'polymer-modeler']),
   'pm_hypothesis_transition': Object.freeze(['polymer-scientist']),
+  'pm_mechanism_import_seed': Object.freeze(['polymer-scientist']),
+  'pm_mechanism_query': Object.freeze([
+    'polymer-scientist',
+    'polymer-physicist',
+    'polymer-characterization',
+    'polymer-modeler',
+    'polymer-literature',
+    'polymer-reviewer',
+  ]),
+  'pm_mechanism_propose_edge': Object.freeze(['polymer-physicist', 'polymer-scientist']),
+  'pm_knowledge_query': Object.freeze([
+    'polymer-scientist',
+    'polymer-physicist',
+    'polymer-characterization',
+    'polymer-modeler',
+    'polymer-literature',
+    'polymer-reviewer',
+  ]),
+  'pm_knowledge_propose': Object.freeze([
+    'polymer-scientist',
+    'polymer-physicist',
+    'polymer-characterization',
+    'polymer-modeler',
+    'polymer-literature',
+  ]),
   'pm_knowledge_review': Object.freeze(['polymer-reviewer']),
+  'pm_gate_check': Object.freeze([
+    'polymer-scientist',
+    'polymer-physicist',
+    'polymer-characterization',
+    'polymer-modeler',
+    'polymer-literature',
+    'polymer-reviewer',
+  ]),
 })
 
 /** All preset identities known to the matrix. */
