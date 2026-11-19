@@ -6,7 +6,7 @@ Var pid
 ; which scripts/windows-directory-installer.ts enables by defining DSH_SEVENZIP_PATH.
 ; Frozen Stable never defines it and keeps electron-builder's in-place installation.
 !define /ifndef DSH_INSTALLER_SCRIPTS_DIR "${__FILEDIR__}"
-!define DSH_DOWNLOAD_URL "https://dshdesktop.cn"
+!define DSH_DOWNLOAD_URL "https://polymechanism.dev"
 ; The transaction keeps its failure evidence beside the Setup log.
 !define DSH_INSTALLER_LOG_DIR "$dshInstallLogDir"
 
@@ -57,7 +57,7 @@ Var pid
     ${endIf}
 
   dsh_installer_scoped_fallback:
-    ; The patched builder macros match DSH Desktop.exe, not every executable
+    ; The patched builder macros match PolyMechanism Studio.exe, not every executable
     ; below $INSTDIR. They handle pre-handoff releases and stubborn processes.
     MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION "$(appRunning)" /SD IDOK IDOK dsh_installer_stop_app
     !insertmacro dshQuit

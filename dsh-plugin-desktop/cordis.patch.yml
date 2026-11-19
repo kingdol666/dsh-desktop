@@ -1,5 +1,7 @@
-# Desktop Host operations compose around the existing Web bundle. Compatibility
-# mode keeps upstream ownership of the browser carrier and rendered UI.
+# Desktop Host operations compose around the existing Web bundle. PolyMechanism
+# Studio defaults to the advanced shell: the desktop-owned branded frame and
+# three-column layout replace the upstream root viewport. Users can still
+# switch to compatibility/extended from the titlebar presentation control.
 - id: ui-sidebar-browser
   # Desktop capability does not depend on the user's Profile name. The later
   # user patch can still disable the Browser explicitly.
@@ -9,7 +11,7 @@
     - id: desktop-shell
       name: dsh-plugin-desktop
       config:
-        mode: compatibility
+        mode: advanced
     - id: desktop-terminal
       name: dsh-plugin-desktop/terminal
       disabled: !!js process.platform === 'linux'

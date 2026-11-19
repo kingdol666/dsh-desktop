@@ -1,4 +1,4 @@
-/** Headless version checks against the public DSH Desktop release service. */
+/** Headless version checks against the public PolyMechanism Studio release service. */
 
 import {
   assertDesktopInstallationId,
@@ -6,8 +6,13 @@ import {
   type DesktopInstallationId,
 } from './desktop-installation-id.ts'
 
-/** Public endpoint returning the latest DSH Desktop version for a requested channel. */
-export const DESKTOP_VERSION_ENDPOINT = 'https://www.dshdesktop.cn/api/desktop/version'
+/**
+ * Public endpoint returning the latest PolyMechanism Studio version for a
+ * requested channel. The fork must host its own release service before
+ * shipping auto-updates; until that service exists, checks fail gracefully
+ * and the in-app updater stays inert.
+ */
+export const DESKTOP_VERSION_ENDPOINT = 'https://updates.polymechanism.dev/api/desktop/version'
 
 /** Header carrying the installed Desktop version to the fixed version endpoint. */
 export const DESKTOP_CURRENT_VERSION_HEADER = 'X-DSH-Desktop-Version'
@@ -115,7 +120,7 @@ export function compareSemVerVersions(left: string, right: string): number | nul
 }
 
 /**
- * Check the fixed DSH Desktop version endpoint for a release in one channel.
+ * Check the fixed PolyMechanism Studio version endpoint for a release in one channel.
  * @param options - installed version, caller-owned signal, and optional request adapter.
  * @returns a successful comparison, or null when any request or validation step fails.
  */

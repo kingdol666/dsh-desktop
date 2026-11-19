@@ -1,4 +1,4 @@
-/** DSH Desktop executable: minimal Electron bootstrap around the Host Cordis root. */
+/** PolyMechanism Studio executable: minimal Electron bootstrap around the Host Cordis root. */
 
 // Tool subprocesses start the private Node runner through this Electron binary,
 // so that runner child needs ELECTRON_RUN_AS_NODE. Exporting it from this

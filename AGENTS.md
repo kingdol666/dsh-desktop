@@ -1,5 +1,7 @@
 # DSH Desktop repository rules
 
+> **PolyMechanism fork note**: 本仓库的完整开发规范见 [AGENT.md](AGENT.md)（产品身份、分层架构、代码风格、双轴评审协议）。本文件为上游规则，与 AGENT.md 冲突时以 AGENT.md 为准。
+
 This repository owns the desktop product around an unmodified DeepSeek Harness checkout.
 
 ## Prerequisites and setup

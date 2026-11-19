@@ -1,4 +1,4 @@
-/** Headless, confirmation-gated downloads for DSH Desktop installers. */
+/** Headless, confirmation-gated downloads for PolyMechanism Studio installers. */
 
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto'
 import { chmod, lstat, mkdir, open, readFile, rename, unlink } from 'node:fs/promises'
@@ -18,8 +18,8 @@ export type DesktopDownloadPlatform = 'darwin' | 'win32'
 
 /** Fixed download endpoints that record one user-confirmed installer download. */
 export const DESKTOP_DOWNLOAD_URLS: Readonly<Record<DesktopDownloadPlatform, string>> = {
-  darwin: 'https://www.dshdesktop.cn/api/downloads/mac',
-  win32: 'https://www.dshdesktop.cn/api/downloads/windows',
+  darwin: 'https://updates.polymechanism.dev/api/downloads/mac',
+  win32: 'https://updates.polymechanism.dev/api/downloads/windows',
 }
 
 /** Header pinning a download request and response to the checked release. */
@@ -220,7 +220,7 @@ export function desktopUpdateFilename(
   validatedVersion(version, channel)
   const extension = platform === 'darwin' ? 'dmg' : 'exe'
   const platformName = platform === 'darwin' ? 'mac' : 'windows'
-  const product = parseCanonicalChannelVersion(version, 'next') !== null ? 'DSH-NEXT' : channel === 'beta' ? 'DSH-Desktop-Beta' : 'DSH-Desktop'
+  const product = parseCanonicalChannelVersion(version, 'next') !== null ? 'DSH-NEXT' : channel === 'beta' ? 'PolyMechanism-Studio-Beta' : 'PolyMechanism-Studio'
   return `${product}-${version}-${platformName}.${extension}`
 }
 

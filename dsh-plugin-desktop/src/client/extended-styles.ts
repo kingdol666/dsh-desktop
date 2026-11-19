@@ -116,6 +116,18 @@ body[data-dsh-desktop-mode="extended"]:not([data-dsh-desktop-material="off"]) {
   transform: translateX(-50%);
   pointer-events: none;
 }
+.dshDesktopFrameBrand {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+.dshDesktopFrameMark {
+  width: 16px;
+  height: 16px;
+  color: var(--dsw-alias-brand-primary);
+  flex: none;
+}
 .dshDesktopFrameProduct { font-size: 13px; font-weight: 600; white-space: nowrap; }
 .dshDesktopFrameVersion {
   min-height: 22px;

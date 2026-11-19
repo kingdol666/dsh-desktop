@@ -4,6 +4,9 @@
 
 <h1 align="center">DSH Desktop</h1>
 
+> [!IMPORTANT]
+> **PolyMechanism Fork 说明**：本仓库是 `anywhere-labs/dsh-desktop` 的 fork，正在改造为 **PolyMechanism Studio** —— 面向高分子科学的 AI 科研工作台（多专家 Agent + 领域引擎）。Stable 桌面包（`dsh-plugin-desktop/`）的产品身份与用户可见界面已更名；上游 DSH 运行时（`deepseek-harness/` 子模块与 vendored runtime）保持原样未改动。架构解读与完整执行计划见 [docs/polymechanism/](docs/polymechanism/)。原始 DSH Desktop 说明保留在下文。
+
 <p align="center">
   <strong>基于 DeepSeek Harness 构建的 Windows、macOS 和 Linux 开源桌面客户端。</strong>
 </p>

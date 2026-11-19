@@ -63,7 +63,7 @@ function context(
     ...(arch === undefined ? {} : { arch }),
     packager: {
       ...(executableName === undefined ? {} : { executableName }),
-      appInfo: { productFilename: 'DSH Desktop' },
+      appInfo: { productFilename: 'PolyMechanism Studio' },
     },
   }
 }
@@ -334,13 +334,13 @@ describe('packaged desktop runtime verification', () => {
   it.each([
     [
       'darwin',
-      join('/build', 'DSH Desktop.app', 'Contents', 'Resources', 'app.asar'),
-      join('/build', 'DSH Desktop.app', 'Contents', 'MacOS', 'DSH Desktop'),
+      join('/build', 'PolyMechanism Studio.app', 'Contents', 'Resources', 'app.asar'),
+      join('/build', 'PolyMechanism Studio.app', 'Contents', 'MacOS', 'PolyMechanism Studio'),
     ],
     [
       'win32',
       join('/build', 'resources', 'app.asar'),
-      join('/build', 'DSH Desktop.exe'),
+      join('/build', 'PolyMechanism Studio.exe'),
     ],
   ])('inspects the %s selective ASAR layout', (platform, expectedPath, expectedExecutable) => {
     const runtimeContext = context('/build', platform)
