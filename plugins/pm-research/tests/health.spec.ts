@@ -24,7 +24,9 @@ describe('pm health surface', () => {
       surfaceVersion: PM_SURFACE_VERSION,
       capabilities: ['/pm/health'],
       uptimeSeconds: 95,
+      tools: [],
     })
+    expect(PM_SURFACE_VERSION).toBe(2)
   })
 
   it('clamps negative uptime to zero', () => {

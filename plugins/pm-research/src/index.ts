@@ -4,9 +4,11 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Context } from '@deepseek-ai/cordis'
 // Type-only convergence: the webserver package augments `Context.webServer`.
 import type {} from '@deepseek-ai/dsh-host-webserver'
+import { PmResearchEngine, resolvePmDataRoot, type PmResearchConfig } from './service.ts'
+import { registerPmTools } from './tools.ts'
 
 /** Version of the pm HTTP surface served under `/pm/*`. Bump on breaking changes. */
-export const PM_SURFACE_VERSION = 1 as const
+export const PM_SURFACE_VERSION = 2 as const
 
 /** Identity and capability report served by `/pm/health`. */
 export interface PmHealthReport {
@@ -20,6 +22,8 @@ export interface PmHealthReport {
   readonly capabilities: readonly string[]
   /** Process uptime in seconds when the report was built. */
   readonly uptimeSeconds: number
+  /** Tool names registered on the Host tool runtime (empty when `tools` is absent). */
+  readonly tools: readonly string[]
 }
 
 /** Build the health report served at `/pm/health`. @param uptimeMs - Host process uptime in milliseconds. */
@@ -30,6 +34,7 @@ export function buildPmHealthReport(uptimeMs: number): PmHealthReport {
     surfaceVersion: PM_SURFACE_VERSION,
     capabilities: ['/pm/health'],
     uptimeSeconds: Math.max(0, Math.round(uptimeMs / 1000)),
+    tools: [],
   }
 }
 
@@ -56,17 +61,32 @@ export function createPmHealthHandler(report: PmHealthReport): (req: IncomingMes
 export const inject = ['webServer'] as const
 
 /**
- * Register the PolyMechanism domain routes on the shared WebServer carrier.
+ * Register the PolyMechanism domain routes and tools on the shared carrier.
  * @param ctx - Host Cordis context.
+ * @param config - optional plugin config (`dataRoot` overrides `$DSH_HOME/pm`).
  */
-export function apply(ctx: Context): void {
+export function apply(ctx: Context, config: PmResearchConfig = {}): void {
   const startedAt = Date.now()
+  const engine = PmResearchEngine.open(resolvePmDataRoot(config))
   ctx.effect(
     () => ctx.webServer.register({
       kind: 'exact',
       path: '/pm/health',
-      handler: (_req, res) => { writePmJson(res, buildPmHealthReport(Date.now() - startedAt)) },
+      handler: (_req, res) => { writePmJson(res, { ...buildPmHealthReport(Date.now() - startedAt), tools: registeredTools() }) },
     }),
     'pm-research: /pm/health route',
   )
+  registerPmTools(ctx, engine)
+}
+
+/** Tools registered by this plugin in the current process (health-report view). */
+export function registeredTools(): readonly string[] {
+  return [
+    'pm_project_create',
+    'pm_evidence_record',
+    'pm_evidence_query',
+    'pm_evidence_verify',
+    'pm_hypothesis_propose',
+    'pm_hypothesis_transition',
+  ]
 }

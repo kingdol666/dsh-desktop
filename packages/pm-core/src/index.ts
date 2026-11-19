@@ -12,3 +12,5 @@ export function pmSurfaceVersions(): { domain: typeof PM_DOMAIN_VERSION; core: t
 
 export * from './evidence-ledger.ts'
 export * from './hypothesis-machine.ts'
+export * from './hypothesis-store.ts'
+export * from './project-store.ts'

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "createdAt": "2026-11-19T15:53:51.168Z",
-  "updatedAt": "2026-11-19T16:32:52.241Z",
+  "updatedAt": "2026-11-19T16:43:20.492Z",
   "briefPath": ".omc/ultragoal/brief.md",
   "goalsPath": ".omc/ultragoal/goals.json",
   "ledgerPath": ".omc/ultragoal/ledger.jsonl",
@@ -23,10 +23,13 @@
       "id": "G002",
       "title": "领域模型与证据账本",
       "objective": "pm-domain 实体+zod+5条不变量；append-only JSONL 证据账本(哈希/去重/校验)；假设状态机(合法迁移+证据门槛)；单测覆盖",
-      "status": "pending",
-      "attempt": 0,
+      "status": "complete",
+      "attempt": 1,
       "createdAt": "2026-11-19T15:53:51.168Z",
-      "updatedAt": "2026-11-19T15:53:51.168Z"
+      "updatedAt": "2026-11-19T16:43:20.492Z",
+      "startedAt": "2026-11-19T16:43:19.791Z",
+      "completedAt": "2026-11-19T16:43:20.492Z",
+      "evidence": "PR#3 merged (5a58c15dfb): pm-domain 9 entities + pure invariants; pm-core append-only JSONL evidence ledger (canonical SHA-256, dedup, tamper localization) + hypothesis machine; 14/14 vitest, typechecks exit 0"
     },
     {
       "id": "G003",
