@@ -14,6 +14,7 @@ import {
   type GateVerdict,
   type RecordEvidenceInput,
 } from '@polymechanism/pm-core'
+import { spawnCae, persistCaeArtifact, summarizeCae, type CaeRunResult, type CaeSummary } from './cae.ts'
 import type {
   DiscriminatingTest,
   EntityId,
@@ -28,6 +29,8 @@ import type {
 export interface PmResearchConfig {
   /** Absolute data root; defaults to `$DSH_HOME/pm`. */
   readonly dataRoot?: string
+  /** Absolute checkout of the oblique biaxial CAE engine; defaults to `$PM_CAE_ROOT`. */
+  readonly caeRoot?: string
 }
 
 /** Resolve the plugin data root from config and environment. */
@@ -35,6 +38,13 @@ export function resolvePmDataRoot(config: PmResearchConfig = {}): string {
   if (config.dataRoot !== undefined && config.dataRoot.length > 0) return config.dataRoot
   const home = process.env.DSH_HOME
   return join(home === undefined || home.length === 0 ? process.cwd() : home, 'pm')
+}
+
+/** Resolve the CAE engine checkout from config and environment. */
+export function resolveCaeRoot(config: PmResearchConfig = {}): string | undefined {
+  if (config.caeRoot !== undefined && config.caeRoot.length > 0) return config.caeRoot
+  const env = process.env.PM_CAE_ROOT
+  return env !== undefined && env.length > 0 ? env : undefined
 }
 
 /** Four hex chars from a statement digest, used in hypothesis ids. */
@@ -50,14 +60,15 @@ export class PmResearchEngine {
   private readonly ledgers = new Map<EntityId, EvidenceLedger>()
   private readonly ledgerAppends = new Map<EntityId, Promise<unknown>>()
 
-  private constructor(private readonly dataRoot: string) {}
+  private constructor(private readonly dataRoot: string, private readonly caeRoot?: string) {}
 
   /**
    * Create the engine over `dataRoot` (created on demand).
    * @param dataRoot - absolute directory for all pm state.
+   * @param caeRoot - optional CAE engine checkout enabling pm_cae_* capabilities.
    */
-  static open(dataRoot: string): PmResearchEngine {
-    return new PmResearchEngine(dataRoot)
+  static open(dataRoot: string, caeRoot?: string): PmResearchEngine {
+    return new PmResearchEngine(dataRoot, caeRoot)
   }
 
   /** Directory root (diagnostics and tests). */
@@ -184,6 +195,9 @@ export class PmResearchEngine {
    * @param to - requested status.
    * @param rationale - required reason.
    * @param actor - requesting identity.
+   * @param additionalEvidenceIds - evidence recorded after proposal (e.g. the
+   *   discriminating run); resolved from the ledger and merged with the
+   *   hypothesis's own citations.
    */
   async transitionHypothesis(
     projectId: EntityId,
@@ -191,6 +205,7 @@ export class PmResearchEngine {
     to: Hypothesis['status'],
     rationale: string,
     actor: string,
+    additionalEvidenceIds?: readonly EntityId[],
   ): Promise<{ legal: boolean; reason?: string; hypothesis?: Hypothesis }> {
     // Resolve the cited evidence from the ledger so callers cannot invent gate fields.
     const items = await this.hypothesisStore().list(projectId)
@@ -198,7 +213,10 @@ export class PmResearchEngine {
     if (current === undefined) return { legal: false, reason: `hypothesis ${hypothesisId} not found` }
     const ledger = await this.ledger(projectId)
     const resolved: { id: EntityId; polarity: Evidence['polarity']; strength: Evidence['strength'] }[] = []
-    for (const id of current.evidenceIds) {
+    const seen = new Set<EntityId>()
+    for (const id of [...current.evidenceIds, ...(additionalEvidenceIds ?? [])]) {
+      if (seen.has(id)) continue
+      seen.add(id)
       const record = (await ledger).get(id)
       if (record !== undefined) resolved.push({ id: record.id, polarity: record.polarity, strength: record.strength })
     }
@@ -289,6 +307,46 @@ export class PmResearchEngine {
       }
     }
     return evaluateGate({ ...input, ...(resolved.length === 0 ? {} : { evidence: resolved }) })
+  }
+
+  /**
+   * Run the affine verification coupon through the real CAE engine and archive the artifact.
+   * @param projectId - owning project (artifact lands in its directory).
+   * @param args - coupon stretch parameters.
+   */
+  async runCaeCoupon(projectId: EntityId, args: { stretchX: number; stretchY: number; mesh?: string }): Promise<{ result: CaeRunResult; summary: CaeSummary; artifactPath?: string }> {
+    const result = await this.spawnCaeChecked(['--mode', 'coupon', '--mesh', args.mesh ?? '4,8', '--stretch-x', String(args.stretchX), '--stretch-y', String(args.stretchY)])
+    const archived = await this.archiveCaeResult(projectId, `coupon-${args.stretchX}-${args.stretchY}`, result)
+    return { result, summary: summarizeCae(result), ...(archived === undefined ? {} : { artifactPath: archived }) }
+  }
+
+  /**
+   * Run the whole-machine CAE process and archive the artifact.
+   * @param projectId - owning project.
+   * @param params - engine parameter overrides (material/machine/process).
+   */
+  async runCaeRun(projectId: EntityId, params?: Record<string, unknown>): Promise<{ result: CaeRunResult; summary: CaeSummary; artifactPath?: string }> {
+    const argv = ['--mode', 'run', '--time', '0']
+    if (params !== undefined) argv.push('--params', JSON.stringify(params))
+    const result = await this.spawnCaeChecked(argv)
+    const archived = await this.archiveCaeResult(projectId, `run-${Date.now()}`, result)
+    return { result, summary: summarizeCae(result), ...(archived === undefined ? {} : { artifactPath: archived }) }
+  }
+
+  private async spawnCaeChecked(argv: readonly string[]): Promise<CaeRunResult> {
+    if (this.caeRoot === undefined || this.caeRoot.length === 0) {
+      throw new Error('CAE engine root not configured (set caeRoot config or PM_CAE_ROOT)')
+    }
+    return spawnCae(this.caeRoot, argv)
+  }
+
+  private async archiveCaeResult(projectId: EntityId, name: string, result: CaeRunResult): Promise<string | undefined> {
+    try {
+      const { artifactPath } = await persistCaeArtifact(join(this.dataRoot, 'projects', projectId, 'artifacts'), name, result)
+      return artifactPath
+    } catch {
+      return undefined
+    }
   }
 }
 

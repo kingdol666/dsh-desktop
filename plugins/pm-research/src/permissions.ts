@@ -56,6 +56,8 @@ export const TOOL_PERMISSIONS: Readonly<Record<string, readonly string[]>> = Obj
     'polymer-literature',
     'polymer-reviewer',
   ]),
+  'pm_cae_run': Object.freeze(['polymer-modeler', 'polymer-scientist']),
+  'pm_cae_coupon': Object.freeze(['polymer-modeler', 'polymer-characterization', 'polymer-scientist']),
 })
 
 /** All preset identities known to the matrix. */
