@@ -269,6 +269,7 @@ interface PmScience   { caeRun(i); caeStudy(i); opticsAnalyze(i); characterizati
 
 | 方法 | 路径 | Body | 响应 |
 | --- | --- | --- | --- |
+| GET | `/pm/overview` | — | `{ok,data:{projects,totals,cae}}`（首页脉冲；只读聚合） |
 | GET | `/pm/projects` | — | `{ok,data:Project[]}` |
 | POST | `/pm/projects` | `{title,question,domain}` | `{ok,data:Project}` |
 | GET | `/pm/projects/:id` | — | `{ok,data:Project}` |

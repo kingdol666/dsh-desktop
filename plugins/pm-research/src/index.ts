@@ -4,7 +4,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Context } from '@deepseek-ai/cordis'
 // Type-only convergence: the webserver package augments `Context.webServer`.
 import type {} from '@deepseek-ai/dsh-host-webserver'
-import { PmResearchEngine, resolvePmDataRoot, type PmResearchConfig } from './service.ts'
+import { PmResearchEngine, resolveCaeRoot, resolvePmDataRoot, type PmResearchConfig } from './service.ts'
 import { registerPmTools } from './tools.ts'
 import { registerSkills } from './skills.ts'
 
@@ -33,7 +33,7 @@ export function buildPmHealthReport(uptimeMs: number): PmHealthReport {
     ok: true,
     service: 'pm-research',
     surfaceVersion: PM_SURFACE_VERSION,
-    capabilities: ['/pm/health'],
+    capabilities: ['/pm/health', '/pm/overview'],
     uptimeSeconds: Math.max(0, Math.round(uptimeMs / 1000)),
     tools: [],
   }
@@ -68,7 +68,7 @@ export const inject = ['webServer'] as const
  */
 export function apply(ctx: Context, config: PmResearchConfig = {}): void {
   const startedAt = Date.now()
-  const engine = PmResearchEngine.open(resolvePmDataRoot(config))
+  const engine = PmResearchEngine.open(resolvePmDataRoot(config), resolveCaeRoot(config))
   ctx.effect(
     () => ctx.webServer.register({
       kind: 'exact',
@@ -76,6 +76,32 @@ export function apply(ctx: Context, config: PmResearchConfig = {}): void {
       handler: (_req, res) => { writePmJson(res, { ...buildPmHealthReport(Date.now() - startedAt), tools: registeredTools() }) },
     }),
     'pm-research: /pm/health route',
+  )
+  ctx.effect(
+    () => ctx.webServer.register({
+      kind: 'exact',
+      path: '/pm/overview',
+      handler: (_req, res) => {
+        void engine.overview().then(
+          overview => { writePmJson(res, { ok: true, data: overview }) },
+          cause => {
+            res.statusCode = 500
+            res.setHeader('cache-control', 'no-store')
+            res.setHeader('content-type', 'application/json; charset=utf-8')
+            res.setHeader('x-content-type-options', 'nosniff')
+            res.end(JSON.stringify({
+              ok: false,
+              error: {
+                code: 'INTERNAL',
+                message: cause instanceof Error ? cause.message : String(cause),
+                hint: 'retry, or check the pm data root and its project ledgers',
+              },
+            }))
+          },
+        )
+      },
+    }),
+    'pm-research: /pm/overview route',
   )
   registerPmTools(ctx, engine)
   registerSkills(ctx)
@@ -90,5 +116,14 @@ export function registeredTools(): readonly string[] {
     'pm_evidence_verify',
     'pm_hypothesis_propose',
     'pm_hypothesis_transition',
+    'pm_mechanism_query',
+    'pm_mechanism_propose_edge',
+    'pm_mechanism_import_seed',
+    'pm_knowledge_query',
+    'pm_knowledge_propose',
+    'pm_knowledge_review',
+    'pm_gate_check',
+    'pm_cae_run',
+    'pm_cae_coupon',
   ]
 }

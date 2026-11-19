@@ -22,7 +22,7 @@
 1. **禁止修改 `deepseek-harness/` 子模块内任何文件**，也**禁止修改 `vendor/dsh-runtime/` 下的 vendored tarball**。上游能力只通过组合（cordis patch / slots / services）接入。
 2. **领域层零 DSH 依赖**：`packages/domain`、`packages/research-core`（规划中）不得 import 任何 `@deepseek-ai/*`、`electron` 或 Node 专有 API——科学资产必须可在无 Harness 环境下复用（在仓库根 `scripts/` 有架构方向门禁，新增跨层 import 前先查）。
 3. **Agent 永远不拥有事实写入权**：任何"机理结论/证据状态"的变更只能经科研引擎服务端 API（Evidence/Hypothesis 服务）发生，带审计日志；客户端与 Prompt 不得绕过。
-4. **Compatibility 模式零覆盖**：兼容模式必须原样呈现上游客户端；自定义呈现只属于 desktop-owned client 插件经 slot/service 组合实现（上游规则，继续生效）。
+4. **Compatibility 模式行为零覆盖**：兼容模式必须保留上游的交互与数据路径，不得替换上游 React 树或会话行为。产品品牌与视觉层允许经 **desktop-owned client 插件**（slot/service 组合 + 受作用域控制的样式层）在所有呈现模式中生效；上游组件自身的业务逻辑与状态管理不得改写。
 5. **平台数据不变式**：`productName`/`appId`/`homeDirectoryName` 变更属破坏性产品决策，必须同步更新 `package.json` build 配置、全部受影响测试、并在 PR 描述中写明用户数据迁移影响。
 6. **Secrets 不进仓库**：API Key、证书、用户数据路径白名单一律走 Profile 配置或系统凭据库；日志输出必须过 `mask-secrets.ts`。
 
@@ -52,7 +52,7 @@ Electron 薄壳(main.ts) → Host 子进程(Cordis 运行时=vendored) → Web c
 - **Cordis 插件三段式**：`inject` 声明依赖 → `apply(ctx)` 注册 → `ctx.effect(fn, '描述性标签')`，标签格式 `'dsh-plugin-desktop: xxx'`；作用域化的 inject 用 `ctx.inject([...], fn)` 并写明原因注释（参见 `src/client/index.ts:163` 的死锁说明——**关键耦合必须留"为什么"注释**）。
 - **generation 纪律**：窗口、子进程、service reference 一律不跨 generation 缓存；释放路径必须幂等（`release()` 模式）。
 - 双语文案**只在 copy 模块**（`*-copy.ts` / `*-locales.ts`）以 zh/en 成对定义，组件内禁止散落用户可见字符串；文案变更必须同步对应 spec 断言。
-- CSS 类名前缀 `dshDesktop*`；Desktop-owned 样式集中在 `styles.ts` / `extended-styles.ts`（模板字符串导出）或 native-ui 的 `style.css`；颜色用上游主题变量（`--dsw-alias-*`），不硬编码色值。
+- CSS 类名前缀 `dshDesktop*`；Desktop-owned 样式集中在 `styles.ts` / `extended-styles.ts`（模板字符串导出）或 native-ui 的 `style.css`；颜色优先用上游主题变量（`--dsw-alias-*`），产品视觉层的 `--pm-*` 品牌/语义色集中定义在 `pm-studio/styles.ts` 的 token 块（docs 07 §2.1），组件与内联样式不得出现字面色值。
 - Python（`science/`）：uv 管理依赖；公共函数带类型标注与 docstring；MCP 工具名 snake_case、动词开头（`fit_relaxation`）。
 
 ## 4. UI 开发规范

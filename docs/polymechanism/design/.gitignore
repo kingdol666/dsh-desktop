@@ -1,0 +1,3 @@
+# Local verification captures from the running desktop app. They contain the
+# reviewer's real workspace/session names, so they stay out of the repository.
+live-*.png
