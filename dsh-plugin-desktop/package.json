@@ -44,6 +44,10 @@
       "types": "./lib/types/terminal.d.ts",
       "default": "./lib/terminal.js"
     },
+    "./pm": {
+      "types": "./lib/types/pm/index.d.ts",
+      "default": "./lib/pm.js"
+    },
     "./pnpm": {
       "types": "./lib/types/pnpm.d.ts",
       "default": "./lib/pnpm.js"
@@ -127,7 +131,7 @@
     }
   },
   "scripts": {
-    "build": "node scripts/clean.mjs && node ../scripts/run-parallel.mjs \"tsdown\" \"vite build --config vite.client.config.ts\" \"vite build --config vite.native-ui.config.ts\" \"tsc -p tsconfig.json --emitDeclarationOnly\" \"tsc -p tsconfig.client.json --emitDeclarationOnly\"",
+    "build": "yarn workspace pm-research build && node scripts/clean.mjs && node ../scripts/run-parallel.mjs \"tsdown\" \"vite build --config vite.client.config.ts\" \"vite build --config vite.native-ui.config.ts\" \"tsc -p tsconfig.json --emitDeclarationOnly\" \"tsc -p tsconfig.client.json --emitDeclarationOnly\"",
     "typecheck": "node ../scripts/run-parallel.mjs \"tsc -p tsconfig.native-ui.json --noEmit\" \"tsc -p tsconfig.tests.json --noEmit\" \"tsc -p tsconfig.tests.client.json --noEmit\"",
     "test": "vitest run",
     "verify:closure": "node --test scripts/runtime-closure.spec.mjs && node scripts/verify-runtime-closure.mjs",
@@ -343,6 +347,7 @@
     "fs-ext": "2.1.1",
     "koffi": "3.1.1",
     "node-addon-require-builtin": "^0.1.9",
+    "pm-research": "workspace:*",
     "pnpm": "11.28.5",
     "react": "18.3.1",
     "selfsigned": "5.5.0",

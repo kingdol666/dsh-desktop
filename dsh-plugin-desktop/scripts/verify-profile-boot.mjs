@@ -352,6 +352,22 @@ try {
   if (mountedSpec?.rendererAccessHeader !== BROWSER_ACCESS.rendererHeader) {
     throw new Error('assembled profile did not preserve the launcher browser capability')
   }
+  // pm-research domain surface: renderer-authenticated health probe plus an
+  // unauthenticated denial from the desktop browser gate.
+  const pmHealth = await fetch(`http://127.0.0.1:${String(ctx.webServer.port)}/pm/health`, {
+    headers: { [BROWSER_ACCESS.rendererHeader.name]: BROWSER_ACCESS.rendererHeader.value },
+  })
+  if (!pmHealth.ok) {
+    throw new Error(`pm-research /pm/health answered ${String(pmHealth.status)} for the renderer`)
+  }
+  const pmHealthPayload = await pmHealth.json()
+  if (pmHealthPayload?.service !== 'pm-research' || pmHealthPayload?.ok !== true) {
+    throw new Error(`pm-research /pm/health returned an unexpected payload: ${JSON.stringify(pmHealthPayload)}`)
+  }
+  const pmDenied = await fetch(`http://127.0.0.1:${String(ctx.webServer.port)}/pm/health`)
+  if (pmDenied.status !== 403) {
+    throw new Error(`pm-research /pm/health answered ${String(pmDenied.status)} without a renderer token`)
+  }
   if (nativeThemeSource !== 'system') {
     throw new Error(`desktop plugin produced an unexpected native theme source: ${nativeThemeSource}`)
   }

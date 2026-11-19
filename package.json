@@ -14,7 +14,10 @@
     "dsh-community-fabric",
     "dsh-community-market",
     "dsh-tokens-anywhere",
-    "dsh-acp-bridge"
+    "dsh-acp-bridge",
+    "packages/*",
+    "plugins/*",
+    "ui/*"
   ],
   "resolutions": {
     "@electron/osx-sign@npm:1.3.3": "patch:@electron/osx-sign@npm%3A1.3.3#./patches/@electron__osx-sign@1.3.3.patch",

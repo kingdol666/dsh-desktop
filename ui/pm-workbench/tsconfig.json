@@ -1,0 +1,4 @@
+{
+  "extends": "../../packages/pm-domain/tsconfig.json",
+  "include": ["src/**/*.ts"]
+}
