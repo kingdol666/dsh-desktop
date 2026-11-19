@@ -107,12 +107,13 @@ export class EvidenceLedger {
    */
   verify(): { verified: boolean; brokenAt?: EntityId; chainLength: number } {
     for (const record of this.records) {
+      const stored = record as Evidence
       const expected = evidenceHash({
         claimSupport: record.claimSupport,
         polarity: record.polarity,
         strength: record.strength,
         sourceRef: record.sourceRef,
-        payload: (record as unknown as { payload?: Record<string, unknown> }).payload,
+        ...(stored.payload === undefined ? {} : { payload: stored.payload }),
       })
       if (expected !== record.hash) {
         return { verified: false, brokenAt: record.id, chainLength: this.records.length }
@@ -131,7 +132,7 @@ export class EvidenceLedger {
     const existing = this.byHash.get(hash)
     if (existing !== undefined) return { evidence: existing, deduped: true }
     const id = nextEvidenceId(this.records, hash)
-    const record: Evidence & { payload?: Record<string, unknown> } = {
+    const record: Evidence = {
       id,
       ...(input.observationId === undefined ? {} : { observationId: input.observationId }),
       claimSupport: input.claimSupport,
@@ -141,9 +142,8 @@ export class EvidenceLedger {
       hash,
       recordedBy: input.recordedBy,
       recordedAt: input.recordedAt ?? new Date().toISOString(),
-      payload: input.payload === undefined ? undefined : { ...input.payload },
+      ...(input.payload === undefined ? {} : { payload: { ...input.payload } }),
     }
-    if (record.payload === undefined) delete (record as { payload?: unknown }).payload
     await mkdir(dirname(this.filePath), { recursive: true })
     await appendFile(this.filePath, `${JSON.stringify(record)}\n`, 'utf8')
     this.records.push(record)

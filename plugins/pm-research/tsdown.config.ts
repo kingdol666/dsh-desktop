@@ -13,4 +13,5 @@ export default defineConfig({
   sourcemap: true,
   outExtensions: () => ({ js: '.js' }),
   external: [/^@deepseek-ai\//, /^node:/],
+  noExternal: [/^@polymechanism\//],
 })

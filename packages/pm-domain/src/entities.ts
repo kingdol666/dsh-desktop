@@ -67,7 +67,7 @@ export interface HypothesisInput {
   readonly mechanismEdgeIds: readonly EntityId[]
   readonly evidenceIds: readonly EntityId[]
   /** The observation that would discriminate this hypothesis from its competitors. */
-  readonly discriminatingTest?: DiscriminatingTest
+  readonly discriminatingTest?: DiscriminatingTest | undefined
 }
 
 export interface DiscriminatingTest {

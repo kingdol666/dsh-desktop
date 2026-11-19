@@ -15501,12 +15501,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@polymechanism/pm-core@workspace:packages/pm-core":
+"@polymechanism/pm-core@workspace:*, @polymechanism/pm-core@workspace:packages/pm-core":
   version: 0.0.0-use.local
   resolution: "@polymechanism/pm-core@workspace:packages/pm-core"
   dependencies:
     "@polymechanism/pm-domain": "workspace:*"
     "@types/node": "npm:^22.20.0"
+    tsdown: "npm:0.22.2"
     typescript: "npm:6.0.3"
     vitest: "npm:4.1.8"
   languageName: unknown
@@ -15517,7 +15518,9 @@ __metadata:
   resolution: "@polymechanism/pm-domain@workspace:packages/pm-domain"
   dependencies:
     "@types/node": "npm:^22.20.0"
+    tsdown: "npm:0.22.2"
     typescript: "npm:6.0.3"
+    vitest: "npm:4.1.8"
   languageName: unknown
   linkType: soft
 
@@ -23978,7 +23981,20 @@ __metadata:
   resolution: "pm-research@workspace:plugins/pm-research"
   dependencies:
     "@deepseek-ai/cordis": "npm:4.0.5"
+    "@deepseek-ai/dsh-agent": "npm:0.2.1-rc.3"
     "@deepseek-ai/dsh-host-webserver": "npm:0.2.1-rc.3"
+    "@deepseek-ai/dsh-llm": "npm:0.2.1-rc.3"
+    "@deepseek-ai/dsh-ptc-runtime": "npm:0.2.1-rc.3"
+    "@deepseek-ai/dsh-sandbox": "npm:0.2.1-rc.3"
+    "@deepseek-ai/dsh-sandbox-policy": "npm:0.2.1-rc.3"
+    "@deepseek-ai/dsh-scope": "npm:0.2.1-rc.3"
+    "@deepseek-ai/dsh-session": "npm:0.2.1-rc.3"
+    "@deepseek-ai/dsh-system-prompt": "npm:0.2.1-rc.3"
+    "@deepseek-ai/dsh-tools": "npm:0.2.1-rc.3"
+    "@deepseek-ai/dsh-user-approval": "npm:0.2.1-rc.3"
+    "@deepseek-ai/dsh-working-directory": "npm:0.2.1-rc.3"
+    "@polymechanism/pm-core": "workspace:*"
+    "@polymechanism/pm-domain": "workspace:*"
     "@types/node": "npm:^22.20.0"
     tsdown: "npm:0.22.2"
     typescript: "npm:6.0.3"
