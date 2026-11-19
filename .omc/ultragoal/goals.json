@@ -1,7 +1,7 @@
 {
   "version": 1,
   "createdAt": "2026-11-19T15:53:51.168Z",
-  "updatedAt": "2026-11-19T16:43:20.492Z",
+  "updatedAt": "2026-11-19T17:01:32.019Z",
   "briefPath": ".omc/ultragoal/brief.md",
   "goalsPath": ".omc/ultragoal/goals.json",
   "ledgerPath": ".omc/ultragoal/ledger.jsonl",
@@ -35,10 +35,13 @@
       "id": "G003",
       "title": "工具权限框架与两个专家",
       "objective": "按 role 分文件的工具注册+权限矩阵；polymer-scientist 与 polymer-reviewer preset；Remote/HTTP 通道；会话内 ClaimCard 最小可视化",
-      "status": "pending",
-      "attempt": 0,
+      "status": "complete",
+      "attempt": 1,
       "createdAt": "2026-11-19T15:53:51.168Z",
-      "updatedAt": "2026-11-19T15:53:51.168Z"
+      "updatedAt": "2026-11-19T17:01:32.019Z",
+      "startedAt": "2026-11-19T17:01:31.259Z",
+      "completedAt": "2026-11-19T17:01:32.019Z",
+      "evidence": "PR#4 merged: six pm_* tools with server-side permission matrix (denied-closed), PmResearchEngine (ledger-resolved gate fields, serialized appends), 2 expert preset fragments; pm-research 12/12 + pm-core 14/14 vitest; desktop suite baseline intact; verify:profile EXIT=0"
     },
     {
       "id": "G004-rsi",

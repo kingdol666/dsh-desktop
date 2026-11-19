@@ -27,3 +27,7 @@ dsh-desktop-next/.desktop-build/
 dsh-plugin-desktop/.desktop-build/
 dsh-plugin-desktop-beta/.desktop-next/
 dsh-plugin-desktop-beta/.desktop-build/
+science/.venv/
+science/dist/
+science/*.egg-info/
+__pycache__/
