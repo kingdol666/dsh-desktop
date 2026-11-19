@@ -396,6 +396,26 @@ try {
   if (pmHealthPayload?.service !== 'pm-research' || pmHealthPayload?.ok !== true) {
     throw new Error(`pm-research /pm/health returned an unexpected payload: ${JSON.stringify(pmHealthPayload)}`)
   }
+  if (!pmHealthPayload.capabilities?.includes('/pm/overview')) {
+    throw new Error(`pm-research /pm/health did not advertise /pm/overview: ${JSON.stringify(pmHealthPayload.capabilities)}`)
+  }
+  if (!pmHealthPayload.tools?.includes('pm_cae_coupon')) {
+    throw new Error('pm-research /pm/health did not advertise the CAE tool surface')
+  }
+  // The blank-home pulse reads the same stores; a missing route would silently
+  // leave the product surface in its loading state.
+  const pmOverview = await fetch(`http://127.0.0.1:${String(ctx.webServer.port)}/pm/overview`, {
+    headers: { [BROWSER_ACCESS.rendererHeader.name]: BROWSER_ACCESS.rendererHeader.value },
+  })
+  if (!pmOverview.ok) {
+    throw new Error(`pm-research /pm/overview answered ${String(pmOverview.status)} for the renderer`)
+  }
+  const pmOverviewPayload = await pmOverview.json()
+  if (pmOverviewPayload?.ok !== true
+    || typeof pmOverviewPayload?.data?.totals?.evidence !== 'number'
+    || typeof pmOverviewPayload?.data?.cae?.configured !== 'boolean') {
+    throw new Error(`pm-research /pm/overview returned an unexpected payload: ${JSON.stringify(pmOverviewPayload)}`)
+  }
   const pmDenied = await fetch(`http://127.0.0.1:${String(ctx.webServer.port)}/pm/health`)
   if (pmDenied.status !== 403) {
     throw new Error(`pm-research /pm/health answered ${String(pmDenied.status)} without a renderer token`)

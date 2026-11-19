@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="theme-color" content="#F4F6FA" />
+<title>PolyMechanism Studio — Home Prototype</title>
+<style>
+  /* ============================================================
+     PolyMechanism Studio — design tokens (Figma handoff v1)
+     Frame: 1600 × 1000 · 8pt grid · light + dark
+     ============================================================ */
+  :root {
+    color-scheme: light;
+    --pm-font: "Inter", "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    --pm-mono: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+
+    --bg-app: #f4f6fa;
+    --bg-surface: #ffffff;
+    --bg-sidebar: #fafbfd;
+    --bg-subtle: #f1f4f9;
+    --bg-hover: #eef1f7;
+    --bg-elevated: #ffffff;
+
+    --text-1: #12151c;
+    --text-2: #596174;
+    --text-3: #667085;
+    --text-inverse: #ffffff;
+
+    --border: #e5e8ef;
+    --border-strong: #d7dce7;
+
+    --brand: #4f6bff;
+    --brand-strong: #3d53d9;
+    --brand-soft: #edf0ff;
+    --brand-ink: #2f3fa8;
+    --brand-glow: rgba(79, 107, 255, 0.16);
+
+    --teal: #0e9f87;
+    --teal-soft: #e5f6f1;
+    --amber: #b07610;
+    --amber-soft: #fbf2df;
+    --rose: #c94b5b;
+    --violet: #7a66e0;
+
+    --shadow-card: 0 1px 2px rgba(18, 21, 28, 0.04), 0 10px 28px rgba(18, 21, 28, 0.07);
+    --shadow-float: 0 12px 40px rgba(18, 21, 28, 0.14);
+
+    --radius-sm: 7px;
+    --radius-md: 8px;
+    --radius-lg: 14px;
+    --radius-xl: 10px;
+  }
+
+  body.theme-dark {
+    color-scheme: dark;
+    --bg-app: #090c12;
+    --bg-surface: #10151e;
+    --bg-sidebar: #0b0f16;
+    --bg-subtle: #141a24;
+    --bg-hover: #182030;
+    --bg-elevated: #151b26;
+
+    --text-1: #e9edf6;
+    --text-2: #9aa4b8;
+    --text-3: #7d889d;
+
+    --border: #1d2431;
+    --border-strong: #2a3242;
+
+    --brand: #6e86ff;
+    --brand-strong: #8b9dff;
+    --brand-soft: #171f3d;
+    --brand-ink: #b7c2ff;
+    --brand-glow: rgba(110, 134, 255, 0.2);
+
+    --teal: #2cc3a8;
+    --teal-soft: #0f2b26;
+    --amber: #e0ac4d;
+    --amber-soft: #2c2314;
+    --rose: #ef7180;
+    --violet: #a392ff;
+
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.25), 0 12px 32px rgba(0, 0, 0, 0.35);
+    --shadow-float: 0 16px 48px rgba(0, 0, 0, 0.5);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    overflow: hidden;
+    background: var(--bg-app);
+    color: var(--text-1);
+    font-family: var(--pm-font);
+    font-size: 13px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    font-variant-numeric: tabular-nums;
+    transition: background-color 240ms ease, color 240ms ease;
+  }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  svg { display: block; }
+  .icon { width: 16px; height: 16px; stroke-width: 1.75; }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+  :focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 6px; }
+  .skip {
+    position: fixed; top: -44px; left: 16px; z-index: 2147483647;
+    padding: 8px 12px; border-radius: 8px;
+    background: var(--bg-surface); color: var(--text-1);
+    border: 1px solid var(--border-strong);
+    box-shadow: var(--shadow-float);
+    font-size: 12.5px; text-decoration: none;
+  }
+  .skip:focus-visible { top: 8px; }
+
+  /* ============ Window frame ============ */
+  .app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    min-width: 1120px;
+    background: var(--bg-app);
+  }
+
+  .titlebar {
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex: none;
+    height: 38px;
+    padding: 0 10px 0 14px;
+    border-bottom: 1px solid var(--border);
+    background: color-mix(in srgb, var(--bg-app) 86%, var(--bg-surface));
+    user-select: none;
+  }
+  .titlebar-left { display: flex; align-items: center; gap: 4px; min-width: 0; }
+  .remote {
+    display: inline-flex; align-items: center; gap: 7px;
+    height: 26px; padding: 0 9px; margin-right: 4px;
+    border-radius: var(--radius-sm);
+    color: var(--text-2); font-size: 11.5px;
+  }
+  .remote:hover { background: var(--bg-hover); color: var(--text-1); }
+  .status-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--teal); box-shadow: 0 0 0 3px color-mix(in srgb, var(--teal) 16%, transparent);
+  }
+  .tb-icon {
+    display: inline-grid; place-items: center;
+    width: 28px; height: 28px; border-radius: var(--radius-sm);
+    color: var(--text-2);
+  }
+  .tb-icon:hover { background: var(--bg-hover); color: var(--text-1); }
+
+  .titlebar-center {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 9px;
+    pointer-events: none; white-space: nowrap;
+  }
+  .tb-lockup { display: inline-flex; align-items: center; gap: 7px; }
+  .tb-lockup .logo { width: 17px; height: 17px; color: var(--brand); }
+  .tb-product { font-size: 12.5px; font-weight: 600; letter-spacing: 0.01em; }
+  .tb-version {
+    padding: 1px 6px; border-radius: 5px;
+    color: var(--text-3); font-family: var(--pm-mono); font-size: 11px;
+    background: var(--bg-subtle);
+  }
+  .tb-mode {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 2px 7px; border-radius: 999px;
+    border: 1px solid var(--border);
+    color: var(--text-2); font-size: 11px;
+    background: var(--bg-surface);
+    pointer-events: auto;
+  }
+  .tb-mode .status-dot { width: 5px; height: 5px; box-shadow: none; }
+
+  .titlebar-right {
+    display: flex; align-items: center; gap: 2px;
+    margin-left: auto;
+  }
+  .win-btn {
+    display: grid; place-items: center;
+    width: 34px; height: 28px; border-radius: 6px;
+    color: var(--text-2);
+  }
+  .win-btn:hover { background: var(--bg-hover); color: var(--text-1); }
+  .win-btn.close:hover { background: #e5484d; color: #fff; }
+
+  /* ============ Body ============ */
+  .shell {
+    display: grid;
+    grid-template-columns: 288px minmax(0, 1fr);
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* ============ Sidebar ============ */
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border-right: 1px solid var(--border);
+    background: var(--bg-sidebar);
+  }
+  .brand-row {
+    display: flex; align-items: center; gap: 9px;
+    flex: none;
+    height: 54px;
+    padding: 0 18px;
+  }
+  .brand-mark { width: 26px; height: 26px; color: var(--brand); flex: none; }
+  .brand-word { display: flex; align-items: baseline; gap: 7px; min-width: 0; }
+  .brand-name {
+    font-size: 15px; font-weight: 650; letter-spacing: -0.015em;
+    white-space: nowrap;
+  }
+  .brand-tag {
+    padding: 1px 5px 0;
+    border: 1px solid color-mix(in srgb, var(--brand) 34%, transparent);
+    border-radius: 4px;
+    color: var(--brand-ink);
+    background: var(--brand-soft);
+    font-family: var(--pm-mono);
+    font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
+  }
+  .brand-collapse { margin-left: auto; color: var(--text-3); width: 26px; height: 26px; display: grid; place-items: center; border-radius: 6px; }
+  .brand-collapse:hover { background: var(--bg-hover); color: var(--text-1); }
+
+  .new-session {
+    display: flex; align-items: center; gap: 9px;
+    flex: none;
+    height: 38px;
+    margin: 4px 14px 14px;
+    padding: 0 12px;
+    border: 1px solid color-mix(in srgb, var(--brand) 28%, var(--border));
+    border-radius: var(--radius-md);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--brand) 10%, var(--bg-surface)), color-mix(in srgb, var(--brand) 4%, var(--bg-surface)));
+    color: var(--brand-ink);
+    font-weight: 600;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset;
+    transition: border-color 140ms ease, background-color 140ms ease;
+  }
+  .new-session:hover { border-color: color-mix(in srgb, var(--brand) 52%, var(--border)); background: color-mix(in srgb, var(--brand) 12%, var(--bg-surface)); }
+  .new-session .kbd {
+    margin-left: auto;
+    font-family: var(--pm-mono); font-size: 11px; font-weight: 500;
+    color: color-mix(in srgb, var(--brand) 70%, var(--text-2));
+    padding: 1px 5px; border-radius: 4px;
+    background: color-mix(in srgb, var(--brand) 9%, transparent);
+  }
+
+  .nav { display: flex; flex-direction: column; gap: 1px; padding: 0 10px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    height: 32px; padding: 0 9px;
+    border-radius: var(--radius-sm);
+    color: var(--text-2);
+    font-size: 12.5px;
+    text-align: left;
+    position: relative;
+  }
+  .nav-item .icon { color: var(--text-3); }
+  .nav-item:hover { background: var(--bg-hover); color: var(--text-1); }
+  .nav-item:hover .icon { color: var(--text-1); }
+  .nav-item[aria-current="page"] {
+    color: var(--text-1); font-weight: 600;
+    background: var(--bg-surface);
+    box-shadow: 0 1px 2px rgba(18, 21, 28, 0.05), 0 0 0 1px var(--border);
+  }
+  .nav-item[aria-current="page"]::before {
+    content: ""; position: absolute; left: -10px; top: 7px; bottom: 7px;
+    width: 2px; border-radius: 2px; background: var(--brand);
+  }
+  .nav-item[aria-current="page"] .icon { color: var(--brand); }
+  .nav-badge {
+    margin-left: auto;
+    min-width: 18px; height: 17px; padding: 0 5px;
+    display: inline-grid; place-items: center;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--violet) 14%, transparent);
+    color: var(--violet);
+    font-size: 11px; font-weight: 650;
+  }
+
+  .nav-sep { height: 1px; margin: 10px 16px; background: var(--border); flex: none; }
+
+  .side-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 0 10px 8px; scrollbar-width: thin; }
+  .side-scroll::-webkit-scrollbar { width: 8px; }
+  .side-scroll::-webkit-scrollbar-thumb { background: transparent; border-radius: 8px; border: 2px solid transparent; background-clip: content-box; }
+  .side-scroll:hover::-webkit-scrollbar-thumb { background: var(--border-strong); background-clip: content-box; }
+
+  .section-head {
+    display: flex; align-items: center; gap: 6px;
+    height: 30px; margin-top: 6px; padding: 0 9px;
+    color: var(--text-3);
+    font-size: 11px; font-weight: 650; letter-spacing: 0.11em; text-transform: uppercase;
+  }
+  .section-head button { margin-left: auto; width: 20px; height: 20px; display: grid; place-items: center; border-radius: 4px; color: var(--text-3); }
+  .section-head button:hover { background: var(--bg-hover); color: var(--text-1); }
+
+  .project-head {
+    display: flex; align-items: center; gap: 8px;
+    width: 100%; height: 32px; padding: 0 9px;
+    border-radius: var(--radius-sm);
+    color: var(--text-1); font-size: 12.5px; font-weight: 550;
+    text-align: left;
+  }
+  .project-head:hover { background: var(--bg-hover); }
+  .project-head .icon { color: var(--brand); flex: none; }
+  .project-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .project-meta { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; color: var(--text-3); font-size: 11px; }
+  .project-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--teal); }
+
+  .session-list { display: flex; flex-direction: column; gap: 1px; padding: 1px 0 6px 16px; position: relative; }
+  .session-list::before { content: ""; position: absolute; left: 12px; top: 3px; bottom: 9px; width: 1px; background: var(--border); }
+  .session {
+    position: relative;
+    display: flex; align-items: center; gap: 8px;
+    height: 30px; padding: 0 8px;
+    border-radius: var(--radius-sm);
+    color: var(--text-2); font-size: 12px; text-align: left;
+  }
+  .session:hover { background: var(--bg-hover); color: var(--text-1); }
+  .session[aria-current="true"] { background: var(--brand-soft); color: var(--brand-ink); font-weight: 550; }
+  .session[aria-current="true"]::before {
+    content: ""; position: absolute; left: -16px; top: 8px; bottom: 8px;
+    width: 2px; border-radius: 2px; background: var(--brand);
+  }
+  .session-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .session-time { margin-left: auto; flex: none; color: var(--text-3); font-size: 11px; }
+  .session[aria-current="true"] .session-time { color: color-mix(in srgb, var(--brand) 65%, var(--text-3)); }
+
+  .utility { padding: 6px 10px 8px; flex: none; }
+  .side-footer {
+    display: flex; align-items: center; gap: 8px;
+    flex: none;
+    height: 44px; margin: 0 10px 8px; padding: 0 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--bg-surface);
+    color: var(--text-2); font-size: 11.5px;
+  }
+  .side-footer .status-dot { flex: none; }
+  .side-footer .model { font-family: var(--pm-mono); font-size: 11px; color: var(--text-3); }
+  .side-footer button { margin-left: auto; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 5px; color: var(--text-3); }
+  .side-footer button:hover { background: var(--bg-hover); color: var(--text-1); }
+
+  /* ============ Main ============ */
+  .main {
+    position: relative;
+    display: flex; flex-direction: column;
+    min-width: 0; min-height: 0;
+    overflow: hidden;
+    background:
+      radial-gradient(900px 420px at 50% -8%, var(--brand-glow), transparent 62%),
+      var(--bg-surface);
+  }
+  .main::before {
+    content: "";
+    position: absolute; inset: 0;
+    background-image: radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--text-3) 22%, transparent) 1px, transparent 0);
+    background-size: 22px 22px;
+    opacity: 0.32;
+    -webkit-mask-image: radial-gradient(760px 460px at 50% 0%, #000 0%, transparent 72%);
+            mask-image: radial-gradient(760px 460px at 50% 0%, #000 0%, transparent 72%);
+    pointer-events: none;
+  }
+  .lattice { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+  .lattice svg {
+    position: absolute; top: -64px; right: -130px;
+    width: 520px; height: 390px;
+    color: var(--border-strong);
+    opacity: 0.38;
+    animation: drift 18s ease-in-out infinite alternate;
+  }
+  .lattice .node { fill: var(--bg-surface); stroke: var(--brand); }
+  .lattice .bond { fill: none; stroke: currentColor; stroke-width: 1; }
+  .lattice .ring { fill: none; stroke: currentColor; stroke-width: 1; }
+  .lattice .accent { fill: color-mix(in srgb, var(--brand) 18%, transparent); stroke: var(--brand); }
+  @keyframes drift {
+    from { transform: translate3d(0, 0, 0); }
+    to { transform: translate3d(-14px, 12px, 0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .lattice svg { animation: none; }
+    * { transition-duration: 0.01ms !important; }
+  }
+
+  .main-header {
+    position: relative; z-index: 1;
+    display: flex; align-items: center; gap: 10px;
+    flex: none;
+    height: 52px; padding: 0 22px 0 26px;
+  }
+  .crumbs { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12.5px; }
+  .crumb { color: var(--text-2); }
+  .crumb-sep { color: var(--text-3); }
+  .crumb-current { color: var(--text-1); font-weight: 600; }
+  .header-right { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+  .cmd-btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    height: 28px; padding: 0 8px 0 9px;
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    color: var(--text-2); font-size: 11.5px;
+    background: color-mix(in srgb, var(--bg-surface) 80%, transparent);
+  }
+  .cmd-btn:hover { border-color: var(--border-strong); color: var(--text-1); background: var(--bg-surface); }
+  .cmd-btn .kbd {
+    font-family: var(--pm-mono); font-size: 11px; color: var(--text-3);
+    padding: 1px 4px; border-radius: 3px; background: var(--bg-subtle);
+  }
+  .avatar {
+    width: 26px; height: 26px; margin-left: 2px;
+    display: grid; place-items: center;
+    border-radius: 50%;
+    background: linear-gradient(145deg, var(--brand), color-mix(in srgb, var(--violet) 55%, var(--brand)));
+    color: #fff; font-size: 11px; font-weight: 650;
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand) 30%, transparent);
+  }
+
+  .home {
+    position: relative; z-index: 1;
+    flex: 1; min-height: 0;
+    overflow-y: auto;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: clamp(20px, 4vh, 48px) 32px clamp(24px, 4vh, 48px);
+  }
+  .home-inner { width: min(860px, 100%); display: flex; flex-direction: column; }
+
+  .eyebrow {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    color: var(--text-3);
+    font-family: var(--pm-mono); font-size: 11px; font-weight: 550;
+    letter-spacing: 0.16em; text-transform: uppercase;
+  }
+  .eyebrow .rule { width: 22px; height: 1px; background: var(--border-strong); }
+  .eyebrow .protocol {
+    color: var(--brand-ink);
+    background: var(--brand-soft);
+    border: 1px solid color-mix(in srgb, var(--brand) 22%, transparent);
+    border-radius: 999px;
+    padding: 2px 7px;
+    letter-spacing: 0.12em;
+  }
+
+  .headline {
+    margin: 15px 0 0;
+    text-align: center;
+    font-size: clamp(30px, 3.2vw, 42px);
+    line-height: 1.16;
+    font-weight: 640;
+    letter-spacing: -0.028em;
+    text-wrap: balance;
+  }
+  .headline .accent {
+    color: var(--brand);
+    position: relative;
+  }
+  .headline .accent::after {
+    content: ""; position: absolute; left: 2px; right: 2px; bottom: 3px;
+    height: 5px; border-radius: 3px;
+    background: color-mix(in srgb, var(--brand) 16%, transparent);
+    z-index: -1;
+  }
+  .subline {
+    margin: 12px auto 0;
+    max-width: 560px;
+    text-align: center;
+    color: var(--text-2);
+    font-size: 13.5px;
+    line-height: 1.6;
+    text-wrap: pretty;
+  }
+  .subline .sep { margin: 0 7px; color: var(--text-3); }
+
+  .station {
+    display: flex; align-items: center; gap: 10px;
+    margin: 26px 0 14px;
+  }
+  .station-label {
+    flex: none;
+    color: var(--text-3);
+    font-family: var(--pm-mono); font-size: 11px; font-weight: 600;
+    letter-spacing: 0.13em;
+  }
+  .experts { display: flex; align-items: center; gap: 6px; min-width: 0; flex-wrap: wrap; }
+  .expert {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 28px; padding: 0 9px 0 8px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--bg-surface);
+    color: var(--text-2);
+    font-size: 11.5px; white-space: nowrap;
+    transition: border-color 140ms ease, color 140ms ease, background-color 140ms ease, transform 140ms ease;
+  }
+  .expert .icon { width: 14px; height: 14px; color: var(--text-3); }
+  .expert:hover { border-color: var(--border-strong); color: var(--text-1); transform: translateY(-1px); }
+  .expert[aria-pressed="true"] {
+    border-color: color-mix(in srgb, var(--brand) 46%, var(--border));
+    background: var(--brand-soft);
+    color: var(--brand-ink);
+    font-weight: 600;
+  }
+  .expert[aria-pressed="true"] .icon { color: var(--brand); }
+  .station-spacer { flex: 1; }
+  .ready {
+    display: inline-flex; align-items: center; gap: 6px;
+    flex: none;
+    color: var(--text-3); font-size: 11px;
+  }
+  .ready .status-dot { width: 5px; height: 5px; box-shadow: none; }
+
+  /* ============ Composer ============ */
+  .composer {
+    position: relative;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    background: var(--bg-surface);
+    box-shadow: var(--shadow-card);
+    transition: border-color 160ms ease, box-shadow 160ms ease;
+  }
+  .composer:focus-within {
+    border-color: color-mix(in srgb, var(--brand) 52%, var(--border));
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 10%, transparent), var(--shadow-card);
+  }
+  .composer-context {
+    display: flex; align-items: center; gap: 7px;
+    padding: 12px 14px 0;
+  }
+  .ctx-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 24px; padding: 0 8px;
+    border-radius: 6px;
+    background: var(--bg-subtle);
+    color: var(--text-2);
+    font-size: 11px;
+  }
+  .ctx-chip .icon { width: 13px; height: 13px; color: var(--text-3); }
+  .ctx-chip strong { color: var(--text-1); font-weight: 550; }
+  .ctx-chip.tint { background: var(--brand-soft); color: var(--brand-ink); }
+  .ctx-chip.tint .icon { color: var(--brand); }
+  .composer textarea {
+    display: block;
+    width: 100%;
+    height: 74px;
+    padding: 10px 16px 4px;
+    border: 0;
+    outline: none;
+    resize: none;
+    background: transparent;
+    color: var(--text-1);
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .composer textarea::placeholder { color: var(--text-3); }
+  .composer-tools {
+    display: flex; align-items: center; gap: 4px;
+    padding: 6px 10px 10px;
+  }
+  .tool-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    height: 28px; padding: 0 8px;
+    border-radius: var(--radius-sm);
+    color: var(--text-2); font-size: 11.5px;
+  }
+  .tool-btn:hover { background: var(--bg-hover); color: var(--text-1); }
+  .tool-btn .icon { width: 15px; height: 15px; color: var(--text-3); }
+  .tool-btn.icon-only { width: 28px; padding: 0; justify-content: center; }
+  .composer-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .model-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 26px; padding: 0 8px;
+    border-radius: 6px;
+    color: var(--text-2); font-size: 11px;
+    font-family: var(--pm-mono);
+  }
+  .model-chip:hover { background: var(--bg-hover); }
+  .model-chip .tag {
+    padding: 1px 4px; border-radius: 3px;
+    background: var(--brand-soft); color: var(--brand-ink);
+    font-size: 11px; letter-spacing: 0.04em;
+  }
+  .send {
+    display: grid; place-items: center;
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: var(--brand);
+    color: #fff;
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--brand) 35%, transparent);
+    transition: background-color 140ms ease, transform 140ms ease;
+  }
+  .send:hover { background: var(--brand-strong); transform: translateY(-1px); }
+  .send:active { transform: translateY(0); }
+  .send .icon { width: 16px; height: 16px; stroke-width: 2; }
+
+  /* ============ Quick actions ============ */
+  .quick-head {
+    display: flex; align-items: center; gap: 8px;
+    margin: 18px 2px 8px;
+    color: var(--text-3);
+    font-size: 11px;
+  }
+  .quick-head .line { flex: 1; height: 1px; background: var(--border); }
+  .quick-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .quick {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--bg-surface) 72%, transparent);
+    text-align: left;
+    transition: border-color 140ms ease, background-color 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+  }
+  .quick:hover {
+    border-color: color-mix(in srgb, var(--brand) 30%, var(--border));
+    background: var(--bg-surface);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(18, 21, 28, 0.06);
+  }
+  .quick-icon {
+    display: grid; place-items: center;
+    flex: none;
+    width: 30px; height: 30px;
+    border-radius: 6px;
+    background: var(--brand-soft);
+    color: var(--brand);
+  }
+  .quick-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .quick-title { display: block; font-size: 12.5px; font-weight: 600; color: var(--text-1); white-space: nowrap; }
+  .quick-desc { display: block; font-size: 11px; line-height: 1.4; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .quick-kbd { margin-left: auto; align-self: center; color: var(--text-3); font-family: var(--pm-mono); font-size: 11px; }
+
+  /* ============ Pulse ============ */
+  .pulse {
+    display: flex; align-items: center; gap: 10px;
+    margin-top: 16px; padding: 0 2px;
+    color: var(--text-2);
+    font-size: 11px;
+  }
+  .pulse-label {
+    display: inline-flex; align-items: center; gap: 6px;
+    color: var(--text-3);
+    font-family: var(--pm-mono); font-size: 11px; font-weight: 600; letter-spacing: 0.12em;
+  }
+  .pulse-items { display: flex; align-items: center; gap: 0; flex-wrap: wrap; }
+  .pulse-item { display: inline-flex; align-items: baseline; gap: 4px; padding: 0 11px; border-left: 1px solid var(--border); }
+  .pulse-item:first-child { border-left: 0; padding-left: 4px; }
+  .pulse-value { color: var(--text-1); font-family: var(--pm-mono); font-size: 11.5px; font-weight: 600; }
+  .pulse-value.warn { color: var(--amber); }
+  .pulse-link { margin-left: auto; color: var(--brand-ink); font-size: 11px; display: inline-flex; align-items: center; gap: 4px; }
+  .pulse-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+  /* ============ Micro interactions ============ */
+  .toast {
+    position: fixed; left: 50%; bottom: 26px;
+    transform: translate(-50%, 12px);
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 12px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    background: var(--bg-elevated);
+    color: var(--text-1);
+    box-shadow: var(--shadow-float);
+    font-size: 12px;
+    opacity: 0; pointer-events: none;
+    transition: opacity 160ms ease, transform 160ms ease;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .theme-toggle { margin-left: 4px; }
+
+  @media (max-width: 1180px) {
+    .shell { grid-template-columns: 252px minmax(0, 1fr); }
+    .station-label, .ready { display: none; }
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#mainContent">跳到主内容</a>
+<div class="app">
+
+  <!-- ===== Titlebar ===== -->
+  <header class="titlebar">
+    <div class="titlebar-left">
+      <button class="remote" type="button" aria-label="远程控制已就绪">
+        <span class="status-dot" aria-hidden="true"></span>远程控制
+      </button>
+      <button class="tb-icon" type="button" aria-label="切换侧边栏">
+        <svg class="icon" aria-hidden="true"><use href="#i-sidebar" /></svg>
+      </button>
+      <button class="tb-icon" type="button" aria-label="刷新">
+        <svg class="icon" aria-hidden="true"><use href="#i-refresh" /></svg>
+      </button>
+      <button class="tb-icon" type="button" aria-label="报告问题">
+        <svg class="icon" aria-hidden="true"><use href="#i-bug" /></svg>
+      </button>
+    </div>
+
+    <div class="titlebar-center">
+      <span class="tb-lockup">
+        <svg class="logo" aria-hidden="true"><use href="#pm-mark" /></svg>
+        <span class="tb-product">PolyMechanism Studio</span>
+      </span>
+      <span class="tb-version">v2.0.18</span>
+      <span class="tb-mode"><span class="status-dot" aria-hidden="true"></span>科研模式</span>
+    </div>
+
+    <div class="titlebar-right">
+      <button class="tb-icon theme-toggle" type="button" id="themeToggle" aria-label="切换深色 / 浅色主题" aria-pressed="false">
+        <svg class="icon" aria-hidden="true"><use href="#i-moon" /></svg>
+      </button>
+      <button class="win-btn" type="button" aria-label="最小化"><svg class="icon" aria-hidden="true"><use href="#i-min" /></svg></button>
+      <button class="win-btn" type="button" aria-label="最大化"><svg class="icon" aria-hidden="true"><use href="#i-max" /></svg></button>
+      <button class="win-btn close" type="button" aria-label="关闭"><svg class="icon" aria-hidden="true"><use href="#i-close" /></svg></button>
+    </div>
+  </header>
+
+  <div class="shell">
+    <!-- ===== Sidebar ===== -->
+    <aside class="sidebar" aria-label="工作区导航">
+      <div class="brand-row">
+        <svg class="brand-mark" aria-hidden="true"><use href="#pm-mark" /></svg>
+        <span class="brand-word">
+          <span class="brand-name">PolyMechanism</span>
+          <span class="brand-tag">STUDIO</span>
+        </span>
+        <button class="brand-collapse" type="button" aria-label="收起侧边栏">
+          <svg class="icon" aria-hidden="true"><use href="#i-collapse" /></svg>
+        </button>
+      </div>
+
+      <button class="new-session" type="button" id="newSession">
+        <svg class="icon" aria-hidden="true"><use href="#i-plus" /></svg>
+        新会话
+        <span class="kbd">⌘ N</span>
+      </button>
+
+      <nav class="nav" aria-label="科研导航">
+        <button class="nav-item" type="button" aria-current="page">
+          <svg class="icon" aria-hidden="true"><use href="#i-grid" /></svg>工作台
+        </button>
+        <button class="nav-item" type="button">
+          <svg class="icon" aria-hidden="true"><use href="#i-network" /></svg>机理图谱
+        </button>
+        <button class="nav-item" type="button">
+          <svg class="icon" aria-hidden="true"><use href="#i-chart" /></svg>表征分析
+        </button>
+        <button class="nav-item" type="button">
+          <svg class="icon" aria-hidden="true"><use href="#i-book" /></svg>文献库
+        </button>
+        <button class="nav-item" type="button">
+          <svg class="icon" aria-hidden="true"><use href="#i-brain" /></svg>知识卡
+          <span class="nav-badge">7</span>
+        </button>
+      </nav>
+
+      <div class="nav-sep" role="presentation"></div>
+
+      <div class="side-scroll">
+        <div class="section-head">
+          项目
+          <button type="button" aria-label="新建项目"><svg class="icon" aria-hidden="true"><use href="#i-plus" /></svg></button>
+        </div>
+
+        <button class="project-head" type="button">
+          <svg class="icon" aria-hidden="true"><use href="#i-folder-open" /></svg>
+          <span class="project-name">PVA 光学膜 · 斜拉工艺</span>
+          <span class="project-meta"><span class="project-dot" aria-hidden="true"></span>进行中</span>
+        </button>
+
+        <div class="session-list">
+          <button class="session" type="button" aria-current="true">
+            <span class="session-label">新会话</span>
+            <span class="session-time">现在</span>
+          </button>
+          <button class="session" type="button">
+            <span class="session-label">验证斜拉模拟真实性的 CAE 判别实验</span>
+            <span class="session-time">今天</span>
+          </button>
+          <button class="session" type="button">
+            <span class="session-label">斜拉薄膜取向-双折射机理</span>
+            <span class="session-time">昨天</span>
+          </button>
+          <button class="session" type="button">
+            <span class="session-label">铸片与拉伸工艺窗口</span>
+            <span class="session-time">2 天</span>
+          </button>
+        </div>
+
+        <div class="section-head">
+          其他项目
+          <button type="button" aria-label="新建项目"><svg class="icon" aria-hidden="true"><use href="#i-plus" /></svg></button>
+        </div>
+
+        <button class="project-head" type="button">
+          <svg class="icon" aria-hidden="true"><use href="#i-folder" /></svg>
+          <span class="project-name">industrial-deep-diagnostic</span>
+        </button>
+        <button class="project-head" type="button">
+          <svg class="icon" aria-hidden="true"><use href="#i-folder" /></svg>
+          <span class="project-name">rag-knowledge</span>
+        </button>
+      </div>
+
+      <div class="utility">
+        <nav class="nav" aria-label="系统">
+          <button class="nav-item" type="button">
+            <svg class="icon" aria-hidden="true"><use href="#i-plugin" /></svg>插件
+          </button>
+          <button class="nav-item" type="button">
+            <svg class="icon" aria-hidden="true"><use href="#i-clock" /></svg>自动化任务
+          </button>
+          <button class="nav-item" type="button">
+            <svg class="icon" aria-hidden="true"><use href="#i-more" /></svg>更多
+          </button>
+        </nav>
+      </div>
+
+      <div class="side-footer">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span>CAE 已配置</span>
+        <span class="model">deepseek-v4.1</span>
+        <button type="button" aria-label="打开设置">
+          <svg class="icon" aria-hidden="true"><use href="#i-settings" /></svg>
+        </button>
+      </div>
+    </aside>
+
+    <!-- ===== Main ===== -->
+    <main class="main" id="mainContent" tabindex="-1">
+      <div class="lattice" aria-hidden="true">
+        <svg viewBox="0 0 560 420" fill="none">
+          <path class="bond" d="M40 330 L118 286 L196 330 L274 286 L352 330 L430 286" />
+          <path class="bond" d="M118 286 L118 210 L196 166 L274 210 L274 286" />
+          <path class="bond" d="M196 166 L196 90 L274 46 L352 90 L352 166" />
+          <path class="ring" d="M396 96 L438 120 L438 168 L396 192 L354 168 L354 120 Z" />
+          <path class="ring" d="M438 120 L480 96 L522 120 L522 168 L480 192 L438 168 Z" />
+          <circle class="node" cx="118" cy="210" r="4.5" />
+          <circle class="node" cx="196" cy="166" r="4.5" />
+          <circle class="node" cx="274" cy="210" r="4.5" />
+          <circle class="node" cx="352" cy="286" r="4.5" />
+          <circle class="accent" cx="396" cy="144" r="7" />
+          <circle class="node" cx="480" cy="144" r="4.5" />
+          <path class="bond" d="M430 286 L508 330" stroke-dasharray="3 6" />
+        </svg>
+      </div>
+
+      <div class="main-header">
+        <div class="crumbs">
+          <span class="crumb">工作台</span>
+          <span class="crumb-sep">/</span>
+          <span class="crumb-current">新会话</span>
+        </div>
+        <div class="header-right">
+          <button class="cmd-btn" type="button" aria-label="打开命令面板">
+            <svg class="icon" aria-hidden="true"><use href="#i-search" /></svg>
+            搜索
+            <span class="kbd">⌘ K</span>
+          </button>
+          <button class="tb-icon" type="button" aria-label="通知">
+            <svg class="icon" aria-hidden="true"><use href="#i-bell" /></svg>
+          </button>
+          <span class="avatar" aria-hidden="true">K</span>
+        </div>
+      </div>
+
+      <div class="home">
+        <div class="home-inner">
+          <div class="eyebrow">
+            <span class="rule" aria-hidden="true"></span>
+            PolyMechanism · Research Workbench
+            <span class="protocol">PVA–OPTICAL / 01</span>
+          </div>
+
+          <h1 class="headline">从分子链，到<span class="accent">可验证的机理</span>。</h1>
+          <p class="subline">
+            提出假设<span class="sep">·</span>设计判别实验<span class="sep">·</span>让每一条结论都落在证据上
+          </p>
+
+          <div class="station">
+            <span class="station-label">EXPERT STATION</span>
+            <div class="experts" role="group" aria-label="选择科研专家">
+              <button class="expert" type="button" data-preset="polymer-scientist" aria-pressed="true" title="高分子科学家：课题拆解与证据化结论">
+                <svg class="icon" aria-hidden="true"><use href="#i-flask" /></svg>科学家
+              </button>
+              <button class="expert" type="button" data-preset="polymer-physicist" aria-pressed="false" title="高分子物理专家：机理与模型">
+                <svg class="icon" aria-hidden="true"><use href="#i-atom" /></svg>物理
+              </button>
+              <button class="expert" type="button" data-preset="polymer-characterization" aria-pressed="false" title="表征专家：WAXS / FTIR / SAXS">
+                <svg class="icon" aria-hidden="true"><use href="#i-chart" /></svg>表征
+              </button>
+              <button class="expert" type="button" data-preset="polymer-modeler" aria-pressed="false" title="建模专家：CAE 与参数优化">
+                <svg class="icon" aria-hidden="true"><use href="#i-cube" /></svg>建模
+              </button>
+              <button class="expert" type="button" data-preset="polymer-literature" aria-pressed="false" title="文献专家：抽取结论与 DOI">
+                <svg class="icon" aria-hidden="true"><use href="#i-book" /></svg>文献
+              </button>
+              <button class="expert" type="button" data-preset="polymer-reviewer" aria-pressed="false" title="独立评审：门控与知识卡">
+                <svg class="icon" aria-hidden="true"><use href="#i-shield" /></svg>评审
+              </button>
+            </div>
+            <span class="station-spacer"></span>
+            <span class="ready"><span class="status-dot" aria-hidden="true"></span>6 位专家已就绪</span>
+          </div>
+
+          <form class="composer" id="composer" aria-label="科研任务输入">
+            <div class="composer-context">
+              <span class="ctx-chip"><svg class="icon" aria-hidden="true"><use href="#i-folder-open" /></svg><strong>PVA 光学膜 · 斜拉工艺</strong></span>
+              <span class="ctx-chip tint" id="presetChip"><svg class="icon" aria-hidden="true"><use href="#i-flask" /></svg>高分子科学家</span>
+            </div>
+            <label class="sr-only" for="prompt">描述研究任务</label>
+            <textarea id="prompt" name="prompt" placeholder="描述课题、贴上表征数据，或让我设计一组能判别机理的实验…"></textarea>
+            <div class="composer-tools">
+              <button class="tool-btn icon-only" type="button" aria-label="添加附件">
+                <svg class="icon" aria-hidden="true"><use href="#i-plus" /></svg>
+              </button>
+              <button class="tool-btn" type="button" title="引用证据 / 假设 / 数据集">
+                <svg class="icon" aria-hidden="true"><use href="#i-at" /></svg>引用
+              </button>
+              <button class="tool-btn" type="button" title="调用高分子技能">
+                <svg class="icon" aria-hidden="true"><use href="#i-slash" /></svg>技能
+              </button>
+              <div class="composer-right">
+                <button class="model-chip" type="button">
+                  DeepSeek-V4.1 <span class="tag">FLASH</span>
+                  <svg class="icon" style="width:12px;height:12px" aria-hidden="true"><use href="#i-chevron-down" /></svg>
+                </button>
+                <button class="send" type="submit" aria-label="发送任务">
+                  <svg class="icon" aria-hidden="true"><use href="#i-arrow-up" /></svg>
+                </button>
+              </div>
+            </div>
+          </form>
+
+          <div class="quick-head">
+            <span>常用起点</span>
+            <span class="line" aria-hidden="true"></span>
+            <span>点击即填入输入框</span>
+          </div>
+          <div class="quick-grid">
+            <button class="quick" type="button" data-prompt="设计一组能判别「取向诱导结晶」与「拉伸诱导链伸展」的判别实验：给出观测量、预期信号差异、所需样品与最小工作量方案。">
+              <span class="quick-icon"><svg class="icon" aria-hidden="true"><use href="#i-flask" /></svg></span>
+              <span class="quick-body">
+                <span class="quick-title">设计判别实验</span>
+                <span class="quick-desc">竞争假设 → 观测量 → 最小工作量</span>
+              </span>
+            </button>
+            <button class="quick" type="button" data-prompt="分析这批 WAXS / FTIR 表征数据：提取结晶度、峰位与氢键指数，标注拟合残差，并把结果登记为可引用证据。">
+              <span class="quick-icon"><svg class="icon" aria-hidden="true"><use href="#i-chart" /></svg></span>
+              <span class="quick-body">
+                <span class="quick-title">分析表征数据</span>
+                <span class="quick-desc">WAXS · FTIR · SAXS · 登记证据</span>
+              </span>
+            </button>
+            <button class="quick" type="button" data-prompt="评审当前机理图谱中候选边：逐条检查适用条件、理论与证据强度，指出哪些边可以晋升、哪些需要补实验。">
+              <span class="quick-icon"><svg class="icon" aria-hidden="true"><use href="#i-network" /></svg></span>
+              <span class="quick-body">
+                <span class="quick-title">评审机理图谱</span>
+                <span class="quick-desc">条件窗口 · 证据强度 · 晋升门控</span>
+              </span>
+            </button>
+          </div>
+
+          <div class="pulse" aria-label="项目脉搏">
+            <span class="pulse-label">PROJECT PULSE</span>
+            <span class="pulse-items">
+              <span class="pulse-item"><span class="pulse-value">42</span>条证据</span>
+              <span class="pulse-item"><span class="pulse-value">3</span>个假设</span>
+              <span class="pulse-item"><span class="pulse-value warn">1</span>待审</span>
+              <span class="pulse-item"><span class="pulse-value">7</span>张知识卡</span>
+              <span class="pulse-item"><span class="pulse-value">2</span>条门控警告</span>
+            </span>
+            <button class="pulse-link" type="button">
+              打开证据账本
+              <svg class="icon" style="width:12px;height:12px" aria-hidden="true"><use href="#i-arrow-right" /></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<!-- ===== Icon sprite ===== -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <!-- Brand mark: two fused monomer rings + bond node -->
+    <symbol id="pm-mark" viewBox="0 0 32 32">
+      <g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+        <path d="M10.9 8.6 5.4 11.8 5.4 18.2 10.9 21.4 16.4 18.2 16.4 11.8Z" />
+        <path d="M16.4 11.8 21.9 8.6 27.4 11.8 27.4 18.2 21.9 21.4 16.4 18.2" />
+        <path d="M10.9 21.4 10.9 27.4" stroke-linecap="round" />
+      </g>
+      <circle cx="10.9" cy="15" r="2.2" fill="currentColor" stroke="none" />
+      <circle cx="21.9" cy="15" r="1.5" fill="none" stroke="currentColor" stroke-width="1.5" />
+      <circle cx="10.9" cy="27.4" r="1.6" fill="currentColor" stroke="none" />
+    </symbol>
+
+    <symbol id="i-plus" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></symbol>
+    <symbol id="i-sidebar" viewBox="0 0 16 16"><rect x="2" y="2.75" width="12" height="10.5" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M6.25 2.75v10.5" stroke="currentColor" stroke-width="1.5"/></symbol>
+    <symbol id="i-collapse" viewBox="0 0 16 16"><rect x="2" y="2.75" width="12" height="10.5" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M6.25 2.75v10.5" stroke="currentColor" stroke-width="1.5"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 16 16"><path d="M13 5.5V2.8l-1.5 1.4A5.2 5.2 0 1 0 13 9.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-bug" viewBox="0 0 16 16"><rect x="4.5" y="4.5" width="7" height="8" rx="3.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M6 4.5V3.2A2 2 0 0 1 8 1.2a2 2 0 0 1 2 2v1.3M2.5 7H4M12 7h1.5M2.5 11H4M12 11h1.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 16 16"><path d="M13.2 9.6A5.6 5.6 0 0 1 6.4 2.8 5.7 5.7 0 1 0 13.2 9.6Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></symbol>
+    <symbol id="i-min" viewBox="0 0 16 16"><path d="M4 8h8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
+    <symbol id="i-max" viewBox="0 0 16 16"><rect x="4.2" y="4.2" width="7.6" height="7.6" rx="1" fill="none" stroke="currentColor" stroke-width="1.3"/></symbol>
+    <symbol id="i-close" viewBox="0 0 16 16"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="4.4" height="4.4" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="9.1" y="2.5" width="4.4" height="4.4" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="2.5" y="9.1" width="4.4" height="4.4" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="9.1" y="9.1" width="4.4" height="4.4" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="i-network" viewBox="0 0 16 16"><circle cx="4" cy="4" r="1.7" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="12" cy="4" r="1.7" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="12" r="1.7" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M5.4 5.2 7 10.5M10.6 5.2 9 10.5M5.6 4h4.8" fill="none" stroke="currentColor" stroke-width="1.3"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 16 16"><path d="M2.8 13V3.2M2.8 13h10.4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M5.4 10.6V7.9M8 10.6V5.2M10.6 10.6V3.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-book" viewBox="0 0 16 16"><path d="M8 4.2C6.8 3.3 5.2 3 3 3.1v9.1c2.2-.1 3.8.2 5 1.1 1.2-.9 2.8-1.2 5-1.1V3.1c-2.2-.1-3.8.2-5 1.1Z" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round"/><path d="M8 4.2v9.1" stroke="currentColor" stroke-width="1.2"/></symbol>
+    <symbol id="i-brain" viewBox="0 0 16 16"><path d="M6.2 2.6a2.1 2.1 0 0 0-2 2.2A2.2 2.2 0 0 0 3 6.9c0 .7.3 1.3.8 1.7-.5.4-.8 1-.8 1.7a2.2 2.2 0 0 0 1.2 2.1 2.1 2.1 0 0 0 2 2.2c.7 0 1.3-.3 1.8-.8V3.4c-.5-.5-1.1-.8-1.8-.8Z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M9.8 2.6a2.1 2.1 0 0 1 2 2.2A2.2 2.2 0 0 1 13 6.9c0 .7-.3 1.3-.8 1.7.5.4.8 1 .8 1.7a2.2 2.2 0 0 1-1.2 2.1 2.1 2.1 0 0 1-2 2.2c-.7 0-1.3-.3-1.8-.8" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 16 16"><path d="M2.5 5.2V4a1.5 1.5 0 0 1 1.5-1.5h2.4l1.4 1.6h4.2A1.5 1.5 0 0 1 13.5 5.6v6.9a1.5 1.5 0 0 1-1.5 1.5H4a1.5 1.5 0 0 1-1.5-1.5Z" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round"/></symbol>
+    <symbol id="i-folder-open" viewBox="0 0 16 16"><path d="M2.5 5.2V4A1.5 1.5 0 0 1 4 2.5h2.4l1.4 1.6h4.2A1.5 1.5 0 0 1 13.5 5.6v1" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round"/><path d="M2.8 6.5h10.9l-1.4 6.2a1.4 1.4 0 0 1-1.4 1.1H4.2a1.4 1.4 0 0 1-1.4-1.1Z" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round"/></symbol>
+    <symbol id="i-plugin" viewBox="0 0 16 16"><path d="M6 2.8v2.1M10 2.8v2.1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><rect x="3.4" y="4.9" width="9.2" height="8.1" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.35"/><path d="M8 7.2v3M6.5 8.7h3" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.6" fill="none" stroke="currentColor" stroke-width="1.35"/><path d="M8 4.8V8l2.1 1.4" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/></symbol>
+    <symbol id="i-more" viewBox="0 0 16 16"><circle cx="3.6" cy="8" r="1.1" fill="currentColor"/><circle cx="8" cy="8" r="1.1" fill="currentColor"/><circle cx="12.4" cy="8" r="1.1" fill="currentColor"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.1" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 2.2v1.5M8 12.3v1.5M2.2 8h1.5M12.3 8h1.5M3.9 3.9l1.1 1.1M11 11l1.1 1.1M12.1 3.9 11 5M5 11l-1.1 1.1" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></symbol>
+    <symbol id="i-search" viewBox="0 0 16 16"><circle cx="7.2" cy="7.2" r="4.3" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="m10.4 10.4 2.8 2.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 16 16"><path d="M4.2 6.8a3.8 3.8 0 0 1 7.6 0c0 3 1.2 4 1.2 4H3s1.2-1 1.2-4Z" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round"/><path d="M6.8 13a1.4 1.4 0 0 0 2.4 0" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/></symbol>
+    <symbol id="i-at" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.4" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M10.4 5.6V9a1.7 1.7 0 0 0 3.3.5A6 6 0 1 0 11.6 13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
+    <symbol id="i-slash" viewBox="0 0 16 16"><path d="M9.6 3.2 6.4 12.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M3.5 6.2h9M3.5 9.8h9" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" opacity=".35"/></symbol>
+    <symbol id="i-arrow-up" viewBox="0 0 16 16"><path d="M8 13V3M4 7l4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-arrow-right" viewBox="0 0 16 16"><path d="M3 8h10M9 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-chevron-down" viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-flask" viewBox="0 0 16 16"><path d="M6.2 2.5h3.6M6.8 2.5v3.6L3.4 12a1.2 1.2 0 0 0 1 1.8h7.2a1.2 1.2 0 0 0 1-1.8L9.2 6.1V2.5" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.8 10.4h6.4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></symbol>
+    <symbol id="i-atom" viewBox="0 0 16 16"><circle cx="8" cy="8" r="1.5" fill="currentColor"/><ellipse cx="8" cy="8" rx="6" ry="2.5" fill="none" stroke="currentColor" stroke-width="1.1" transform="rotate(30 8 8)"/><ellipse cx="8" cy="8" rx="6" ry="2.5" fill="none" stroke="currentColor" stroke-width="1.1" transform="rotate(-30 8 8)"/></symbol>
+    <symbol id="i-cube" viewBox="0 0 16 16"><path d="M8 2.2 13.4 5.1v6L8 14 2.6 11.1v-6Z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M2.8 5.2 8 8l5.2-2.8M8 8v5.8" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 16 16"><path d="M8 2.2 13 4v4.1c0 3.1-2.1 5-5 6.2-2.9-1.2-5-3.1-5-6.2V4Z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="m5.8 8 1.6 1.6 2.9-3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  </defs>
+</svg>
+
+<script>
+  if (new URLSearchParams(location.search).get('theme') === 'dark') {
+    document.body.classList.add('theme-dark')
+    document.documentElement.style.colorScheme = 'dark'
+    document.querySelector('meta[name="theme-color"]').setAttribute('content', '#090c12')
+    document.getElementById('themeToggle').setAttribute('aria-pressed', 'true')
+  }
+
+  const toast = document.getElementById('toast')
+  let toastTimer
+  function say(message) {
+    toast.textContent = message
+    toast.classList.add('show')
+    clearTimeout(toastTimer)
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 1800)
+  }
+
+  // Experts: one active station, mirrored into the composer preset chip.
+  const presetNames = {
+    'polymer-scientist': '高分子科学家',
+    'polymer-physicist': '高分子物理',
+    'polymer-characterization': '表征专家',
+    'polymer-modeler': '建模专家',
+    'polymer-literature': '文献专家',
+    'polymer-reviewer': '独立评审',
+  }
+  const prompt = document.getElementById('prompt')
+  const presetChip = document.getElementById('presetChip')
+  document.querySelectorAll('.expert').forEach((button) => {
+    button.addEventListener('click', () => {
+      document.querySelectorAll('.expert').forEach(other => other.setAttribute('aria-pressed', 'false'))
+      button.setAttribute('aria-pressed', 'true')
+      const id = button.dataset.preset
+      presetChip.lastChild.textContent = presetNames[id]
+      prompt.placeholder = `以${presetNames[id]}身份开始：描述课题、贴上表征数据，或让我设计判别实验…`
+      prompt.focus()
+      say(`已切换专家：${presetNames[id]}`)
+    })
+  })
+
+  // Quick starts fill the composer instead of sending — the user keeps control.
+  document.querySelectorAll('.quick').forEach((button) => {
+    button.addEventListener('click', () => {
+      prompt.value = button.dataset.prompt
+      prompt.focus()
+      prompt.setSelectionRange(prompt.value.length, prompt.value.length)
+      say('已填入输入框，可继续修改')
+    })
+  })
+
+  // Theme preview (the app itself follows the system preference).
+  const toggle = document.getElementById('themeToggle')
+  toggle.addEventListener('click', () => {
+    const dark = document.body.classList.toggle('theme-dark')
+    document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
+    toggle.setAttribute('aria-pressed', String(dark))
+    document.querySelector('meta[name="theme-color"]').setAttribute('content', dark ? '#090c12' : '#F4F6FA')
+  })
+
+  // Keep the artboard honest: submitting shows that the design is a prototype.
+  document.getElementById('composer').addEventListener('submit', (event) => {
+    event.preventDefault()
+    say(prompt.value.trim() === '' ? '先描述一个研究任务' : '原型演示：真实客户端会启动所选专家')
+  })
+  document.getElementById('newSession').addEventListener('click', () => {
+    prompt.value = ''
+    prompt.focus()
+  })
+
+  // Sidebar session selection (visual only).
+  document.querySelectorAll('.session').forEach((row) => {
+    row.addEventListener('click', () => {
+      document.querySelectorAll('.session').forEach(other => other.removeAttribute('aria-current'))
+      row.setAttribute('aria-current', 'true')
+    })
+  })
+</script>
+</body>
+</html>

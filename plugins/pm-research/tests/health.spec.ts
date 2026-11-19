@@ -4,6 +4,7 @@ import {
   PM_SURFACE_VERSION,
   buildPmHealthReport,
   createPmHealthHandler,
+  registeredTools,
 } from '../src/index.ts'
 
 /** Minimal ServerResponse stub capturing what the handler writes. */
@@ -22,7 +23,7 @@ describe('pm health surface', () => {
       ok: true,
       service: 'pm-research',
       surfaceVersion: PM_SURFACE_VERSION,
-      capabilities: ['/pm/health'],
+      capabilities: ['/pm/health', '/pm/overview'],
       uptimeSeconds: 95,
       tools: [],
     })
@@ -31,6 +32,14 @@ describe('pm health surface', () => {
 
   it('clamps negative uptime to zero', () => {
     expect(buildPmHealthReport(-5).uptimeSeconds).toBe(0)
+  })
+
+  it('reports every registered tool exactly once', () => {
+    const tools = registeredTools()
+    expect(new Set(tools).size).toBe(tools.length)
+    expect(tools).toHaveLength(15)
+    expect(tools).toContain('pm_cae_coupon')
+    expect(tools).toContain('pm_knowledge_review')
   })
 
   it('serves JSON with no-store caching and nosniff protection', () => {

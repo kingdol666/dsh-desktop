@@ -47,6 +47,29 @@ export function resolveCaeRoot(config: PmResearchConfig = {}): string | undefine
   return env !== undefined && env.length > 0 ? env : undefined
 }
 
+/** One project row in the workbench overview. */
+export interface PmOverviewProject {
+  readonly id: EntityId
+  readonly title: string
+  readonly status: ResearchProject['status']
+  readonly evidence: number
+  readonly hypotheses: number
+}
+
+/** Aggregated research pulse surfaced on the new-session home (`/pm/overview`). */
+export interface PmOverview {
+  readonly projects: readonly PmOverviewProject[]
+  readonly totals: {
+    readonly projects: number
+    readonly evidence: number
+    readonly hypotheses: number
+    readonly supported: number
+    readonly refuted: number
+    readonly pendingKnowledge: number
+  }
+  readonly cae: { readonly configured: boolean }
+}
+
 /** Four hex chars from a statement digest, used in hypothesis ids. */
 export function statementHash4(statement: string): string {
   return createHash('sha256').update(statement.trim().toLowerCase()).digest('hex').slice(0, 4)
@@ -186,6 +209,49 @@ export class PmResearchEngine {
   /** List hypotheses of one project. */
   async listHypotheses(projectId: EntityId): Promise<readonly Hypothesis[]> {
     return this.hypothesisStore().list(projectId)
+  }
+
+  /**
+   * Fold every project into the numbers the workbench home shows. Reads the
+   * same stores the tools use, so the pulse cannot drift from the ledger.
+   */
+  async overview(): Promise<PmOverview> {
+    const projects = await this.listProjects()
+    const rows: PmOverviewProject[] = []
+    let evidence = 0
+    let hypotheses = 0
+    let supported = 0
+    let refuted = 0
+    for (const project of projects) {
+      const [entries, statements] = await Promise.all([
+        this.queryEvidence(project.id),
+        this.listHypotheses(project.id),
+      ])
+      evidence += entries.length
+      hypotheses += statements.length
+      supported += statements.filter(item => item.status === 'supported').length
+      refuted += statements.filter(item => item.status === 'refuted').length
+      rows.push({
+        id: project.id,
+        title: project.title,
+        status: project.status,
+        evidence: entries.length,
+        hypotheses: statements.length,
+      })
+    }
+    const cards = await this.knowledge().all()
+    return {
+      projects: rows,
+      totals: {
+        projects: rows.length,
+        evidence,
+        hypotheses,
+        supported,
+        refuted,
+        pendingKnowledge: cards.filter(card => card.status === 'pending').length,
+      },
+      cae: { configured: this.caeRoot !== undefined },
+    }
   }
 
   /**

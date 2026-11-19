@@ -7,6 +7,11 @@
   # user patch can still disable the Browser explicitly.
   disabled: false
 
+- id: ui-brand-official
+  # PolyMechanism owns the sidebar/hero brand occupants and the blank-home
+  # ambience; the official whale artwork must not ship as product chrome.
+  disabled: true
+
 - insert:
     - id: desktop-shell
       name: dsh-plugin-desktop

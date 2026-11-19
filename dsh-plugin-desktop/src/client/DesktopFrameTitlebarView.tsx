@@ -3,6 +3,7 @@
 import { LayoutTemplate, PanelTop, RefreshCw, Sparkles } from 'lucide-react'
 import { useState } from 'react'
 import type { DesktopSettingsApi } from './desktop-settings-api.ts'
+import { DESKTOP_PRODUCT_NAME } from '../product-identity.ts'
 import type { DesktopClientEnvironment, DesktopClientMode } from './environment.ts'
 import { DesktopNativeActions } from './DesktopNativeActions.tsx'
 import { Button } from '../native-ui/components/ui/button.tsx'
@@ -162,6 +163,32 @@ export function DesktopModeControl({
   )
 }
 
+/** The single-source PolyMechanism chain mark shared by the titlebar and slots. */
+export function DesktopProductMark({ size = 16, className }: {
+  readonly size?: number
+  readonly className?: string | undefined
+}) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 32 32"
+      fill="none"
+    >
+      <g stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" fill="none">
+        <path d="M10.9 8.6 5.4 11.8 5.4 18.2 10.9 21.4 16.4 18.2 16.4 11.8Z" />
+        <path d="M16.4 11.8 21.9 8.6 27.4 11.8 27.4 18.2 21.9 21.4 16.4 18.2" />
+        <path d="M10.9 21.4 10.9 27.4" strokeLinecap="round" />
+      </g>
+      <circle cx="10.9" cy="15" r="2.2" fill="currentColor" />
+      <circle cx="21.9" cy="15" r="1.5" stroke="currentColor" strokeWidth="1.5" fill="none" />
+      <circle cx="10.9" cy="27.4" r="1.6" fill="currentColor" />
+    </svg>
+  )
+}
+
 /** Horizontal frame surface; the unrelated upstream content starts below it. */
 export function DesktopFrameTitlebarView({ api, environment, setMode, t, remoteControl }: DesktopFrameTitlebarInjected & {
   readonly t: (key: DesktopSettingsLocaleKey) => string
@@ -176,24 +203,8 @@ export function DesktopFrameTitlebarView({ api, environment, setMode, t, remoteC
     >
       <div className="dshDesktopFrameIdentity">
         <span className="dshDesktopFrameBrand">
-          <svg
-            aria-hidden="true"
-            className="dshDesktopFrameMark"
-            viewBox="0 0 16 16"
-            fill="none"
-          >
-            <path
-              d="M2 11.5 L6 8 L10 11.5 L14 8"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <circle cx="2" cy="11.5" r="1.7" fill="currentColor" />
-            <circle cx="8" cy="8.6" r="1.7" fill="currentColor" opacity="0.75" />
-            <circle cx="14" cy="8" r="1.7" fill="currentColor" />
-          </svg>
-          <span className="dshDesktopFrameProduct">PolyMechanism Studio</span>
+          <DesktopProductMark className="dshDesktopFrameMark" />
+          <span className="dshDesktopFrameProduct">{DESKTOP_PRODUCT_NAME}</span>
         </span>
         <DesktopVersionControl version={environment.version} checkForUpdates={api.checkForUpdates} t={t} />
         <DesktopModeControl
