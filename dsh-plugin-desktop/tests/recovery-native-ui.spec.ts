@@ -11,7 +11,7 @@ describe('Recovery native terminal action', () => {
       support: { href: 'https://github.com/anywhere-labs/dsh-desktop/issues', label: '联系我们', hint: '提供完整报错' },
     }))
     expect(markup).toContain('href="https://github.com/anywhere-labs/dsh-desktop/issues"')
-    expect(markup.indexOf('联系我们')).toBeLessThan(markup.indexOf('打开 DSH 终端'))
+    expect(markup.indexOf('联系我们')).toBeLessThan(markup.indexOf('打开 PolyMechanism 终端'))
   })
 
   it('does not invent a title-row action without Desktop frame controls', () => {

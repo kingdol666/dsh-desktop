@@ -7,13 +7,13 @@ import type { DesktopReleaseChannel } from './update-checker.ts'
 
 export const nextTransitionNoticeCopy = {
   zh: {
-    title: 'DSH Desktop 版本更新说明',
+    title: 'PolyMechanism Studio 版本更新说明',
     message: 'Next 将成为新的稳定版桌面端',
     detail: '下个版本发布后，我们计划用 Next 版取代当前稳定版桌面端。届时，你可以通过“检查更新”获取新版本。感谢你的支持！',
     dismiss: '不再提醒', acknowledge: '知道了',
   },
   en: {
-    title: 'DSH Desktop release update',
+    title: 'PolyMechanism Studio release update',
     message: 'Next will become the new stable desktop app',
     detail: 'After the next release, we plan to replace the current stable desktop app with Next. You will be able to get the new version through Check for Updates. Thank you for your support!',
     dismiss: "Don't show again", acknowledge: 'OK',

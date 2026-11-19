@@ -180,7 +180,7 @@ export function requestDesktopArtifact(url: string, init: RequestInit): Promise<
   })
 }
 
-/** Native adapter used by the DSH Desktop launcher and owned by its Cordis shell plugin. */
+/** Native adapter used by the PolyMechanism Studio launcher and owned by its Cordis shell plugin. */
 export class ElectronDesktopRuntime implements DesktopRuntime {
   configureDeveloperLogging(preferences: DiagnosticPreferences): void { configureDeveloperLogging(preferences) }
 

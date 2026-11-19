@@ -336,7 +336,7 @@ virtualStoreDirMaxLength: 60
     })
     expect(inserted).toContainEqual(expect.objectContaining({
       name: DESKTOP_PACKAGE_NAME,
-      config: { mode: 'compatibility' },
+      config: { mode: 'advanced' },
     }))
     expect(patches).toContainEqual(expect.objectContaining({
       id: 'webserver',
@@ -362,22 +362,25 @@ virtualStoreDirMaxLength: 60
     expect(readFileSync(prepared.rootConfig, 'utf8')).toBe('[]\n')
     expect(prepared.homeDir).toBe(home)
     expect(fileURLToPath(prepared.bareModuleBaseUrl)).toBe(join(prepared.profile.dir, 'package.json'))
-    expect(prepared.mode).toBe('compatibility')
+    expect(prepared.mode).toBe('advanced')
     expect(prepared.openBrowser).toBe(false)
     expect(prepared.networkExposure).toBe('loopback')
     expect(prepared.lanAddresses).toEqual([])
     expect(Object.isFrozen(prepared.lanAddresses)).toBe(true)
 
     const rows = composeEntries([prepared.patches])
-    for (const [id, name] of [
-      ['ui-layout', '@deepseek-ai/dsh-client-ui-layout'],
-      ['ui-sidebar', '@deepseek-ai/dsh-client-ui-sidebar'],
-      ['ui-conversation', '@deepseek-ai/dsh-client-ui-conversation'],
+    // The product default is the advanced shell, which disables the upstream
+    // root layout while keeping its sidebar and conversation as occupants.
+    for (const [id, name, expectedDisabled] of [
+      ['ui-layout', '@deepseek-ai/dsh-client-ui-layout', true],
+      ['ui-sidebar', '@deepseek-ai/dsh-client-ui-sidebar', false],
+      ['ui-conversation', '@deepseek-ai/dsh-client-ui-conversation', false],
     ] as const) {
       const matching = rows.filter(row => row.id === id)
       expect(matching).toHaveLength(1)
       expect(matching[0]).toEqual(expect.objectContaining({ name }))
-      expect(matching[0]?.disabled).toBeFalsy()
+      if (expectedDisabled) expect(matching[0]?.disabled).toBe(true)
+      else expect(matching[0]?.disabled).toBeFalsy()
     }
     expect(rows.find(row => row.id === 'directory-picker')).toEqual(expect.objectContaining({
       name: '@deepseek-ai/dsh-host-directory-picker-auto',
@@ -823,7 +826,7 @@ virtualStoreDirMaxLength: 60
     })
     expect(rows.find(row => row.id === 'desktop-shell')).toEqual(expect.objectContaining({
       name: 'dsh-plugin-desktop',
-      config: expect.objectContaining({ mode: 'compatibility' }),
+      config: expect.objectContaining({ mode: 'advanced' }),
     }))
   })
 

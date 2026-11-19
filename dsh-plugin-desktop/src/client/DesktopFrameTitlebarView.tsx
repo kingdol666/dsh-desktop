@@ -175,7 +175,26 @@ export function DesktopFrameTitlebarView({ api, environment, setMode, t, remoteC
       data-material={environment.material}
     >
       <div className="dshDesktopFrameIdentity">
-        <span className="dshDesktopFrameProduct">DSH Desktop</span>
+        <span className="dshDesktopFrameBrand">
+          <svg
+            aria-hidden="true"
+            className="dshDesktopFrameMark"
+            viewBox="0 0 16 16"
+            fill="none"
+          >
+            <path
+              d="M2 11.5 L6 8 L10 11.5 L14 8"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <circle cx="2" cy="11.5" r="1.7" fill="currentColor" />
+            <circle cx="8" cy="8.6" r="1.7" fill="currentColor" opacity="0.75" />
+            <circle cx="14" cy="8" r="1.7" fill="currentColor" />
+          </svg>
+          <span className="dshDesktopFrameProduct">PolyMechanism Studio</span>
+        </span>
         <DesktopVersionControl version={environment.version} checkForUpdates={api.checkForUpdates} t={t} />
         <DesktopModeControl
           mode={environment.mode}

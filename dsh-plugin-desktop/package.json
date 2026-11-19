@@ -1,7 +1,7 @@
 {
   "name": "dsh-plugin-desktop",
   "version": "2.0.18",
-  "description": "DSH Desktop: an Electron shell composed as a DeepSeek Harness Cordis plugin",
+  "description": "PolyMechanism Studio: an AI research desktop composed as a DeepSeek Harness Cordis plugin (forked from DSH Desktop)",
   "desktopName": "dsh-desktop.desktop",
   "license": "MIT",
   "publishConfig": {
@@ -392,8 +392,8 @@
     "vitest": "4.1.8"
   },
   "build": {
-    "appId": "ai.deepseek.dsh.desktop",
-    "productName": "DSH Desktop",
+    "appId": "studio.polymechanism.desktop",
+    "productName": "PolyMechanism Studio",
     "asar": false,
     "afterPack": "./scripts/verify-packaged-runtime.ts",
     "afterAllArtifactBuild": "./scripts/verify-electron-fuses.ts",
@@ -430,7 +430,7 @@
       "extendInfo": {
         "CFBundleAllowMixedLocalizations": true,
         "CFBundleDevelopmentRegion": "en",
-        "NSMicrophoneUsageDescription": "DSH Desktop uses the microphone for voice input.",
+        "NSMicrophoneUsageDescription": "PolyMechanism Studio uses the microphone for voice input.",
         "CFBundleLocalizations": [
           "en",
           "zh_CN"
@@ -472,7 +472,7 @@
           ]
         }
       ],
-      "artifactName": "DSH-Desktop-${version}-${arch}-Portable.${ext}",
+      "artifactName": "PolyMechanism-Studio-${version}-${arch}-Portable.${ext}",
       "icon": "build/app-icon.ico"
     },
     "nsis": {
@@ -486,10 +486,10 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "differentialPackage": false,
-      "shortcutName": "DSH Desktop",
+      "shortcutName": "PolyMechanism Studio",
       "uninstallerIcon": "build/app-icon.ico",
       "useZip": false,
-      "artifactName": "DSH-Desktop-${version}-${arch}-Setup.${ext}"
+      "artifactName": "PolyMechanism-Studio-${version}-${arch}-Setup.${ext}"
     },
     "linux": {
       "target": [
@@ -507,7 +507,7 @@
         }
       ],
       "icon": "build/icons",
-      "artifactName": "DSH-Desktop-${version}-${arch}.${ext}",
+      "artifactName": "PolyMechanism-Studio-${version}-${arch}.${ext}",
       "category": "Development",
       "synopsis": "Agentic coding desktop for the DeepSeek Harness",
       "maintainer": "DeepSeek <dsh-desktop@deepseek.com>",

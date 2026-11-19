@@ -596,7 +596,7 @@ export async function setDesktopProfileBundleSelected(
   if (!desktopPluginBundleMutable(packageName)) {
     throw new DesktopProfileSelectionError(
       'immutable-target',
-      `${BIN_NAME}: bundle ${JSON.stringify(packageName)} belongs to DSH Desktop and cannot be changed`,
+      `${BIN_NAME}: bundle ${JSON.stringify(packageName)} belongs to PolyMechanism Studio and cannot be changed`,
     )
   }
   const manifestPath = join(resolveProfileDir(bootstrap.profileName, bootstrap.homeDir), 'package.json')

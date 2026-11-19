@@ -19,22 +19,22 @@ it('inherits the pinned upstream entitlement file for the main app and all Helpe
 
 it('checks both architectures in the main app and all four Helpers', () => {
   const read = vi.fn(() => granted)
-  verifyMacEntitlements('/mounted/DSH Desktop.app', 'DSH Desktop', read)
+  verifyMacEntitlements('/mounted/PolyMechanism Studio.app', 'PolyMechanism Studio', read)
   expect(read).toHaveBeenCalledTimes(10)
   for (const suffix of ['', ' (Renderer)', ' (GPU)', ' (Plugin)']) {
     for (const arch of ['arm64', 'x86_64']) {
-      expect(read).toHaveBeenCalledWith(join('/mounted/DSH Desktop.app', 'Contents', 'Frameworks', `DSH Desktop Helper${suffix}.app`), arch)
+      expect(read).toHaveBeenCalledWith(join('/mounted/PolyMechanism Studio.app', 'Contents', 'Frameworks', `PolyMechanism Studio Helper${suffix}.app`), arch)
     }
   }
 })
 
 it.each([undefined, false, 'true'])('rejects missing or non-boolean audio input grants: %s', value => {
-  expect(() => verifyMacEntitlements('/mounted/DSH Desktop.app', 'DSH Desktop', (path, arch) =>
+  expect(() => verifyMacEntitlements('/mounted/PolyMechanism Studio.app', 'PolyMechanism Studio', (path, arch) =>
     path.endsWith('Helper.app') && arch === 'x86_64'
       ? { ...granted, 'com.apple.security.device.audio-input': value } : granted,
   )).toThrow(/audio-input.*Helper.app.*x86_64/)
 })
 
 it('propagates a signature inspection failure instead of accepting an unchecked artifact', () => {
-  expect(() => verifyMacEntitlements('/mounted/DSH Desktop.app', 'DSH Desktop', () => { throw new Error('codesign failed') })).toThrow('codesign failed')
+  expect(() => verifyMacEntitlements('/mounted/PolyMechanism Studio.app', 'PolyMechanism Studio', () => { throw new Error('codesign failed') })).toThrow('codesign failed')
 })
