@@ -191,14 +191,14 @@ describe('scientific gate', () => {
     expect(bad.checks.some(c => c.rule === 'G-OPTICS' && !c.ok)).toBe(true)
   })
 
-  it('requires an excluded competitor before concluding', () => {
+  it('blocks a conclusion whose competitor is not excluded', () => {
     const verdict = evaluateGate({
       kind: 'claim',
       claim: '拉伸比主导幅值',
       competitors: [{ statement: '温度主导', excluded: false }],
       evidence: [evidence('EV-1-abcd', 'supports', 'strong')],
     })
-    expect(verdict.verdict).toBe('warn')
+    expect(verdict.verdict).toBe('block')
     expect(verdict.checks.some(c => c.rule === 'G-COMPETE' && !c.ok)).toBe(true)
   })
 })

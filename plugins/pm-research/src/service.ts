@@ -326,6 +326,7 @@ export class PmResearchEngine {
     rationale: string,
     actor: string,
     additionalEvidenceIds?: readonly EntityId[],
+    excludedCompetitors?: readonly string[],
   ): Promise<{ legal: boolean; reason?: string; hypothesis?: Hypothesis }> {
     // Resolve the cited evidence from the ledger so callers cannot invent gate fields.
     const items = await this.hypothesisStore().list(projectId)
@@ -349,7 +350,16 @@ export class PmResearchEngine {
         const record = (await ledger).get(item.id)
         if (record !== undefined) bound.push(record)
       }
-      const gate = evaluateGate({ kind: 'hypothesis', evidence: bound })
+      // Competitors are declared on the hypothesis; exclusion is asserted by the
+      // caller per conclusion, so the gate can require a ruled-out alternative.
+      const declared = current.competitors ?? []
+      const competitors = declared.length === 0
+        ? []
+        : declared.map(statement => ({
+            statement,
+            excluded: (excludedCompetitors ?? []).includes(statement),
+          }))
+      const gate = evaluateGate({ kind: 'hypothesis', evidence: bound, competitors })
       if (gate.verdict === 'block') {
         const failed = gate.checks.filter(check => !check.ok).map(check => check.detail).join('; ')
         return { legal: false, reason: `scientific gate blocked the conclusion: ${failed}` }

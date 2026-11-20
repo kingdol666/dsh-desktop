@@ -125,7 +125,10 @@ export function evaluateGate(input: GateInput): GateVerdict {
       checks.push({ rule: 'G-EVID', ok: true, detail: `${String(bound)} evidence record(s) bound` })
     }
   }
-  const blocked = checks.some(check => !check.ok && (check.rule === 'G-EVID' || check.rule === 'G-DOI'))
+  // Conclusions need a ruled-out alternative: an unexcluded competitor blocks,
+  // exactly like unbound or malformed evidence.
+  const blockingRules = new Set(['G-EVID', 'G-DOI', 'G-COMPETE'])
+  const blocked = checks.some(check => !check.ok && blockingRules.has(check.rule))
   const warned = checks.some(check => !check.ok)
   return {
     verdict: blocked ? 'block' : warned ? 'warn' : 'pass',

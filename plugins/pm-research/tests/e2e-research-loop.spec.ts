@@ -145,6 +145,7 @@ describe('full research loop with the polymer simulation engine', () => {
         `实测 f=${measuredF.toFixed(4)} 落在仿射预测窗且不超过上界 0.70（预测证据 + 实测证据一致）`,
         'preset:polymer-scientist',
         [predictionEvidence.id, measurement.id],
+        h1.competitors,
       )
       expect(h1Final.legal).toBe(true)
       expect(h1Final.hypothesis?.status).toBe('supported')
@@ -160,7 +161,7 @@ describe('full research loop with the polymer simulation engine', () => {
       for (const to of ['conditional', 'under_test'] as const) {
         await engine.transitionHypothesis(project.id, h2.id, to, '进入判别', 'preset:polymer-scientist')
       }
-      const h2Final = await engine.transitionHypothesis(project.id, h2.id, 'refuted', '实测取向进入仿射预测窗：饱和假设被反驳', 'preset:polymer-scientist', [refutes.evidence.id])
+      const h2Final = await engine.transitionHypothesis(project.id, h2.id, 'refuted', '实测取向进入仿射预测窗：饱和假设被反驳', 'preset:polymer-scientist', [refutes.evidence.id], h2.competitors)
       expect(h2Final.legal).toBe(true)
       expect(h2Final.hypothesis?.status).toBe('refuted')
 

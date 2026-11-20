@@ -212,6 +212,7 @@ export function registerPmTools(ctx: Context, engine: PmResearchEngine, resolveP
         to: { type: 'string', enum: ['conditional', 'under_test', 'supported', 'refuted', 'archived'], required: true },
         rationale: { type: 'string', required: true },
         evidenceIds: { type: 'array', items: { type: 'string' } },
+        excludedCompetitors: { type: 'array', items: { type: 'string' } },
         preset: { type: 'string' },
         actor: { type: 'string' },
       },
@@ -219,7 +220,10 @@ export function registerPmTools(ctx: Context, engine: PmResearchEngine, resolveP
       async execute(args, exec) {
         const auth = authorize('pm_hypothesis_transition', args, exec, resolvePreset)
         if (!auth.ok) return toToolJson(auth)
-        const verdict = await engine.transitionHypothesis(args.projectId, args.hypothesisId, args.to, args.rationale, auth.actor, args.evidenceIds)
+        const verdict = await engine.transitionHypothesis(
+          args.projectId, args.hypothesisId, args.to, args.rationale, auth.actor,
+          args.evidenceIds, args.excludedCompetitors,
+        )
         if (!verdict.legal) {
           return toToolJson(failure('GATE_BLOCKED', verdict.reason ?? 'transition blocked', 'cite more/stronger evidence via pm_evidence_record, then retry'))
         }

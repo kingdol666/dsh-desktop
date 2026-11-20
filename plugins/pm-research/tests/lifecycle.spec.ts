@@ -68,7 +68,10 @@ describe('research engine lifecycle', () => {
       const step = await engine.transitionHypothesis(project.id, hypothesis.id, to, '进入下一阶段', 'preset:polymer-scientist')
       expect(step.legal).toBe(true)
     }
-    const final = await engine.transitionHypothesis(project.id, hypothesis.id, 'supported', '判别实验支持该机理', 'preset:polymer-scientist')
+    const final = await engine.transitionHypothesis(
+      project.id, hypothesis.id, 'supported', '判别实验支持该机理', 'preset:polymer-scientist',
+      undefined, hypothesis.competitors,
+    )
     expect(final.legal).toBe(true)
     expect(final.hypothesis?.status).toBe('supported')
     expect(final.hypothesis?.transitions).toHaveLength(4)
@@ -104,7 +107,9 @@ describe('research engine lifecycle', () => {
     }
     const verdict = await engine.transitionHypothesis(project.id, hypothesis.id, 'supported', 'wants to conclude', 'preset:polymer-scientist')
     expect(verdict.legal).toBe(false)
-    expect(verdict.reason).toContain('discriminating test')
+    // No competitors declared, so the gate blocks before the machine can even
+    // report the missing discriminating test.
+    expect(verdict.reason).toMatch(/competitor|discriminating test/u)
   })
 
   it('resolves gate evidence from the ledger, so callers cannot invent strengths', async () => {

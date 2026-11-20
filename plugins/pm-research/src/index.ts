@@ -156,14 +156,20 @@ export function apply(ctx: Context, config: PmResearchConfig = {}): void {
   })
   // The live preset registry knows a selection committed after the session
   // header was written; the header is only the session's initial composition.
-  const registry = ctx.reflect?.get('agentPresets', false) as {
+  // Resolved lazily per call: in a headless boot this plugin can apply before
+  // the registry service is provided, and a captured snapshot would stay empty.
+  type PresetRegistry = {
     composedPreset(context: Context): string | undefined
-  } | undefined
+    readonly defaultId?: string
+  }
   const resolvePreset = (exec: { readonly agent?: unknown }): string | undefined => {
     const agent = exec.agent as { readonly ctx?: Context } | undefined
-    if (agent?.ctx === undefined || registry === undefined) return undefined
+    if (agent?.ctx === undefined) return undefined
     try {
-      return registry.composedPreset(agent.ctx)
+      const registry = ctx.reflect?.get('agentPresets', false) as PresetRegistry | undefined
+      // Headless runners create sessions without a preset header; the profile's
+      // configured default is the authority those sessions run under.
+      return registry?.composedPreset(agent.ctx) ?? registry?.defaultId
     } catch {
       return undefined
     }
