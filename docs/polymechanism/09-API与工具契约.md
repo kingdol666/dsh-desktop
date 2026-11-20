@@ -361,7 +361,7 @@ interface PmScience   { caeRun(i); caeStudy(i); opticsAnalyze(i); characterizati
 | pm_sim_chain_mechanics / viscoelastic / chain_stats | ✓ | ✓ | — | ✓ | — | — |
 | pm_sim_rubber_elasticity / flory_huggins / tg_blend / diffusion | ✓ | ✓ | — | ✓ | — | — |
 | pm_sim_crystallization | ✓ | — | ✓ | ✓ | — | — |
-| pm_sim_md_run（PR#12） | ✓ | ✓ | — | ✓ | — | — |
+| pm_sim_md_run | ✓ | ✓ | — | ✓ | — | — |
 | pm_literature_read | ✓ | — | — | — | ✓ | — |
 | pm_literature_extract | ✓ | — | — | — | ✓ | — |
 | pm_knowledge_propose | ✓ | ✓ | ✓ | ✓ | ✓ | — |

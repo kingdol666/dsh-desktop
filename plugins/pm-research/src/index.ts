@@ -145,6 +145,7 @@ export function registeredTools(): readonly string[] {
     'pm_sim_flory_huggins',
     'pm_sim_tg_blend',
     'pm_sim_diffusion',
+    'pm_sim_md_run',
     'pm_waxs_analyze',
     'pm_ftir_analyze',
     'pm_saxs_analyze',

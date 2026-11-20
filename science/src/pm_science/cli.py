@@ -271,6 +271,12 @@ def _diffusion(args: dict[str, object]) -> dict[str, object]:
     return run_diffusion("vrentas-duda", **{snake[key]: value for key, value in fields.items()})
 
 
+def _md_run(args: dict[str, object]) -> dict[str, object]:
+    from pm_science.md import run_md
+
+    return run_md(args)
+
+
 HANDLERS = {
     "waxs": _waxs,
     "ftir": _ftir,
@@ -286,6 +292,7 @@ HANDLERS = {
     "flory": _flory,
     "tg_blend": _tg_blend,
     "diffusion": _diffusion,
+    "md_run": _md_run,
 }
 
 

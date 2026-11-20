@@ -14,6 +14,7 @@ import {
   sessionWorkspace,
   type ScienceTool,
 } from './science.ts'
+import { resolveLammps } from './lammps.ts'
 
 /** Shared authorization + evidence fields. */
 interface SimArgs {
@@ -554,6 +555,78 @@ export function registerSimTools(ctx: Context, engine: PmResearchEngine, resolve
         return simulate('pm_sim_diffusion', 'diffusion', args, request, exec, engine, result => {
           return `Vrentas-Duda D1=${String(result.D1).toExponential(3)} m²/s at free volume ${String(result.freeVolumeOverGamma)} cm³/g`
         }, resolvePreset)
+      },
+    }))
+
+    scope.tools.register(defineTool({
+      name: 'pm_sim_md_run',
+      description: '粗粒化链 MD（Kremer-Grest，LAMMPS）：equilibrate(Rg)/deform(应力各向异性)/cool(PE-T 系列+Tg 估计)，LJ 单位，登记 MD 证据',
+      parameters: {
+        projectId: { type: 'string', required: true },
+        job: { type: 'string', enum: ['equilibrate', 'deform', 'cool'], required: true },
+        chainLength: { type: 'integer' },
+        chainCount: { type: 'integer' },
+        density: { type: 'number' },
+        steps: { type: 'integer' },
+        stretch: { type: 'number' },
+        temperature: { type: 'number' },
+        finalTemperature: { type: 'number' },
+        seed: { type: 'integer' },
+        timeoutS: { type: 'integer' },
+        ...commonParameters(),
+      },
+      output: { schema: { type: 'object', additionalProperties: true }, render },
+      async execute(args: SimArgs & {
+        job: 'equilibrate' | 'deform' | 'cool'
+        chainLength?: number
+        chainCount?: number
+        density?: number
+        steps?: number
+        stretch?: number
+        temperature?: number
+        finalTemperature?: number
+        seed?: number
+        timeoutS?: number
+      }, exec) {
+        const auth = authorize('pm_sim_md_run', args, exec, resolvePreset)
+        if (!auth.ok) return toToolJson(auth)
+        if (resolveLammps() === undefined) {
+          return toToolJson({
+            ok: false,
+            error: {
+              code: 'SIM_UNAVAILABLE',
+              message: 'LAMMPS binary not found; install LAMMPS (Windows installer available) and set PM_LAMMPS_HOME',
+              hint: 'the analytic layer (other pm_sim_* tools) stays available without LAMMPS',
+            },
+          })
+        }
+        const request: Record<string, unknown> = { job: args.job }
+        for (const key of ['chainLength', 'chainCount', 'density', 'steps', 'stretch', 'temperature', 'finalTemperature', 'seed', 'timeoutS'] as const) {
+          if (args[key] !== undefined) request[key] = args[key]
+        }
+        try {
+          const result = await runScience('md_run', request, {
+            signal: exec.signal,
+            timeoutMs: Math.max((args.timeoutS ?? 600) * 1000, 120_000),
+          })
+          if (args.record === false) return toToolJson({ ok: true, data: { simulation: result, evidence: null } })
+          const claim = [
+            'MD ' + args.job,
+            'lammps Kremer-Grest LJ units',
+            'observables: ' + JSON.stringify(result.observables),
+          ].join(' | ')
+          const recorded = await engine.recordSimulation(args.projectId, {
+            tool: 'pm_sim_md_run',
+            result,
+            claimSupport: args.claimSupport ?? claim,
+            ...(args.polarity === undefined ? {} : { polarity: args.polarity }),
+            ...(args.strength === undefined ? {} : { strength: args.strength }),
+            recordedBy: auth.actor,
+          })
+          return toToolJson({ ok: true, data: { simulation: result, ...recorded } })
+        } catch (cause) {
+          return toToolJson(failure(cause))
+        }
       },
     }))
   })
