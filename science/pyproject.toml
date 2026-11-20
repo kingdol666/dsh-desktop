@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "PolyMechanism science engine: CAE bridge, characterization analysis, and MCP server"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-dependencies = ["numpy>=2.0", "scipy>=1.14"]
+dependencies = ["numpy>=2.0", "scipy>=1.14", "pypdf>=5"]
 
 [project.optional-dependencies]
 mcp = ["fastmcp>=2.0"]

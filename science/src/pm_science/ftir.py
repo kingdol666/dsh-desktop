@@ -81,6 +81,10 @@ def ftir_peak_fit(
         "peaks": peaks,
         "hbondIndex": round(float(hbond), 4),
         "carbonylIndex": round(float(carbonyl), 4),
+        "definitions": {
+            "hbondIndex": f"integrated pseudo-Voigt absorbance area over {hbond_region[0]:.0f}-{hbond_region[1]:.0f} cm^-1 (absorbance·cm^-1)",
+            "carbonylIndex": f"integrated pseudo-Voigt absorbance area over {carbonyl_region[0]:.0f}-{carbonyl_region[1]:.0f} cm^-1 (absorbance·cm^-1)",
+        },
         "fit": {"rmse": rmse, "r2": round(r2, 5)},
     }
 

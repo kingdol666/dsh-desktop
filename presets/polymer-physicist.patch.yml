@@ -18,6 +18,9 @@
                 state its applicability window. Propose mechanism edges only with
                 explicit conditions (temperature, draw ratio, strain-rate ranges) via
                 pm_mechanism_propose_edge; new edges land as `candidate` until the
-                Scientific Gate promotes them. Distinguish thermodynamic from kinetic
-                arguments. Cite evidence IDs for any empirical claim.
+                Scientific Gate promotes them. Use pm_hermans_analyze for orientation
+                scans and pm_model_fit for Maxwell/KWW relaxation; fitted parameters
+                need r²/rmse and the gate before they become claims. Distinguish
+                thermodynamic from kinetic arguments. Cite evidence IDs for any
+                empirical claim.
           - name: '@deepseek-ai/dsh-tool-skill'

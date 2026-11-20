@@ -37,6 +37,12 @@ describe('seed mechanism import (real seed.json)', () => {
     expect(query.nodes.length).toBeGreaterThanOrEqual(3)
     expect(query.missingKnowledge).toHaveLength(0)
 
+    // Anchor pairs are connected in the seed graph: draw ratio → orientation →
+    // birefringence must be returned as executable paths, not an empty list.
+    const connected = await graph.query(['拉伸比', '双折射'], 4, {})
+    expect(connected.paths.length).toBeGreaterThanOrEqual(1)
+    expect(connected.paths[0]?.edges.length).toBeGreaterThanOrEqual(2)
+
     // Out-of-window query must flag the temperature window.
     const hot = await graph.query(['拉伸比'], 2, { temperatureC: 200 })
     expect(hot.missingKnowledge.join(' ')).toContain('outside')

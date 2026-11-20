@@ -28,10 +28,13 @@ describe('polymer skill registration', () => {
     const { ctx, registered } = fakeCtx()
     registerSkills(ctx as never)
     await vi.waitFor(() => { expect(registered.length).toBe(PM_SKILL_NAMES.length) })
-    for (const def of registered as { name: string; description: string; content: string }[]) {
+    for (const def of registered as { name: string; description: string; content: string; source: unknown; path?: string }[]) {
       expect(def.name).toMatch(/^[a-z0-9-]+$/u)
       expect(def.description.length).toBeGreaterThan(10)
       expect(def.content).toContain('#')
+      // The runtime loader rejects a registration without a string source.
+      expect(typeof def.source).toBe('string')
+      expect(def.path?.endsWith('SKILL.md')).toBe(true)
     }
     const byName = new Map((registered as { name: string; content: string }[]).map(def => [def.name, def]))
     const physics = byName.get('polymer-physics')

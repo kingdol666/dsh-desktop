@@ -103,7 +103,21 @@ export function apply(ctx: Context, config: PmResearchConfig = {}): void {
     }),
     'pm-research: /pm/overview route',
   )
-  registerPmTools(ctx, engine)
+  // The live preset registry knows a selection committed after the session
+  // header was written; the header is only the session's initial composition.
+  const registry = ctx.reflect?.get('agentPresets', false) as {
+    composedPreset(context: Context): string | undefined
+  } | undefined
+  const resolvePreset = (exec: { readonly agent?: unknown }): string | undefined => {
+    const agent = exec.agent as { readonly ctx?: Context } | undefined
+    if (agent?.ctx === undefined || registry === undefined) return undefined
+    try {
+      return registry.composedPreset(agent.ctx)
+    } catch {
+      return undefined
+    }
+  }
+  registerPmTools(ctx, engine, resolvePreset)
   registerSkills(ctx)
 }
 
@@ -125,5 +139,12 @@ export function registeredTools(): readonly string[] {
     'pm_gate_check',
     'pm_cae_run',
     'pm_cae_coupon',
+    'pm_waxs_analyze',
+    'pm_ftir_analyze',
+    'pm_saxs_analyze',
+    'pm_hermans_analyze',
+    'pm_model_fit',
+    'pm_literature_read',
+    'pm_literature_extract',
   ]
 }

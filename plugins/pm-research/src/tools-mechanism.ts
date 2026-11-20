@@ -1,31 +1,29 @@
 /** Mechanism + knowledge + gate tools: split from tools.ts to keep each module focused. */
 
-import { defineTool } from '@deepseek-ai/dsh-tools'
+import { defineTool, type ToolRunContext } from '@deepseek-ai/dsh-tools'
 import type { Context } from '@deepseek-ai/cordis'
 import type { PmResearchEngine } from './service.ts'
-import { canUseTool } from './permissions.ts'
+import { actingPreset, canUseTool, type PresetResolver } from './permissions.ts'
+import { renderJson as render, toToolJson } from './tool-json.ts'
 
-/**
- * Boundary cast for the tool JSON frontier (same contract as tools.ts).
- */
-function toToolJson(value: unknown): Record<string, never> {
-  return value as never
-}
+/** Resolved identity or denial envelope. */
+type Auth =
+  | { readonly ok: true; readonly preset: string; readonly actor: string }
+  | { readonly ok: false; readonly error: { readonly code: string; readonly message: string; readonly hint?: string } }
 
-function deny(tool: string, preset: string | undefined): Record<string, never> | undefined {
-  if (canUseTool(tool, preset)) return undefined
-  return toToolJson({
+function deny(tool: string, args: { preset?: string; actor?: string }, exec: ToolRunContext, resolve?: PresetResolver): Auth {
+  const preset = actingPreset(args, exec, resolve)
+  if (preset !== undefined && canUseTool(tool, preset)) {
+    return { ok: true, preset, actor: args.actor ?? `preset:${preset}` }
+  }
+  return {
     ok: false,
     error: {
       code: 'PERMISSION_DENIED',
       message: `preset ${preset ?? '(unattributed)'} is not allowed to call ${tool}`,
       hint: 'allowed presets: docs/polymechanism/09-API与工具契约.md §6',
     },
-  })
-}
-
-function render(_args: unknown, value: unknown): { type: 'text'; text: string }[] {
-  return [{ type: 'text', text: JSON.stringify(value) }]
+  }
 }
 
 /**
@@ -33,7 +31,7 @@ function render(_args: unknown, value: unknown): { type: 'text'; text: string }[
  * @param ctx - Host context providing the tools service.
  * @param engine - research engine facade.
  */
-export function registerMechanismTools(ctx: Context, engine: PmResearchEngine): void {
+export function registerMechanismTools(ctx: Context, engine: PmResearchEngine, resolvePreset?: PresetResolver): void {
   ctx.inject(['tools'], (scope) => {
     scope.tools.register(defineTool({
       name: 'pm_mechanism_import_seed',
@@ -44,9 +42,9 @@ export function registerMechanismTools(ctx: Context, engine: PmResearchEngine): 
         preset: { type: 'string' },
       },
       output: { schema: { type: 'object', additionalProperties: true }, render },
-      async execute(args) {
-        const blocked = deny('pm_mechanism_import_seed', args.preset)
-        if (blocked !== undefined) return toToolJson(blocked)
+      async execute(args, exec) {
+        const auth = deny('pm_mechanism_import_seed', args, exec, resolvePreset)
+        if (!auth.ok) return toToolJson(auth)
         try {
           return toToolJson({ ok: true, data: await engine.importSeed(args.projectId, args.seedPath) })
         } catch (cause) {
@@ -69,9 +67,9 @@ export function registerMechanismTools(ctx: Context, engine: PmResearchEngine): 
         preset: { type: 'string' },
       },
       output: { schema: { type: 'object', additionalProperties: true }, render },
-      async execute(args) {
-        const blocked = deny('pm_mechanism_query', args.preset)
-        if (blocked !== undefined) return toToolJson(blocked)
+      async execute(args, exec) {
+        const auth = deny('pm_mechanism_query', args, exec, resolvePreset)
+        if (!auth.ok) return toToolJson(auth)
         const conditions: Record<string, number> = {}
         for (const [key, value] of Object.entries(args.conditions ?? {})) {
           if (typeof value === 'number') conditions[key] = value
@@ -98,9 +96,9 @@ export function registerMechanismTools(ctx: Context, engine: PmResearchEngine): 
         actor: { type: 'string' },
       },
       output: { schema: { type: 'object', additionalProperties: true }, render },
-      async execute(args) {
-        const blocked = deny('pm_mechanism_propose_edge', args.preset)
-        if (blocked !== undefined) return toToolJson(blocked)
+      async execute(args, exec) {
+        const auth = deny('pm_mechanism_propose_edge', args, exec, resolvePreset)
+        if (!auth.ok) return toToolJson(auth)
         let strongCount = 0
         if (args.evidenceIds !== undefined) {
           const records = await engine.queryEvidence(args.projectId)

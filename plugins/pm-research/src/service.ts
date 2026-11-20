@@ -1,7 +1,7 @@
 /** Research engine facade: per-project stores rooted at one data root. */
 
 import { createHash } from 'node:crypto'
-import { readFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
   EvidenceLedger,
@@ -68,6 +68,24 @@ export interface PmOverview {
     readonly pendingKnowledge: number
   }
   readonly cae: { readonly configured: boolean }
+}
+
+/** One archived engine outcome. */
+export interface CaeRunOutcome {
+  readonly result: CaeRunResult
+  readonly summary: CaeSummary
+  readonly artifactPath?: string
+}
+
+/** One characterization analysis to archive and cite. */
+export interface AnalysisRecordInput {
+  readonly tool: string
+  readonly result: Record<string, unknown>
+  readonly dataPath: string
+  readonly claimSupport: string
+  readonly polarity?: Evidence['polarity']
+  readonly strength?: Evidence['strength']
+  readonly recordedBy: string
 }
 
 /** Four hex chars from a statement digest, used in hypothesis ids. */
@@ -380,7 +398,7 @@ export class PmResearchEngine {
    * @param projectId - owning project (artifact lands in its directory).
    * @param args - coupon stretch parameters.
    */
-  async runCaeCoupon(projectId: EntityId, args: { stretchX: number; stretchY: number; mesh?: string }): Promise<{ result: CaeRunResult; summary: CaeSummary; artifactPath?: string }> {
+  async runCaeCoupon(projectId: EntityId, args: { stretchX: number; stretchY: number; mesh?: string }): Promise<CaeRunOutcome> {
     const result = await this.spawnCaeChecked(['--mode', 'coupon', '--mesh', args.mesh ?? '4,8', '--stretch-x', String(args.stretchX), '--stretch-y', String(args.stretchY)])
     const archived = await this.archiveCaeResult(projectId, `coupon-${args.stretchX}-${args.stretchY}`, result)
     return { result, summary: summarizeCae(result), ...(archived === undefined ? {} : { artifactPath: archived }) }
@@ -391,7 +409,7 @@ export class PmResearchEngine {
    * @param projectId - owning project.
    * @param params - engine parameter overrides (material/machine/process).
    */
-  async runCaeRun(projectId: EntityId, params?: Record<string, unknown>): Promise<{ result: CaeRunResult; summary: CaeSummary; artifactPath?: string }> {
+  async runCaeRun(projectId: EntityId, params?: Record<string, unknown>): Promise<CaeRunOutcome> {
     const argv = ['--mode', 'run', '--time', '0']
     if (params !== undefined) argv.push('--params', JSON.stringify(params))
     const result = await this.spawnCaeChecked(argv)
@@ -404,6 +422,51 @@ export class PmResearchEngine {
       throw new Error('CAE engine root not configured (set caeRoot config or PM_CAE_ROOT)')
     }
     return spawnCae(this.caeRoot, argv)
+  }
+
+  /**
+   * Persist one JSON artifact under the project's artifacts directory.
+   * @param projectId - owning project.
+   * @param name - human label; sanitized before it becomes a file name.
+   * @param value - JSON-safe payload.
+   * @returns absolute artifact path.
+   */
+  async archiveArtifact(projectId: EntityId, name: string, value: unknown): Promise<string> {
+    const project = await this.getProject(projectId)
+    if (project === undefined) throw new PmNotFound(`project ${projectId} not found`)
+    const directory = join(this.dataRoot, 'projects', projectId, 'artifacts')
+    await mkdir(directory, { recursive: true })
+    const safe = name.replace(/[^a-zA-Z0-9._-]/gu, '-')
+    const artifactPath = join(directory, `${safe}.json`)
+    await writeFile(artifactPath, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
+    return artifactPath
+  }
+
+  /**
+   * Archive an analysis result and cite it as one evidence entry. The evidence
+   * carries the artifact path and the original data path so a downstream
+   * reader can replay the derivation.
+   * @param projectId - owning project.
+   * @param input - tool/result/data path plus the claim the result supports.
+   */
+  async recordAnalysis(
+    projectId: EntityId,
+    input: AnalysisRecordInput,
+  ): Promise<{ evidence: Evidence; artifactPath: string; deduped: boolean }> {
+    const artifactPath = await this.archiveArtifact(
+      projectId,
+      `${input.tool}-${new Date().toISOString().replace(/[:.]/gu, '-')}`,
+      { tool: input.tool, dataPath: input.dataPath, result: input.result, recordedAt: new Date().toISOString() },
+    )
+    const { evidence, deduped } = await this.recordEvidence(projectId, {
+      claimSupport: input.claimSupport,
+      polarity: input.polarity ?? 'neutral',
+      strength: input.strength ?? 'moderate',
+      sourceRef: { type: 'file', ref: input.dataPath },
+      payload: { analysis: input.tool, artifactPath, result: input.result },
+      recordedBy: input.recordedBy,
+    })
+    return { evidence, artifactPath, deduped }
   }
 
   private async archiveCaeResult(projectId: EntityId, name: string, result: CaeRunResult): Promise<string | undefined> {

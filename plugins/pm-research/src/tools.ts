@@ -1,20 +1,14 @@
 /** Agent-facing pm tools: permission-checked handlers over the research engine. */
 
-import { defineTool } from '@deepseek-ai/dsh-tools'
+import { defineTool, type ToolRunContext } from '@deepseek-ai/dsh-tools'
 import type { Context } from '@deepseek-ai/cordis'
 import type { PmResearchEngine } from './service.ts'
-import { canUseTool } from './permissions.ts'
+import { actingPreset, canUseTool, type PresetResolver } from './permissions.ts'
+import { renderJson, toToolJson } from './tool-json.ts'
 import { registerMechanismTools } from './tools-mechanism.ts'
 import { registerKnowledgeTools } from './tools-knowledge.ts'
 import { registerCaeTools } from './tools-cae.ts'
-
-/**
- * Boundary cast: tool outputs cross the model JSON frontier, so handlers build
- * plain JSON-safe envelopes and hand them to the runtime as its record type.
- */
-function toToolJson(value: unknown): Record<string, never> {
-  return value as never
-}
+import { registerScienceTools } from './tools-science.ts'
 
 /** Structured tool envelope (docs 09 §1). */
 type PmEnvelope = Record<string, unknown>
@@ -29,29 +23,49 @@ interface AuthArgs {
   readonly actor?: string
 }
 
-/** Authorize or produce a PERMISSION_DENIED envelope. */
-function authorize(tool: string, args: AuthArgs): PmEnvelope | undefined {
-  if (!canUseTool(tool, args.preset)) {
-    return failure(
-      'PERMISSION_DENIED',
-      `preset ${args.preset ?? '(unattributed)'} may not call ${tool}`,
-      'allowed presets: docs/polymechanism/09-API与工具契约.md §6',
-    )
+/** Resolved acting identity for one authorized call. */
+interface Auth {
+  readonly ok: true
+  readonly preset: string
+  readonly actor: string
+}
+
+/** Permission refusal envelope. */
+interface Denial {
+  readonly ok: false
+  readonly error: { readonly code: string; readonly message: string; readonly hint?: string }
+}
+
+/**
+ * Authorize or produce a PERMISSION_DENIED envelope. The session header's
+ * committed preset wins over the model's `preset` hint.
+ * @param tool - tool name.
+ * @param args - model arguments.
+ * @param exec - execution context carrying the live Agent.
+ * @returns the resolved identity, or a denial envelope.
+ */
+function authorize(tool: string, args: AuthArgs, exec: ToolRunContext, resolve?: PresetResolver): Auth | Denial {
+  const preset = actingPreset(args, exec, resolve)
+  if (preset === undefined || !canUseTool(tool, preset)) {
+    return {
+      ok: false,
+      error: {
+        code: 'PERMISSION_DENIED',
+        message: `preset ${preset ?? '(unattributed)'} may not call ${tool}`,
+        hint: 'allowed presets: docs/polymechanism/09-API与工具契约.md §6',
+      },
+    }
   }
-  return undefined
+  return { ok: true, preset, actor: args.actor ?? `preset:${preset}` }
 }
 
 /** Shared render for JSON envelopes. */
-function renderJson(_args: unknown, value: unknown): { type: 'text'; text: string }[] {
-  return [{ type: 'text', text: JSON.stringify(value) }]
-}
-
 /**
  * Register every pm tool on the Host tool runtime.
  * @param ctx - Host context providing `tools`.
  * @param engine - research engine facade.
  */
-export function registerPmTools(ctx: Context, engine: PmResearchEngine): void {
+export function registerPmTools(ctx: Context, engine: PmResearchEngine, resolvePreset?: PresetResolver): void {
   ctx.inject(['tools'], (scope) => {
     scope.tools.register(defineTool({
       name: 'pm_project_create',
@@ -64,14 +78,14 @@ export function registerPmTools(ctx: Context, engine: PmResearchEngine): void {
         actor: { type: 'string' },
       },
       output: { schema: { type: 'object', additionalProperties: true }, render: renderJson },
-      async execute(args) {
-        const denied = authorize('pm_project_create', args)
-        if (denied !== undefined) return toToolJson(denied)
+      async execute(args, exec) {
+        const auth = authorize('pm_project_create', args, exec, resolvePreset)
+        if (!auth.ok) return toToolJson(auth)
         const project = await engine.createProject({
           title: args.title,
           question: args.question,
           domain: args.domain,
-        }, args.actor ?? `preset:${args.preset ?? 'unknown'}`)
+        }, auth.actor)
         return toToolJson({ ok: true, data: { project } })
       },
     }))
@@ -91,9 +105,9 @@ export function registerPmTools(ctx: Context, engine: PmResearchEngine): void {
         actor: { type: 'string' },
       },
       output: { schema: { type: 'object', additionalProperties: true }, render: renderJson },
-      async execute(args) {
-        const denied = authorize('pm_evidence_record', args)
-        if (denied !== undefined) return toToolJson(denied)
+      async execute(args, exec) {
+        const auth = authorize('pm_evidence_record', args, exec, resolvePreset)
+        if (!auth.ok) return toToolJson(auth)
         try {
           const { evidence, deduped } = await engine.recordEvidence(args.projectId, {
             claimSupport: args.claimSupport,
@@ -101,7 +115,7 @@ export function registerPmTools(ctx: Context, engine: PmResearchEngine): void {
             strength: args.strength,
             sourceRef: { type: args.sourceType, ref: args.sourceRef },
             ...(args.payload === undefined ? {} : { payload: args.payload }),
-            recordedBy: args.actor ?? `preset:${args.preset ?? 'unknown'}`,
+            recordedBy: auth.actor,
           })
           return toToolJson({ ok: true, data: { evidence, deduped } })
         } catch (cause) {
@@ -118,9 +132,9 @@ export function registerPmTools(ctx: Context, engine: PmResearchEngine): void {
         preset: { type: 'string' },
       },
       output: { schema: { type: 'object', additionalProperties: true }, render: renderJson },
-      async execute(args) {
-        const denied = authorize('pm_evidence_query', args)
-        if (denied !== undefined) return toToolJson(denied)
+      async execute(args, exec) {
+        const auth = authorize('pm_evidence_query', args, exec, resolvePreset)
+        if (!auth.ok) return toToolJson(auth)
         const items = await engine.queryEvidence(args.projectId)
         return toToolJson({ ok: true, data: { items, total: items.length } })
       },
@@ -134,9 +148,9 @@ export function registerPmTools(ctx: Context, engine: PmResearchEngine): void {
         preset: { type: 'string' },
       },
       output: { schema: { type: 'object', additionalProperties: true }, render: renderJson },
-      async execute(args) {
-        const denied = authorize('pm_evidence_verify', args)
-        if (denied !== undefined) return toToolJson(denied)
+      async execute(args, exec) {
+        const auth = authorize('pm_evidence_verify', args, exec, resolvePreset)
+        if (!auth.ok) return toToolJson(auth)
         return toToolJson({ ok: true, data: await engine.verifyEvidence(args.projectId) })
       },
     }))
@@ -164,9 +178,9 @@ export function registerPmTools(ctx: Context, engine: PmResearchEngine): void {
         actor: { type: 'string' },
       },
       output: { schema: { type: 'object', additionalProperties: true }, render: renderJson },
-      async execute(args) {
-        const denied = authorize('pm_hypothesis_propose', args)
-        if (denied !== undefined) return toToolJson(denied)
+      async execute(args, exec) {
+        const auth = authorize('pm_hypothesis_propose', args, exec, resolvePreset)
+        if (!auth.ok) return toToolJson(auth)
         const test = args.testDesign === undefined ? undefined : {
           design: args.testDesign.design ?? '',
           observable: args.testDesign.observable ?? '',
@@ -180,7 +194,7 @@ export function registerPmTools(ctx: Context, engine: PmResearchEngine): void {
             mechanismEdgeIds: args.mechanismEdgeIds ?? [],
             evidenceIds: args.evidenceIds ?? [],
             ...(test === undefined ? {} : { discriminatingTest: test }),
-          }, args.actor ?? `preset:${args.preset ?? 'unknown'}`)
+          }, auth.actor)
           return toToolJson({ ok: true, data: { hypothesis } })
         } catch (cause) {
           return toToolJson(failure('NOT_FOUND', cause instanceof Error ? cause.message : String(cause), 'create the project first with pm_project_create'))
@@ -201,10 +215,10 @@ export function registerPmTools(ctx: Context, engine: PmResearchEngine): void {
         actor: { type: 'string' },
       },
       output: { schema: { type: 'object', additionalProperties: true }, render: renderJson },
-      async execute(args) {
-        const denied = authorize('pm_hypothesis_transition', args)
-        if (denied !== undefined) return toToolJson(denied)
-        const verdict = await engine.transitionHypothesis(args.projectId, args.hypothesisId, args.to, args.rationale, args.actor ?? `preset:${args.preset ?? 'unknown'}`, args.evidenceIds)
+      async execute(args, exec) {
+        const auth = authorize('pm_hypothesis_transition', args, exec, resolvePreset)
+        if (!auth.ok) return toToolJson(auth)
+        const verdict = await engine.transitionHypothesis(args.projectId, args.hypothesisId, args.to, args.rationale, auth.actor, args.evidenceIds)
         if (!verdict.legal) {
           return toToolJson(failure('GATE_BLOCKED', verdict.reason ?? 'transition blocked', 'cite more/stronger evidence via pm_evidence_record, then retry'))
         }
@@ -212,8 +226,9 @@ export function registerPmTools(ctx: Context, engine: PmResearchEngine): void {
       },
     }))
 
-    registerMechanismTools(ctx, engine)
-    registerKnowledgeTools(ctx, engine)
-    registerCaeTools(ctx, engine)
+    registerMechanismTools(ctx, engine, resolvePreset)
+    registerKnowledgeTools(ctx, engine, resolvePreset)
+    registerCaeTools(ctx, engine, resolvePreset)
+    registerScienceTools(ctx, engine, resolvePreset)
   })
 }
