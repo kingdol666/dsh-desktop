@@ -117,14 +117,12 @@ pm_hypothesis_list
 pm_mechanism_query
   parameters: {
     projectId:{type:'string',required:true},
-    question:{type:'string',required:true},
-    anchors:{type:'array',items:{type:'string'}},                // 节点名/符号
-    conditions:{type:'object',additionalProperties:true},        // {temperature,drawRatio,strainRate,...}
-    hops:{type:'integer'},                                       // 默认 2
-    limit:{type:'integer'}
+    anchors:{type:'array',items:{type:'string'},required:true},   // 节点名/符号/ID
+    conditions:{type:'object',additionalProperties:true},        // {temperatureC,drawRatio,strainRate,...}
+    hops:{type:'integer'}                                        // 默认 2；同时作为路径最大边数
   }
-  returns: { paths: MechanismPath[], edges: EdgeSummary[], cards: CardSummary[],
-             missingKnowledge: string[] }                         // ★必须返回
+  returns: { nodes: MechanismNode[], edges: MechanismEdge[], paths: MechanismPath[],
+             missingKnowledge: string[] }                         // ★paths 对 anchors 两两枚举
 
 pm_mechanism_propose_edge
   parameters: {
@@ -141,9 +139,11 @@ pm_mechanism_propose_edge
   returns: { edgeId, applicability, gate }
 
 pm_mechanism_path
-  parameters: { projectId:{type:'string',required:true}, from:{type:'string',required:true},
-                to:{type:'string',required:true}, maxHops:{type:'integer'} }
-  returns: { paths:[{ nodes:string[], edges:string[], strength:number, conditionsOk:boolean }] }
+  // 无独立工具：pm_mechanism_query 对 anchors 两两枚举有向路径（≤hops），
+  // 结果按 confidence 乘积排序去重。
+  parameters: { projectId:{type:'string',required:true}, anchors:{type:'array',items:{type:'string'}},
+                hops:{type:'integer'} }
+  returns: { paths:[{ nodes:string[], edges:string[], strength:number }] }
 ```
 
 ### 2.5 模型
@@ -158,10 +158,12 @@ pm_model_describe
   returns: { spec: ModelSpec }                                  // 含方程 LaTeX、参数约束
 
 pm_model_fit
-  parameters: { modelId:{type:'string',required:true}, datasetRef:{type:'string',required:true},
-                initialParams:{type:'object',additionalProperties:true} }
-  // 转 pmScience 执行；参数越界 → warnings + confidence 降级
-  returns: { params:Record<string,number>, rmse:number, r2:number, warnings:string[], evidenceId? }
+  parameters: { projectId:{type:'string',required:true},
+                dataPath:{type:'string',required:true},              // 工作区 CSV（time,signal）
+                timeColumn:{type:'string'}, signalColumn:{type:'string'},
+                model:{type:'string',enum:['maxwell','kww'],required:true} }
+  // 服务端调用 science engine；结果归档并自动登记证据（record 默认 true）
+  returns: { analysis:{params,fit:{rmse,r2},halfTime}, evidence, artifactPath }
 ```
 
 ### 2.6 知识（RSI）
@@ -201,42 +203,44 @@ pm_gate_check
   returns: { verdict:'pass'|'warn'|'block', checks:[{rule:string,ok:boolean,detail:string}], requiredEvidence:string[] }
 ```
 
-### 2.8 文献（适配层，薄包装第三方）
+### 2.8 文献
 
 ```ts
+pm_literature_read
+  parameters: { path:{type:'string',required:true}, maxChars:{type:'integer'} }   // 工作区内 PDF/TXT/MD
+  returns: { status, pages, title, author, chars, truncated, text }
+
 pm_literature_extract
-  parameters: { doi:{type:'string'}, filePath:{type:'string'}, projectId:{type:'string',required:true} }
-  // 调 kb_rag/zotero 取全文 → 抽取 {材料,工艺,结构量,性能,极性} → 建议 Evidence
-  returns: { candidates:[{ claimSupport, polarity, strength, values:Record<string,unknown> }],
-             suggestedEvidence:[...], fullTextRef?:string }
+  parameters: { projectId:{type:'string',required:true},
+                sourceType:{type:'string',enum:['doi','file'],required:true},
+                sourceRef:{type:'string',required:true}, title:{type:'string',required:true},
+                claims:{type:'array',items:{claim,polarity,strength}},required:true }
+  // 每条 claim 登记一条证据；重复内容由账本哈希去重
+  returns: { title, sourceRef, recorded:[{evidence,deduped}] }
 ```
 
-### 2.9 科学计算（转 MCP）
+### 2.9 科学计算（真实引擎）
 
 ```ts
+pm_cae_coupon
+  parameters: { projectId:{type:'string',required:true}, stretchX:{type:'number',required:true},
+                stretchY:{type:'number',required:true}, mesh:{type:'string'},
+                claimSupport:{type:'string'}, polarity:{enum:['supports','refutes','neutral']},
+                strength:{enum:['strong','moderate','weak']}, record:{type:'boolean'} }
+  returns: { result, summary, artifactPath?, evidence?, deduped }
+  // affine 验证 coupon：只证明数值/仿射自洽，不是整机，不产出 Δn/取向
+
 pm_cae_run
-  parameters: { projectId:{type:'string',required:true},
-                material:{type:'object',additionalProperties:true,required:true},
-                machine:{type:'object',additionalProperties:true,required:true},
-                process:{type:'object',additionalProperties:true,required:true},
-                mesh:{type:'string'}, background:{type:'boolean'} }
-  returns: { runId, jobId?, status, metrics:{deltaN?:number,retardation?:number,E?:number,shrinkage?:number},
-             artifacts:[{path,sha256}], provenance:{verified:boolean} }
+  parameters: { projectId:{type:'string',required:true}, params:{type:'object',additionalProperties:true},
+                claimSupport:{type:'string'}, polarity:{enum}, strength:{enum}, record:{type:'boolean'} }
+  returns: { result, summary, artifactPath?, evidence?, deduped }
+  // 整机 solve；optics 为 UNCALIBRATED 模型估计，不能当实验实测
 
-pm_cae_study
-  parameters: { projectId:{type:'string',required:true},
-                mode:{type:'string',enum:['machine-refine','optimize'],required:true},
-                variable:{type:'string'}, min:{type:'number'}, max:{type:'number'},
-                samples:{type:'integer'}, mesh:{type:'string'}, goal:{type:'number'} }
-  returns: { studyId, samples:[...], best:{...}, constraints:{satisfied:boolean} }
-
-pm_optics_analyze
-  parameters: { projectId:{type:'string',required:true}, runId:{type:'string'}, orientationField:{type:'object',additionalProperties:true} }
-  returns: { deltaN:number, retardation:number, dispersion:Record<string,number>, warnings:string[] }
-
-pm_waxs_crystallinity / pm_ftir_peak_fit / pm_saxs_reduce / pm_hermans_factor / pm_fit_relaxation
-  parameters: { datasetRef:{type:'string',required:true}, options:{type:'object',additionalProperties:true} }
-  returns: { values:Record<string,number>, quality:{r2?:number,rmse?:number,warnings:string[]}, plotSpec?:object }
+pm_waxs_analyze / pm_ftir_analyze / pm_saxs_analyze / pm_hermans_analyze
+  parameters: { projectId:{type:'string',required:true}, dataPath:{type:'string',required:true},
+                xColumn/yColumn/…:{type:'string'}, record:{type:'boolean'},
+                claimSupport/polarity/strength:{…} }
+  returns: { analysis:{…}, evidence, artifactPath, deduped }   // 归档并自动登记证据
 ```
 
 ---
@@ -310,23 +314,28 @@ interface PmScience   { caeRun(i); caeStudy(i); opticsAnalyze(i); characterizati
 
 | 工具 \ Preset | scientist | physicist | characterization | modeler | literature | reviewer |
 | --- | :-: | :-: | :-: | :-: | :-: | :-: |
-| pm_project_* | ✓ | — | — | — | — | — |
+| pm_project_create | ✓ | — | — | — | — | — |
 | pm_evidence_record | — | — | ✓ | ✓ | ✓ | — |
 | pm_evidence_query/verify | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | pm_hypothesis_propose | ✓ | ✓ | — | ✓ | — | — |
 | pm_hypothesis_transition | ✓ | — | — | — | — | — |
 | pm_mechanism_query | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| pm_mechanism_propose_edge | — | ✓ | — | — | — | — |
-| pm_model_* | ✓(list/describe) | ✓(list/describe) | — | ✓(全) | — | — |
+| pm_mechanism_propose_edge | ✓ | ✓ | — | — | — | — |
+| pm_mechanism_import_seed | ✓ | — | — | — | — | — |
+| pm_waxs_analyze | ✓ | — | ✓ | — | — | — |
+| pm_ftir_analyze | ✓ | — | ✓ | — | — | — |
+| pm_saxs_analyze | ✓ | — | ✓ | — | — | — |
+| pm_hermans_analyze | ✓ | ✓ | ✓ | — | — | — |
+| pm_model_fit | ✓ | ✓ | — | ✓ | — | — |
+| pm_cae_coupon | ✓ | — | ✓ | ✓ | — | — |
+| pm_cae_run | ✓ | — | — | ✓ | — | — |
+| pm_literature_read | ✓ | — | — | — | ✓ | — |
+| pm_literature_extract | ✓ | — | — | — | ✓ | — |
 | pm_knowledge_propose | ✓ | ✓ | ✓ | ✓ | ✓ | — |
 | pm_knowledge_review | — | — | — | — | — | ✓ |
 | pm_gate_check | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| pm_cae_* / pm_optics_* | — | — | ✓(optics) | ✓(全) | — | — |
-| pm_waxs/ftir/saxs | — | — | ✓ | — | — | — |
-| pm_literature_extract | — | — | — | — | ✓ | — |
-| pm_objection_record | — | — | — | — | — | ✓ |
 
-实现方式：每个 role 一个 `tools/<role>.ts`，只 `register` 白名单内的工具；**未挂载即不可见**（模型无法调用）。
+实现方式：工具全局注册，`authorize()` 从 **Agent 的实时 preset 绑定**（`agentPresets.composedPreset`，回退 session header）解析身份并查上表；模型传入的 `preset` 参数只能作为无 Agent 上下文时的兜底，不能覆盖真实身份。
 
 ## 7. 契约测试要求
 

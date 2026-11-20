@@ -168,24 +168,31 @@ export class MechanismGraph {
   }
 
   /**
-   * Neighborhood expansion with condition filtering.
-   * @param anchors - node ids or names to start from.
+   * Neighborhood expansion with condition filtering and anchor path search.
+   * @param anchors - node ids or names to start/connect.
    * @param hops - expansion depth (default 2).
    * @param conditions - current operating window; edges outside it are flagged missing.
+   * @param pathTo - optional destination node id/name; when omitted, paths are
+   *   computed between every ordered anchor pair.
    */
   async query(
     anchors: readonly string[],
     hops: number,
     conditions: Readonly<Record<string, number>> | undefined,
+    pathTo?: string,
   ): Promise<MechanismQueryResult> {
     await this.ensureLoaded()
+    const resolveId = (value: string): EntityId | undefined => {
+      const byId = this.nodes.find(node => node.id === value)
+      if (byId !== undefined) return byId.id
+      const byName = this.nodes.find(node =>
+        node.name === value || node.aliases.includes(value) || node.symbol === value)
+      return byName?.id
+    }
     const anchorIds = new Set<EntityId>()
     for (const anchor of anchors) {
-      const byId = this.nodes.find(node => node.id === anchor)
-      if (byId !== undefined) { anchorIds.add(byId.id); continue }
-      const byName = this.nodes.find(node =>
-        node.name === anchor || node.aliases.includes(anchor) || node.symbol === anchor)
-      if (byName !== undefined) anchorIds.add(byName.id)
+      const id = resolveId(anchor)
+      if (id !== undefined) anchorIds.add(id)
     }
     const nodeIds = new Set<EntityId>(anchorIds)
     const frontier = new Set<EntityId>(anchorIds)
@@ -214,7 +221,31 @@ export class MechanismGraph {
         }
       }
     }
-    return { nodes, edges, paths: [], missingKnowledge: missing }
+    const target = pathTo === undefined ? undefined : resolveId(pathTo)
+    if (pathTo !== undefined && target === undefined) missing.push(`path target "${pathTo}" not found`)
+    const starts = target === undefined ? [...anchorIds] : [...anchorIds].filter(id => id !== target)
+    const ends = target === undefined ? [...anchorIds] : [target]
+    const found: MechanismPath[] = []
+    for (const from of starts) {
+      for (const to of ends) {
+        if (from === to) continue
+        found.push(...await this.pathSearch(from, to, Math.max(1, hops)))
+      }
+    }
+    const seen = new Set<string>()
+    const paths = found
+      .sort((left, right) => right.strength - left.strength)
+      .filter(path => {
+        const key = path.edges.join('>')
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+      .slice(0, 8)
+    if (pathTo !== undefined && paths.length === 0 && starts.length > 0) {
+      missing.push(`no directed path <= ${String(hops)} hops from anchors to "${pathTo}"`)
+    }
+    return { nodes, edges, paths, missingKnowledge: missing }
   }
 
   /**

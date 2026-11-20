@@ -16,6 +16,7 @@
 | **07a** | [首页设计交付](design/README.md) | 1600×1000 原型、令牌、组件/状态、槽位映射、Figma 导入说明 | 前端/设计 |
 | **08** | [实施计划与里程碑](08-实施计划与里程碑.md) | M0-M4 里程碑、Story 拆解、并行轨道、风险、首个真实案例 | 项目总控（必读） |
 | **09** | [API 与工具契约](09-API与工具契约.md) | 工具 schema、服务接口、HTTP 路由、MCP 声明、权限矩阵 | 实现者（必读） |
+| **09a** | [真实 Agent 验收记录](acceptance/2026-11-20-real-agent-run.md) | 新工作目录、真实文献/CAE/表征数据、8 个缺陷与修复、未解决边界 | 全员 |
 
 > **开发约束**：仓库根 `AGENT.md` 是最高规范（含前端风格约束）；`AGENTS.md` 为上游规则；冲突以 `AGENT.md` 为准。
 
@@ -38,6 +39,7 @@
 - ✅ 调研完成：345 官方包能力盘点 + 6,245 插件目录筛选 + 逐个 GitHub 核实
 - ✅ 计划完成：04-09 六份文档
 - ✅ **G001-G006 已合并**（PR#2-#7）：pm 领域层与证据账本、机理图谱/RSI/科学门控、Science Engine、六专家 preset、12 个 SKILL.md、工具权限矩阵、真实 CAE E2E 研究环
-- ✅ **首页视觉改版 v2**（本 PR）：`docs/polymechanism/design/` 高保真原型 + 令牌；桌面客户端 `pm-studio` 品牌槽位、六专家科研控制带、三条快捷起点、`/pm/overview` 项目脉搏、浅/深色设计层；DeepSeek 鲸鱼字标停用
-- ⏳ 下一阶段：G007 Dockview 工作台（研究导航 + 三区 + Inspector）、G008 科研面板、G010 真人会话案例、G011 打包文档
+- ✅ **真实 Agent 验收 + 工具补全**（2026-11-20，见 09a）：新工作目录、真实 PDF 文献、四类表征数据、真实 CAE coupon/whole-machine；补齐 `pm_waxs_analyze` / `pm_ftir_analyze` / `pm_saxs_analyze` / `pm_hermans_analyze` / `pm_model_fit` / `pm_literature_read` / `pm_literature_extract`、CAE 自动证据、live preset 解析、skill source、机制路径枚举；8 个真实缺陷均已修复并有回归测试
+- ✅ **首页视觉改版 v2**（PR#8）：`docs/polymechanism/design/` 高保真原型 + 令牌；桌面客户端 `pm-studio` 品牌槽位、六专家科研控制带、三条快捷起点、`/pm/overview` 项目脉搏、浅/深色设计层；DeepSeek 鲸鱼字标停用
+- ⏳ 下一阶段：G007 Dockview 工作台（研究导航 + 三区 + Inspector）、G008 科研面板、G010 真人会话案例收尾、G011 打包文档
 - ⏳ 已知待办：Beta 包镜像改版；`dsh-client-ui-dockkit` 缺失导致的 `sidebar-right` 解析隐患；`recovery/App.tsx` 一处上游遗留 typecheck 错误

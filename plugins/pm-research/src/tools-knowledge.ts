@@ -1,29 +1,29 @@
 /** Knowledge (RSI) + scientific-gate tools: reviewer-only review, gate passthrough. */
 
-import { defineTool } from '@deepseek-ai/dsh-tools'
+import { defineTool, type ToolRunContext } from '@deepseek-ai/dsh-tools'
 import type { Context } from '@deepseek-ai/cordis'
 import type { PmResearchEngine } from './service.ts'
-import { canUseTool } from './permissions.ts'
+import { actingPreset, canUseTool, type PresetResolver } from './permissions.ts'
+import { renderJson as render, toToolJson as out } from './tool-json.ts'
 
-/** Envelope cast for the tool JSON frontier. */
-function out(value: unknown): Record<string, never> {
-  return value as never
-}
+/** Resolved identity or denial envelope. */
+type Auth =
+  | { readonly ok: true; readonly preset: string; readonly actor: string }
+  | { readonly ok: false; readonly error: { readonly code: string; readonly message: string; readonly hint?: string } }
 
-function deny(tool: string, preset: string | undefined): Record<string, never> | undefined {
-  if (canUseTool(tool, preset)) return undefined
-  return out({
+function deny(tool: string, args: { preset?: string; actor?: string }, exec: ToolRunContext, resolve?: PresetResolver): Auth {
+  const preset = actingPreset(args, exec, resolve)
+  if (preset !== undefined && canUseTool(tool, preset)) {
+    return { ok: true, preset, actor: args.actor ?? `preset:${preset}` }
+  }
+  return {
     ok: false,
     error: {
       code: 'PERMISSION_DENIED',
       message: `preset ${preset ?? '(unattributed)'} is not allowed to call ${tool}`,
       hint: 'allowed presets: docs/polymechanism/09-API与工具契约.md §6',
     },
-  })
-}
-
-function render(_args: unknown, value: unknown): { type: 'text'; text: string }[] {
-  return [{ type: 'text', text: JSON.stringify(value) }]
+  }
 }
 
 /**
@@ -31,7 +31,7 @@ function render(_args: unknown, value: unknown): { type: 'text'; text: string }[
  * @param ctx - Host context providing the tools service.
  * @param engine - research engine facade.
  */
-export function registerKnowledgeTools(ctx: Context, engine: PmResearchEngine): void {
+export function registerKnowledgeTools(ctx: Context, engine: PmResearchEngine, resolvePreset?: PresetResolver): void {
   ctx.inject(['tools'], (scope) => {
     scope.tools.register(defineTool({
       name: 'pm_knowledge_query',
@@ -42,9 +42,9 @@ export function registerKnowledgeTools(ctx: Context, engine: PmResearchEngine): 
         preset: { type: 'string' },
       },
       output: { schema: { type: 'object', additionalProperties: true }, render },
-      async execute(args) {
-        const blocked = deny('pm_knowledge_query', args.preset)
-        if (blocked !== undefined) return out(blocked)
+      async execute(args, exec) {
+        const auth = deny('pm_knowledge_query', args, exec, resolvePreset)
+        if (!auth.ok) return out(auth)
         const items = await engine.knowledge().all()
         const filtered = items.filter(card =>
           (args.scope === undefined || card.scope === args.scope)
@@ -65,15 +65,15 @@ export function registerKnowledgeTools(ctx: Context, engine: PmResearchEngine): 
         actor: { type: 'string' },
       },
       output: { schema: { type: 'object', additionalProperties: true }, render },
-      async execute(args) {
-        const blocked = deny('pm_knowledge_propose', args.preset)
-        if (blocked !== undefined) return out(blocked)
+      async execute(args, exec) {
+        const auth = deny('pm_knowledge_propose', args, exec, resolvePreset)
+        if (!auth.ok) return out(auth)
         const result = await engine.knowledge().propose({
           scope: args.scope,
           kind: args.kind,
           title: args.title,
           body: args.body,
-        }, args.actor ?? `preset:${args.preset ?? 'unknown'}`)
+        }, auth.actor)
         return out({ ok: true, data: result })
       },
     }))
@@ -89,11 +89,11 @@ export function registerKnowledgeTools(ctx: Context, engine: PmResearchEngine): 
         actor: { type: 'string' },
       },
       output: { schema: { type: 'object', additionalProperties: true }, render },
-      async execute(args) {
-        const blocked = deny('pm_knowledge_review', args.preset)
-        if (blocked !== undefined) return out(blocked)
+      async execute(args, exec) {
+        const auth = deny('pm_knowledge_review', args, exec, resolvePreset)
+        if (!auth.ok) return out(auth)
         try {
-          const card = await engine.knowledge().review(args.cardId, args.decision, args.actor ?? `preset:${args.preset ?? 'unknown'}`, args.rationale)
+          const card = await engine.knowledge().review(args.cardId, args.decision, auth.actor, args.rationale)
           if (card === undefined) {
             return out({ ok: false, error: { code: 'NOT_FOUND', message: `card ${args.cardId} not found` } })
           }
@@ -123,9 +123,9 @@ export function registerKnowledgeTools(ctx: Context, engine: PmResearchEngine): 
         preset: { type: 'string' },
       },
       output: { schema: { type: 'object', additionalProperties: true }, render },
-      async execute(args) {
-        const blocked = deny('pm_gate_check', args.preset)
-        if (blocked !== undefined) return out(blocked)
+      async execute(args, exec) {
+        const auth = deny('pm_gate_check', args, exec, resolvePreset)
+        if (!auth.ok) return out(auth)
         let edge
         if (args.edgeId !== undefined) {
           const edges = await engine.mechanismGraph(args.projectId).allEdges()

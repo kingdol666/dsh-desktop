@@ -58,6 +58,13 @@ export const TOOL_PERMISSIONS: Readonly<Record<string, readonly string[]>> = Obj
   ]),
   'pm_cae_run': Object.freeze(['polymer-modeler', 'polymer-scientist']),
   'pm_cae_coupon': Object.freeze(['polymer-modeler', 'polymer-characterization', 'polymer-scientist']),
+  'pm_waxs_analyze': Object.freeze(['polymer-characterization', 'polymer-scientist']),
+  'pm_ftir_analyze': Object.freeze(['polymer-characterization', 'polymer-scientist']),
+  'pm_saxs_analyze': Object.freeze(['polymer-characterization', 'polymer-scientist']),
+  'pm_hermans_analyze': Object.freeze(['polymer-physicist', 'polymer-characterization', 'polymer-scientist']),
+  'pm_model_fit': Object.freeze(['polymer-physicist', 'polymer-modeler', 'polymer-scientist']),
+  'pm_literature_read': Object.freeze(['polymer-literature', 'polymer-scientist']),
+  'pm_literature_extract': Object.freeze(['polymer-literature', 'polymer-scientist']),
 })
 
 /** All preset identities known to the matrix. */
@@ -69,6 +76,35 @@ export const PRESET_IDS: readonly string[] = Object.freeze([
   'polymer-literature',
   'polymer-reviewer',
 ])
+
+/** Resolve the live preset from the Agent's composed registry binding. */
+export type PresetResolver = (exec: { readonly agent?: unknown }) => string | undefined
+
+/**
+ * Resolve the preset that is actually executing a tool call.
+ *
+ * Priority: the live Agent preset registry (covers a selection committed
+ * after the session header was written) → the session header → the model's
+ * `preset` hint. The hint is last and cannot override a real identity.
+ * @param args - model arguments carrying the optional `preset` hint.
+ * @param exec - tool execution context (`agent.session.header.agentPreset`).
+ * @param resolve - optional live registry lookup.
+ * @returns the acting preset id, if any.
+ */
+export function actingPreset(
+  args: { readonly preset?: string | undefined },
+  exec: { readonly agent?: unknown },
+  resolve?: PresetResolver,
+): string | undefined {
+  const live = resolve?.(exec)
+  if (live !== undefined && live.length > 0) return live
+  const agent = exec.agent as {
+    readonly session?: { readonly header?: { readonly agentPreset?: unknown } }
+  } | undefined
+  const committed = agent?.session?.header?.agentPreset
+  if (typeof committed === 'string' && committed.length > 0) return committed
+  return args.preset
+}
 
 /**
  * Whether `presetId` may invoke `tool`. Unknown presets are denied closed.

@@ -170,6 +170,14 @@
       "conditions": { "temperatureC": [60, 140] },
       "applicability": "candidate", "createdBy": "seed",
       "source": "literature: water as plasticizer reduces orientability"
+    },
+    {
+      "from": "draw-ratio", "to": "crystallinity", "relation": "increases",
+      "conditions": { "temperatureC": [80, 160], "drawRatio": [1.5, 6] },
+      "equation": "strain-induced crystallization above a critical draw ratio (dimensionless)",
+      "applicability": "candidate", "createdBy": "seed",
+      "source": "literature: PVA strain-induced crystallization under hot stretching",
+      "note": "H2 的关键候选边；需按具体牌号/温度窗口用 WAXS 证据条件化"
     }
   ]
 }
