@@ -29,18 +29,18 @@
     {
       "layers": [
         {
-          "image-name": "DeepSeek.svg",
-          "name": "DeepSeek",
+          "image-name": "PolymerMark.svg",
+          "name": "PolymerMark",
           "position": {
             "scale": 1,
             "translation-in-points": [
-              27,
-              23
+              0,
+              0
             ]
           }
         }
       ],
-      "name": "DeepSeek",
+      "name": "PolymerMark",
       "shadow": {
         "kind": "neutral",
         "opacity": 0.5
