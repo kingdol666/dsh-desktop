@@ -4,7 +4,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Context } from '@deepseek-ai/cordis'
 // Type-only convergence: the webserver package augments `Context.webServer`.
 import type {} from '@deepseek-ai/dsh-host-webserver'
-import { PmResearchEngine, resolveCaeRoot, resolvePmDataRoot, type PmResearchConfig } from './service.ts'
+import { PmResearchEngine, resolvePmDataRoot, type PmResearchConfig } from './service.ts'
 import { registerPmTools } from './tools.ts'
 import { registerSkills } from './skills.ts'
 
@@ -68,7 +68,7 @@ export const inject = ['webServer'] as const
  */
 export function apply(ctx: Context, config: PmResearchConfig = {}): void {
   const startedAt = Date.now()
-  const engine = PmResearchEngine.open(resolvePmDataRoot(config), resolveCaeRoot(config))
+  const engine = PmResearchEngine.open(resolvePmDataRoot(config))
   ctx.effect(
     () => ctx.webServer.register({
       kind: 'exact',
@@ -137,8 +137,14 @@ export function registeredTools(): readonly string[] {
     'pm_knowledge_propose',
     'pm_knowledge_review',
     'pm_gate_check',
-    'pm_cae_run',
-    'pm_cae_coupon',
+    'pm_sim_chain_mechanics',
+    'pm_sim_rubber_elasticity',
+    'pm_sim_viscoelastic',
+    'pm_sim_chain_stats',
+    'pm_sim_crystallization',
+    'pm_sim_flory_huggins',
+    'pm_sim_tg_blend',
+    'pm_sim_diffusion',
     'pm_waxs_analyze',
     'pm_ftir_analyze',
     'pm_saxs_analyze',

@@ -12,7 +12,7 @@ metadata:
 ## 审计清单（逐条过，每条给 verdict）
 1. **引用完整性**：claim 的 evidenceIds 是否存在且哈希校验通过（pm_evidence_verify）。
 2. **极性一致**：supports 证据是否真支持陈述方向；refutes 是否真反驳。
-3. **强度匹配**：strong 只给"文献一手数据/收敛 CAE/重复实验"；模型拟合单值不算 strong。
+3. **强度匹配**：strong 只给"文献一手数据/收敛仿真/重复实验"；模型拟合单值不算 strong。
 4. **条件一致**：证据的测量工况是否落在机理边 conditions 窗口内。
 5. **竞争假设**：supported 结论必须排除过竞争（pm_gate_check G-COMPETE）。
 6. **光学自洽**：Δn=f·Δn₀ 偏差 >25% 且无解释 → 异议。

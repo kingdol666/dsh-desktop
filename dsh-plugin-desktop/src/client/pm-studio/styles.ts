@@ -459,7 +459,7 @@ body[data-pm-studio] .pm-pulse-empty {
   color: var(--pm-text-3);
 }
 
-body[data-pm-studio] .pm-cae {
+body[data-pm-studio] .pm-sim {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -468,15 +468,15 @@ body[data-pm-studio] .pm-cae {
   color: var(--pm-text-3);
 }
 
-body[data-pm-studio] .pm-cae .pm-console-dot {
+body[data-pm-studio] .pm-sim .pm-console-dot {
   background: var(--pm-amber);
 }
 
-body[data-pm-studio] .pm-cae-on {
+body[data-pm-studio] .pm-sim-on {
   color: var(--pm-text-2);
 }
 
-body[data-pm-studio] .pm-cae-on .pm-console-dot {
+body[data-pm-studio] .pm-sim-on .pm-console-dot {
   background: var(--pm-teal);
 }
 

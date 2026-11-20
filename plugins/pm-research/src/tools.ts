@@ -7,7 +7,7 @@ import { actingPreset, canUseTool, type PresetResolver } from './permissions.ts'
 import { renderJson, toToolJson } from './tool-json.ts'
 import { registerMechanismTools } from './tools-mechanism.ts'
 import { registerKnowledgeTools } from './tools-knowledge.ts'
-import { registerCaeTools } from './tools-cae.ts'
+import { registerSimTools } from './tools-sim.ts'
 import { registerScienceTools } from './tools-science.ts'
 
 /** Structured tool envelope (docs 09 §1). */
@@ -228,7 +228,7 @@ export function registerPmTools(ctx: Context, engine: PmResearchEngine, resolveP
 
     registerMechanismTools(ctx, engine, resolvePreset)
     registerKnowledgeTools(ctx, engine, resolvePreset)
-    registerCaeTools(ctx, engine, resolvePreset)
+    registerSimTools(ctx, engine, resolvePreset)
     registerScienceTools(ctx, engine, resolvePreset)
   })
 }

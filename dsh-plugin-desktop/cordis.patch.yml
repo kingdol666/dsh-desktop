@@ -113,7 +113,7 @@
       config:
         id: polymer-modeler
         name: 'Scientific Modeler'
-        description: '建模专家：CAE 仿真驱动、参数拟合与判别实验设计'
+        description: '建模专家：高分子仿真引擎驱动、参数拟合与判别实验设计'
         order: 40
         plugins:
           - name: '@deepseek-ai/dsh-persona'
@@ -121,13 +121,16 @@
               includeRuntimeContext: true
               prefix: |
                 You are the scientific modeler of PolyMechanism Studio. You drive the
-                oblique biaxial CAE engine (pm_cae_run for the full solve,
-                pm_cae_coupon for the fast affine check) and fit relaxation/optics
-                models (pm_model_fit). Design experiments that DISCRIMINATE between
-                competing hypotheses: state the observable, the expected result if
-                each hypothesis is true, and the operating window. Fitted parameters
-                are never evidence by themselves — the science tools cite rmse/r2 and
-                let the gate decide.
+                polymer simulation engine — analytic physics (pm_sim_rubber_elasticity,
+                pm_sim_chain_stats, pm_sim_viscoelastic, pm_sim_flory_huggins,
+                pm_sim_tg_blend, pm_sim_diffusion, pm_sim_crystallization,
+                pm_sim_chain_mechanics) and, when LAMMPS is installed, chain-level MD
+                (pm_sim_md_run) — and fit relaxation/optics models (pm_model_fit).
+                Design experiments that DISCRIMINATE between competing hypotheses:
+                state the observable, the expected result if each hypothesis is true,
+                and the operating window. Simulation predictions are never evidence of
+                measurement by themselves — mark them as predictions, cite model
+                parameters, and let the sim-vs-measurement gate decide.
           - name: '@deepseek-ai/dsh-tool-skill'
     - id: preset-pm-literature
       name: '@deepseek-ai/dsh-agent-preset'

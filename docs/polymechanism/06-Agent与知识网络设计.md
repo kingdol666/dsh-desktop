@@ -64,7 +64,7 @@ Agent = Runtime（共享 DSH）+ Persona + Tools（白名单）+ Skills（方法
 | `polymer-scientist` | 总控/首席 | `pm_project_*`、`pm_evidence_query`、`pm_mechanism_query`、`pm_hypothesis_*`、`pm_gate_check`、`pm_knowledge_query`、subagent 委派 | 直接改证据、直接升级结论 | global + project |
 | `polymer-physicist` | 高分子物理理论 | `pm_mechanism_query/propose`、`pm_model_list/describe`、`pm_evidence_query`、`pm_hypothesis_propose` | 采集实验数据、写实验记录 | global + 理论库 |
 | `polymer-characterization` | 表征/数据 | `pm_waxs_*`、`pm_ftir_*`、`pm_saxs_*`、`pm_optics_analyze`、`pm_evidence_record`、`pm_data_import` | 修改模型参数库、改理论边 | 表征方法子集 |
-| `polymer-modeler` | 建模/仿真 | `pm_cae_run/study`、`pm_model_fit/validate`、`pm_optics_analyze`、`pm_evidence_record` | 把拟合结果直接标为 established | 模型/数值子集 |
+| `polymer-modeler` | 建模/仿真 | `pm_sim_*`（解析物性+MD）、`pm_model_fit`、`pm_evidence_record` | 把拟合结果直接标为 established | 模型/数值子集 |
 | `polymer-literature` | 文献 | `kb_search/kb_rag/kb_fetch`、zotero 工具、`pm_literature_extract`、`pm_evidence_record` | 写实验结论、改机理边为 established | 文献库 |
 | `polymer-reviewer` | 独立审查 | `pm_evidence_query`（只读）、`pm_gate_check`、`pm_objection_record`、`pm_knowledge_query` | 任何写操作（除 objection/verdict） | 全局只读 |
 
@@ -190,7 +190,7 @@ L-C 证据账本（Evidence / Observation，不可篡改事实）
 | --- | --- | --- |
 | 会话级记忆（"上次我们怎么做的"） | 跨会话经验、偏好、决策 | `dsh-mnemon` / `memory-eternal`（第三方） |
 | 领域知识（"PVA 取向与双折射的关系"） | 结构化物理知识 | **自研** `pmKnowledge` + `pmMechanism` |
-| 原始事实（"这次 CAE 的 Δn=0.023"） | 不可篡改数据 | **自研** `pmEvidence` |
+| 原始事实（"这次仿真的 Δn=0.023"，标记 simulation） | 不可篡改数据 | **自研** `pmEvidence` |
 
 不重复造：通用记忆直接复用插件；领域知识与证据必须自研（无插件覆盖，且需与图谱/门控强耦合）。
 
@@ -228,7 +228,7 @@ L-C 证据账本（Evidence / Observation，不可篡改事实）
 | 水含量 → 玻璃化温度 | decreases | 增塑 | textbook |
 | 应变率 → 取向 | increases | 低 T 高 rate | 文献（待验证） |
 | 定型时间 → 收缩率 | decreases | 松弛完成度 | 文献 |
-| 斜拉角 → 双折射主轴 | rotates | 斜向拉伸 | 你的 CAE 工程（`KINEMATICS.md`） |
+| 斜拉角 → 双折射主轴 | rotates | 斜向拉伸 | 既有 CAE 工程记录（`KINEMATICS.md`，历史参考） |
 
 > 每条边都必须填 `applicability`（`established` / `candidate`）与 `confidence`；`established` 需 `theorySource` + strong 证据（服务端强制）。
 

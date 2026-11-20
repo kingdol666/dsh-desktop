@@ -219,22 +219,53 @@ pm_literature_extract
   returns: { title, sourceRef, recorded:[{evidence,deduped}] }
 ```
 
-### 2.9 科学计算（真实引擎）
+### 2.9 高分子仿真（真实引擎，docs 10）
+
+Layer A 解析物性（常驻）——结果自动归档并登记证据（payload 标记 simulation=true）：
 
 ```ts
-pm_cae_coupon
-  parameters: { projectId:{type:'string',required:true}, stretchX:{type:'number',required:true},
-                stretchY:{type:'number',required:true}, mesh:{type:'string'},
-                claimSupport:{type:'string'}, polarity:{enum:['supports','refutes','neutral']},
-                strength:{enum:['strong','moderate','weak']}, record:{type:'boolean'} }
-  returns: { result, summary, artifactPath?, evidence?, deduped }
-  // affine 验证 coupon：只证明数值/仿射自洽，不是整机，不产出 Δn/取向
+pm_sim_chain_mechanics
+  parameters: { projectId, model:{enum:['fjc','wlc'],required}, contourNm:{required},
+                temperatureK:{required}, segmentNm?, persistenceNm?,
+                probeForcePn?, probeExtensionNm?, gridPoints?, …evidence/record }
+  returns: { simulation:{status,model,curve|probe,definitions}, evidence?, artifactPath?, deduped? }
 
-pm_cae_run
-  parameters: { projectId:{type:'string',required:true}, params:{type:'object',additionalProperties:true},
-                claimSupport:{type:'string'}, polarity:{enum}, strength:{enum}, record:{type:'boolean'} }
-  returns: { result, summary, artifactPath?, evidence?, deduped }
-  // 整机 solve；optics 为 UNCALIBRATED 模型估计，不能当实验实测
+pm_sim_rubber_elasticity
+  parameters: { projectId, mode:{enum:['uniaxial','biaxial'],required}, shearModulusMPa:{required},
+                linksPerChain:{required}, stretchX?, stretchY?, maxStretch?, gridPoints?, … }
+  returns: { simulation:{lambdaChain,beta,stressTrueMPa,workPerVolMPa,neoHookeanRefMPa,path}, … }
+
+pm_sim_viscoelastic
+  parameters: { projectId, part:{enum:['rouse','shift'],required},
+                rouse:{beadsPerChain,kuhnLengthNm,frictionPerBead,chainNumberDensity,temperatureK} |
+                shift:{shiftModel:{enum:['wlf','vft']},referenceTemperatureK,temperaturesK,c1?,c2K?,vftTinfK?}, … }
+  returns: { simulation:{tau1S,tauModesS,G0Pa,modulus} | {shift:{temperatureK,log10aT,aT}}, … }
+
+pm_sim_chain_stats
+  parameters: { projectId, beadsPerChain:{required}, kuhnLengthNm:{required}, stretchX?, stretchY?, stretchZ?, … }
+  returns: { simulation:{size:{radiusOfGyrationNm,…},orientation:{lambdaChain,meanCos2X,orientationF}}, … }
+
+pm_sim_crystallization
+  parameters: { projectId, dataPath:{required}, timeColumn?, crystallinityColumn?, … }
+  returns: { simulation:{n,K,halfTimeS,fit:{rmse,r2}}, … }   // 对照 WAXS 结晶度时序
+
+pm_sim_flory_huggins
+  parameters: { projectId, n1/n2:{required}, chi | chiA+chiB+temperatureK, phi?, gridPoints?, … }
+  returns: { simulation:{chi,spinodalChi,critical:{phiCritical,chiCritical},verdict}, … }
+
+pm_sim_tg_blend
+  parameters: { projectId, part:{enum:['fox-flory-fit','fox-flory-predict','gordon-taylor'],required},
+                fit:{dataPath,massColumn?,tgColumn?} | predict:{tgInfinityK,constantK,predictMolarMass} |
+                blend:{weight1,tg1K,weight2,tg2K,kConstant?}, … }
+  returns: { simulation:{TgInfinityK,K,fit} | {TgK} | {TgBlendK,inputs}, … }
+
+pm_sim_diffusion
+  parameters: { projectId, part:{enum:['arrhenius','vrentas-duda'],required},
+                arrhenius:{dataPath,temperatureColumn?,diffusivityColumn?} |
+                vrentas-duda:{d0,activationJPerMol,omega1,v1Star,k11,k21K,tg1K,k12,k22K,tg2K,gamma?}, … }
+  returns: { simulation:{D0,EaJPerMol,fit} | {D1,freeVolumeOverGamma}, … }
+```
+仿真纪律：预测 ≠ 实测；claimSupport 必须写明模型与参数；预测-实测一致性由 pm_gate_check 的 sim-vs-measurement 检查裁决。
 
 pm_waxs_analyze / pm_ftir_analyze / pm_saxs_analyze / pm_hermans_analyze
   parameters: { projectId:{type:'string',required:true}, dataPath:{type:'string',required:true},
@@ -303,12 +334,12 @@ interface PmScience   { caeRun(i); caeStudy(i); opticsAnalyze(i); characterizati
       transport: stdio
       command: '{{python}}'                 # 由桌面 primary-runtime 提供
       args: ['-I', '-m', 'pm_science.server']
-      env: { PM_PROJECT_ROOT: '{{dshHome}}/pm', PM_CAE_ROOT: '<cae repo>' }
-      toolCallTimeoutMs: 600000             # CAE 长任务
+      env: { PM_PROJECT_ROOT: '{{dshHome}}/pm' }
+      toolCallTimeoutMs: 600000             # MD 长任务
       failOnStartupError: false              # 引擎缺失不阻断 Host
 ```
 
-工具暴露为 `mcp__pm_science__<tool>`；`pm-research` 的 `pm_cae_*` 工具是**语义化包装**（固定参数、单位、错误归一），避免上层直接依赖 MCP 原始名。
+工具暴露为 `mcp__pm_science__<tool>`；`pm-research` 的 `pm_sim_*` 工具是**语义化包装**（固定参数、单位、错误归一），避免上层直接依赖 MCP 原始名。
 
 ## 6. 工具权限矩阵（服务端强制）
 
@@ -327,8 +358,10 @@ interface PmScience   { caeRun(i); caeStudy(i); opticsAnalyze(i); characterizati
 | pm_saxs_analyze | ✓ | — | ✓ | — | — | — |
 | pm_hermans_analyze | ✓ | ✓ | ✓ | — | — | — |
 | pm_model_fit | ✓ | ✓ | — | ✓ | — | — |
-| pm_cae_coupon | ✓ | — | ✓ | ✓ | — | — |
-| pm_cae_run | ✓ | — | — | ✓ | — | — |
+| pm_sim_chain_mechanics / viscoelastic / chain_stats | ✓ | ✓ | — | ✓ | — | — |
+| pm_sim_rubber_elasticity / flory_huggins / tg_blend / diffusion | ✓ | ✓ | — | ✓ | — | — |
+| pm_sim_crystallization | ✓ | — | ✓ | ✓ | — | — |
+| pm_sim_md_run（PR#12） | ✓ | ✓ | — | ✓ | — | — |
 | pm_literature_read | ✓ | — | — | — | ✓ | — |
 | pm_literature_extract | ✓ | — | — | — | ✓ | — |
 | pm_knowledge_propose | ✓ | ✓ | ✓ | ✓ | ✓ | — |
