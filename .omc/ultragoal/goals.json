@@ -1,7 +1,7 @@
 {
   "version": 1,
   "createdAt": "2026-11-19T15:53:51.168Z",
-  "updatedAt": "2026-11-20T04:15:56.735Z",
+  "updatedAt": "2026-11-20T04:27:28.668Z",
   "briefPath": ".omc/ultragoal/brief.md",
   "goalsPath": ".omc/ultragoal/goals.json",
   "ledgerPath": ".omc/ultragoal/ledger.jsonl",
@@ -47,10 +47,13 @@
       "id": "G015",
       "title": "文献闭环端到端",
       "objective": "按 docs/polymechanism/11 §6 校园网在线真实验收:search(biaxial stretching PVA optical film)->screen->download(1 OA+1 付费出版商直连)->kb_ingest+kb_search 命中->zotero-skill 收录(含 PDF 附件挂载 spike,失败降级 RIS+PDF 同目录并如实记录)->pm_literature_extract>=3 条 claims 证据(hash 链校验)->pm_knowledge_propose reviewer approve;文档同步 08/09/04/plugin-contracts.md",
-      "status": "pending",
-      "attempt": 0,
+      "status": "complete",
+      "attempt": 1,
       "createdAt": "2026-11-20T02:46:27.454Z",
-      "updatedAt": "2026-11-20T02:46:27.454Z"
+      "updatedAt": "2026-11-20T04:27:28.668Z",
+      "startedAt": "2026-11-20T04:27:27.000Z",
+      "completedAt": "2026-11-20T04:27:28.668Z",
+      "evidence": "PR#17 merged e340c1ff22: literature-e2e.spec.ts permanent closed-loop test (OpenAlex search+rubric -> OA DOWNLOADED + paywall probe -> kb ingest+search hit -> fenced read Ursu2015 -> 3 claims -> SHA-256 chain verified -> knowledge propose -> reviewer approve); docs 04/09/contracts synced; 46/46 vitest; Vlit=0 Vprofile=0. Literature line G012-G015 all complete (13/15 ledger)"
     },
     {
       "id": "G001-m0",
