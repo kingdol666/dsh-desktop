@@ -231,6 +231,44 @@ export class PmResearchEngine {
    * Fold every project into the numbers the workbench home shows. Reads the
    * same stores the tools use, so the pulse cannot drift from the ledger.
    */
+  /**
+   * One project's full read-only state for the workbench: project row, ledger,
+   * hypotheses, mechanism graph, and the knowledge cards linked to it.
+   * @param projectId - project to read.
+   */
+  async projectState(projectId: EntityId): Promise<Record<string, unknown>> {
+    const matches = (await this.listProjects()).filter(project => project.id === projectId)
+    const project = matches[0]
+    if (project === undefined) throw new Error(`project ${projectId} not found`)
+    const [evidence, hypotheses, graph, cards] = await Promise.all([
+      this.queryEvidence(projectId),
+      this.listHypotheses(projectId),
+      this.mechanismGraph(projectId),
+      this.knowledge().query('project'),
+    ])
+    const [nodes, edges] = await Promise.all([graph.allNodes(), graph.allEdges()])
+    return {
+      project,
+      evidence,
+      hypotheses,
+      mechanism: {
+        nodes: nodes.map(node => ({
+          id: node.id, name: node.name, type: node.type,
+          ...(node.symbol === undefined ? {} : { symbol: node.symbol }),
+          ...(node.unit === undefined ? {} : { unit: node.unit }),
+        })),
+        edges: edges.map(edge => ({
+          id: edge.id, from: edge.from, to: edge.to, relation: edge.relation,
+          applicability: edge.applicability, confidence: edge.confidence,
+          ...(edge.equation === undefined ? {} : { equation: edge.equation }),
+          evidenceIds: edge.evidenceIds,
+        })),
+      },
+      knowledge: cards,
+      ledger: await this.verifyEvidence(projectId),
+    }
+  }
+
   async overview(): Promise<PmOverview> {
     const projects = await this.listProjects()
     const rows: PmOverviewProject[] = []
