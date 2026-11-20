@@ -17,6 +17,7 @@ from pm_science.chain_mech import chain_mechanics, kbt_pn_nm  # noqa: E402
 from pm_science.chain_stats import chain_stats  # noqa: E402
 from pm_science.diffusion import arrhenius_fit, vrentas_duda  # noqa: E402
 from pm_science.flory import critical_point, flory_huggins, spinodal_chi  # noqa: E402
+from pm_science.md import build_deck, parse_pm_results, parse_rg_file, parse_thermo  # noqa: E402
 from pm_science.ftir import ftir_peak_fit  # noqa: E402
 from pm_science.orientation import hermans_factor  # noqa: E402
 from pm_science.relax import fit_relaxation  # noqa: E402
@@ -236,9 +237,56 @@ def main() -> int:
         and abs(float(vd["freeVolumeOverGamma"]) - fh_expected) < 1e-12
     )
 
+    md_checks(checks)
+
     exit_code = check(checks)
     print(json.dumps({"summary": {k: bool(v) for k, v in checks.items()}}, ensure_ascii=False))
     return exit_code
+
+
+def md_checks(checks: dict[str, bool]) -> None:
+    """Deck-generation and parser truth checks (no LAMMPS binary needed)."""
+    deck = build_deck("equilibrate", 20, 64)
+    deck_deform = build_deck("deform", 20, 64, stretch=1.8)
+    deck_cool = build_deck("cool", 20, 64, final_temperature=0.1)
+    checks["md_deck_structure"] = (
+        "fene/standard" in deck
+        and "lj/cut 1.1224620483" in deck
+        and "read_data" in deck
+        and "fix deflect" not in deck
+        and "fix deflect" in deck_deform
+        and deck.count("fix integr all nvt temp") == 1
+        and deck_cool.count("fix integr all nvt temp") == 1
+        and deck_cool.splitlines()[-1] == 'print "PM_RESULT job=cool"'
+    )
+    from pm_science.md import build_data_file
+
+    data_file = build_data_file(20, 64, 0.85)
+    atom_rows = [line for line in data_file.split("Atoms # molecular", 1)[1].split("Bonds", 1)[0].strip().splitlines() if line.strip()]
+    bond_rows = [line for line in data_file.split("Bonds", 1)[1].strip().splitlines() if line.strip()]
+    checks["md_data_file_counts"] = (
+        len(atom_rows) == 64 * 20
+        and len(bond_rows) == 64 * 19
+        and "1216 bonds" in data_file
+    )
+    stdout = (
+        "Step Temp Press PotEng TotEng\n"
+        "0 1.0 -10.0 -2000.0 -2000.0\n"
+        "1000 1.0 -5.0 -1500.0 -1500.0\n"
+        "Loop time of 1.0 on 1 procs\n"
+        'print "PM_RESULT job=equilibrate rg=1.23"\n'
+        "PM_RESULT job=equilibrate rg=1.23\n"
+    )
+    parsed = parse_pm_results(stdout)
+    thermo = parse_thermo(stdout)
+    checks["md_parsers_extract_truth"] = (
+        parsed == {"job": "equilibrate", "rg": "1.23"}
+        and len(thermo) == 2
+        and thermo[-1]["Step"] == 1000.0
+        and thermo[-1]["Temp"] == 1.0
+    )
+    rg = parse_rg_file("# Time-averaged data for fix rgfile\n# TimeStep nchunks c_rgt\n1000 64 1.20 1.25\n2000 64 1.30 1.35\n")
+    checks["md_rg_file_mean"] = abs(rg - (1.20 + 1.25 + 1.30 + 1.35) / 4.0) < 1e-12
 
 
 if __name__ == "__main__":

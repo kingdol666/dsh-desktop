@@ -15,6 +15,7 @@ import {
   type RecordEvidenceInput,
 } from '@polymechanism/pm-core'
 import { resolveScienceRuntime } from './science.ts'
+import { resolveLammps } from './lammps.ts'
 import type {
   DiscriminatingTest,
   EntityId,
@@ -252,7 +253,7 @@ export class PmResearchEngine {
         refuted,
         pendingKnowledge: cards.filter(card => card.status === 'pending').length,
       },
-      sim: { analytic: scienceAnalyticAvailable(), md: false },
+      sim: { analytic: scienceAnalyticAvailable(), md: resolveLammps() !== undefined },
     }
   }
 
