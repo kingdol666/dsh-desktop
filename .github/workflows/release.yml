@@ -32,6 +32,9 @@ jobs:
             script: dist:linux
           - os: macos-latest
             script: dist:mac-smoke
+            # Single-arch package: the universal merge rejects platform-specific
+            # science/pylibs binaries that legitimately differ between CPU slices.
+            macArch: arm64
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     steps:
@@ -50,6 +53,8 @@ jobs:
       - name: Build the desktop app
         run: yarn workspace dsh-plugin-desktop build
       - name: Package
+        env:
+          DSH_MAC_SMOKE_ARCH: ${{ matrix.macArch }}
         run: yarn workspace dsh-plugin-desktop ${{ matrix.script }}
       - name: List artifacts
         shell: bash
@@ -80,5 +85,7 @@ jobs:
           tag_name: ${{ github.event.inputs.tag || github.ref_name }}
           name: PolyMechanism Studio ${{ github.event.inputs.tag || github.ref_name }}
           draft: false
-          generate_release_notes: true
+          generate_release_notes: false
+          # A manual Windows build may already carry the same asset name.
+          overwrite_assets: true
           files: artifacts/**
