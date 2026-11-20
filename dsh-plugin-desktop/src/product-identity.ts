@@ -5,7 +5,11 @@ export const DESKTOP_RELEASE_IDENTITIES = Object.freeze({
     packageName: 'dsh-plugin-desktop',
     productName: 'PolyMechanism Studio',
     appId: 'studio.polymechanism.desktop',
-    homeDirectoryName: '.dsh',
+    // Product-owned home: sessions, profiles, credentials, and pm research data
+    // live here instead of the upstream `~/.dsh`.
+    homeDirectoryName: '.pmstudio',
+    /** Pre-rename home, copied once into the channel home on first launch. */
+    legacyHomeDirectoryName: '.dsh',
   }),
   beta: Object.freeze({
     releaseChannel: 'beta' as const,
@@ -13,6 +17,8 @@ export const DESKTOP_RELEASE_IDENTITIES = Object.freeze({
     productName: 'PolyMechanism Studio Beta',
     appId: 'studio.polymechanism.desktop.beta',
     homeDirectoryName: '.dsh-beta',
+    /** Beta never renamed its home; the field keeps the identity shape uniform. */
+    legacyHomeDirectoryName: undefined,
   }),
 })
 

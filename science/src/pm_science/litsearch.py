@@ -90,11 +90,21 @@ def _validated_parts(url):
     return urllib.parse.urlunparse(parsed)
 
 
-def open_public_url(url, headers=None):
+def _opener(direct=False, no_redirect=False):
+    """Build one opener; `direct` ignores proxy variables so the campus IP shows."""
+    handlers = []
+    if direct:
+        handlers.append(urllib.request.ProxyHandler({}))
+    if no_redirect:
+        handlers.append(_NoRedirect())
+    return urllib.request.build_opener(*handlers)
+
+
+def open_public_url(url, headers=None, direct=False):
     """Open one outbound GET after full validation via :func:`_validated_parts`."""
     checked = _validated_parts(url)
     request = urllib.request.Request(checked, headers={"User-Agent": UA, **(headers or {})})
-    return urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS)
+    return _opener(direct=direct).open(request, timeout=TIMEOUT_SECONDS)
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -102,13 +112,12 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
-def open_public_url_stay(url, headers=None):
+def open_public_url_stay(url, headers=None, direct=False):
     """Guarded GET without redirect follow (raw response for manual hops)."""
     checked = _validated_parts(url)
     request = urllib.request.Request(checked, headers={"User-Agent": UA, **(headers or {})})
-    opener = urllib.request.build_opener(_NoRedirect)
     try:
-        return opener.open(request, timeout=TIMEOUT_SECONDS)
+        return _opener(direct=direct, no_redirect=True).open(request, timeout=TIMEOUT_SECONDS)
     except urllib.error.HTTPError as error:
         return error
 
@@ -131,12 +140,15 @@ def is_pdf_payload(payload):
     return payload[:4] == b"%PDF"
 
 
-def download_bytes(url, cookie_jar=None):
-    """Manually follow redirects; full guard re-runs on every hop. Caps size."""
+def download_bytes(url, cookie_jar=None, direct=False):
+    """Manually follow redirects; full guard re-runs on every hop. Caps size.
+
+    Returns (payload, content_type, cookie_jar, status).
+    """
     jar = list(cookie_jar or [])
     current = url
     for _ in range(HOP_LIMIT):
-        response = open_public_url_stay(current)
+        response = open_public_url_stay(current, direct=direct)
         if 300 <= response.status < 400:
             location = response.headers.get("Location")
             if not location:
@@ -151,7 +163,7 @@ def download_bytes(url, cookie_jar=None):
         payload = response.read(MAX_BYTES + 1)
         if len(payload) > MAX_BYTES:
             raise UrlBlocked("BLOCKED_TOO_LARGE")
-        return payload, (response.headers.get("Content-Type") or "").lower(), jar
+        return payload, (response.headers.get("Content-Type") or "").lower(), jar, response.status
     raise UrlBlocked("BLOCKED_TOO_MANY_REDIRECTS")
 
 
@@ -443,7 +455,82 @@ def screen_candidates(request):
     return {"ok": True, "count": len(scored), "candidates": scored}
 
 
-# ---------------------------------------------------------------- download chain
+# Publisher PDF endpoints, keyed by DOI prefix. Only hosts on the egress
+# allowlist appear here; a template URL is attempted only when its host is
+# allowlisted, and every request still passes the full guard. These read the
+# subscriber PDF that the campus IP already entitles — nothing bypasses a wall.
+PUBLISHER_TEMPLATES = {
+    "10.1007": ("springer", "https://link.springer.com/content/pdf/{doi}.pdf"),
+    "10.1002": ("wiley", "https://onlinelibrary.wiley.com/doi/pdfdirect/{doi}"),
+    "10.1021": ("acs", "https://pubs.acs.org/doi/pdf/{doi}"),
+    "10.1080": ("taylor-francis", "https://www.tandfonline.com/doi/pdf/{doi}?download=true"),
+    "10.1088": ("iop", "https://iopscience.iop.org/article/{doi}/pdf"),
+    "10.1295": ("jstage", "https://www.jstage.jst.go.jp/article/_pdf/{doi}"),
+}
+
+ANTI_BOT_STATUS = (401, 403, 429)
+
+
+def publisher_template_urls(doi_value):
+    """Template PDF URLs for the DOI's publisher, if the host is allowlisted."""
+    prefix = doi_value.split("/", 1)[0]
+    entry = PUBLISHER_TEMPLATES.get(prefix)
+    if entry is None:
+        return []
+    _name, template = entry
+    url = template.format(doi=doi_value)
+    host = urllib.parse.urlparse(url).hostname or ""
+    if host not in EGRESS_HOST_ALLOWLIST:
+        return []
+    return [url]
+
+
+def landing_pdf_urls(doi_value):
+    """citation_pdf_url (and direct .pdf links) from the DOI landing page.
+
+    Returns (urls, blocked): `blocked` means a publisher answered 401/403/429 or
+    an anti-bot wall, i.e. a subscriber PDF exists but this client may not fetch
+    it. Requests go direct: an egress proxy would hide the campus IP.
+    """
+    found = []
+    blocked = False
+    current = DOI_RESOLVER + urllib.parse.quote(doi_value, safe="")
+    for _ in range(HOP_LIMIT):
+        try:
+            response = open_public_url_stay(current, direct=True)
+        except (UrlBlocked, urllib.error.URLError):
+            break
+        if response.status in ANTI_BOT_STATUS:
+            blocked = True
+            break
+        if 300 <= response.status < 400:
+            location = response.headers.get("Location")
+            if not location:
+                break
+            current = urllib.parse.urljoin(current, location)
+            continue
+        if response.status != 200:
+            break
+        payload = response.read(MAX_BYTES + 1)
+        if len(payload) > MAX_BYTES:
+            break
+        html = payload.decode("utf-8", "replace")
+        lowered = html[:4096].lower()
+        if any(mark in lowered for mark in ANTI_BOT_MARKS):
+            blocked = True
+            break
+        meta = re.search(
+            "<meta[^>]+(?:name|property)=[\"']citation_pdf_url[\"'][^>]*content=[\"']([^\"']+)[\"']",
+            html, re.IGNORECASE)
+        if meta:
+            found.append(urllib.parse.urljoin(current, meta.group(1).replace("&amp;", "&")))
+        for pattern in re.finditer(
+            "href=[\"']([^\"']*(?:pdfdirect|\\.pdf|/pdf/)[^\"']*)[\"']",
+            html, re.IGNORECASE):
+            found.append(urllib.parse.urljoin(current, pattern.group(1).replace("&amp;", "&")))
+        break
+    return found, blocked
+
 
 MANIFEST_NAME = "manifest.jsonl"
 
@@ -596,14 +683,22 @@ def download_doi(request):
         result.update(fields)
         return result
 
-    def attempt(source, url):
+    saw_campus_wall = False
+
+    def attempt(source, url, direct=False):
+        nonlocal saw_campus_wall
         entry = {"source": source, "url": url}
         attempts.append(entry)
         try:
-            payload, content_type, _jar = download_bytes(url)
+            payload, content_type, _jar, status = download_bytes(url, direct=direct)
         except (UrlBlocked, urllib.error.URLError) as cause:
             entry["error"] = str(cause)
             return None
+        entry["status"] = status
+        if status in ANTI_BOT_STATUS:
+            # The publisher answered but refused this client: a subscriber PDF
+            # exists, so the honest outcome is "needs campus/institutional access".
+            saw_campus_wall = True
         if not is_pdf_payload(payload):
             entry["contentType"] = content_type
             entry["note"] = "not a PDF"
@@ -624,6 +719,20 @@ def download_doi(request):
         if unpaywall_url:
             saw_oa_link = True
             result = attempt("unpaywall", unpaywall_url)
+    # Subscriber route: the campus IP entitlement is what makes these work.
+    if result is None:
+        landing_urls, landing_blocked = landing_pdf_urls(doi_value)
+        if landing_blocked:
+            saw_campus_wall = True
+        for url in landing_urls:
+            result = attempt("landing", url, direct=True)
+            if result is not None:
+                break
+    if result is None:
+        for url in publisher_template_urls(doi_value):
+            result = attempt("publisher", url, direct=True)
+            if result is not None:
+                break
     if result is None:
         for link in crossref_pdf_urls(doi_value):
             result = attempt("crossref", link)
@@ -631,6 +740,9 @@ def download_doi(request):
                 break
     if result is not None:
         return result
+    if saw_campus_wall:
+        return finish("CAMPUS_REQUIRED",
+                      note="publisher refused this client (401/403/429); open the DOI in a browser on the campus network")
     if saw_oa_link:
         return finish("OA_LINK_ONLY",
                       note="OA landing page exists but no direct PDF payload was served")

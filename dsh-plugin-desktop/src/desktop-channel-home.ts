@@ -12,6 +12,8 @@
  * the shared home stays in use and the caller reports the overlap instead.
  */
 
+import { execFileSync } from 'node:child_process'
+import { cpSync, existsSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
@@ -56,6 +58,58 @@ export function desktopChannelHome(
   return resolve(join(homeDirectory, identity.homeDirectoryName))
 }
 
+/** Home this channel used before the product rename, when it declares one. */
+export function desktopLegacyChannelHome(
+  identity: DesktopProductIdentity = DESKTOP_PRODUCT_IDENTITY,
+  homeDirectory: string = homedir(),
+): string | undefined {
+  const name = identity.legacyHomeDirectoryName
+  return name === undefined ? undefined : resolve(join(homeDirectory, name))
+}
+
+/**
+ * Copy the pre-rename home into the product home once.
+ *
+ * Runs only when the product home does not exist yet, so a later launch never
+ * re-copies over live data. A failed copy leaves the caller on the legacy home:
+ * starting with the old data beats failing to start.
+ * @returns whether the product home now exists.
+ */
+export function migrateLegacyChannelHome(channelHome: string, legacyHome: string): boolean {
+  const marker = join(channelHome, '.migrated-from-legacy-home')
+  if (!existsSync(legacyHome) || existsSync(marker)) return false
+  let copied = false
+  if (process.platform === 'win32') {
+    // Windows MAX_PATH: Node's recursive copy gives up on deep node_modules
+    // trees; robocopy handles long paths natively and merges into a partial
+    // destination. Exit codes < 8 mean success.
+    try {
+      execFileSync('robocopy', [
+        legacyHome, channelHome, '/E', '/R:1', '/W:1', '/NFL', '/NDL', '/NJH', '/NJS', '/NP', '/XJ',
+      ], { stdio: 'ignore' })
+      copied = true
+    } catch (error) {
+      const status = (error as { status?: number }).status
+      copied = typeof status === 'number' && status < 8
+    }
+  }
+  if (!copied) {
+    try {
+      cpSync(legacyHome, channelHome, { recursive: true, force: false, errorOnExist: false })
+      copied = true
+    } catch {
+      copied = false
+    }
+  }
+  if (!copied) return false
+  try {
+    writeFileSync(marker, `${legacyHome}\n${new Date().toISOString()}\n`)
+  } catch {
+    // The marker is diagnostic only; the data is what matters.
+  }
+  return true
+}
+
 /** Decide which home this launch uses before any Desktop selection is read. */
 export function resolveDesktopChannelHome(
   options: DesktopChannelHomeOptions = {},
@@ -67,7 +121,10 @@ export function resolveDesktopChannelHome(
     homeInUse = validDesktopProfileExists,
   } = options
   const channelHome = desktopChannelHome(identity, homeDirectory)
-  const legacyHome = desktopChannelHome(DESKTOP_RELEASE_IDENTITIES.stable, homeDirectory)
+  // A renamed channel's legacy home is its own pre-rename directory; channels
+  // without one (Beta) share the Stable channel home as before.
+  const legacyHome = desktopLegacyChannelHome(identity, homeDirectory)
+    ?? desktopChannelHome(DESKTOP_RELEASE_IDENTITIES.stable, homeDirectory)
   const configured = environment.DSH_HOME
   if (configured !== undefined && configured.trim().length > 0) {
     return Object.freeze({
@@ -80,6 +137,16 @@ export function resolveDesktopChannelHome(
   // The channel that owns the shared home has nothing to decide.
   if (channelHome === legacyHome) {
     return Object.freeze({ homeDir: channelHome, channelHome, legacyHome, status: 'channel' })
+  }
+  // Product rename: adopt the pre-rename home once so sessions, profiles, and
+  // credentials continue under the new directory instead of being orphaned.
+  const previousHome = desktopLegacyChannelHome(identity, homeDirectory)
+  if (previousHome !== undefined && previousHome !== channelHome
+    && !homeInUse(channelHome) && homeInUse(previousHome)) {
+    if (migrateLegacyChannelHome(channelHome, previousHome)) {
+      return Object.freeze({ homeDir: channelHome, channelHome, legacyHome, status: 'channel' })
+    }
+    return Object.freeze({ homeDir: previousHome, channelHome, legacyHome, status: 'legacy-shared' })
   }
   // Keep an installed channel where its data already lives.
   if (!homeInUse(channelHome) && homeInUse(legacyHome)) {
