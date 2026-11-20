@@ -344,6 +344,8 @@
     "@deepseek-ai/schemastery": "^3.18.5",
     "adm-zip": "^0.6.0",
     "dsh-community-market": "0.1.0-dev.0",
+    "dsh-kb-rag": "1.6.8",
+    "dsh-zotero-skill": "0.5.5",
     "dshmarket": "1.73.22",
     "fs-ext": "2.1.1",
     "koffi": "3.1.1",

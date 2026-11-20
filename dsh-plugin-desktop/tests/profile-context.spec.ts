@@ -39,10 +39,19 @@ it('rereads user patches while preserving the Desktop composition and root file'
   const { prepared, ctx, home } = fixture('web')
   const rootMtime = statSync(prepared.rootConfig).mtimeMs
   const read = () => composeEntries([readProfilePatches('test', ctx.profileContext)])
-  expect(read()).toEqual(composeEntries([prepared.patches]))
+  const before = read()
+  // createDesktopProfileBoot runs syncDesktopManagedProfileBundles, which injects
+  // the shipped literature bundles (dsh-kb-rag / dsh-zotero-skill) into this
+  // profile's manifest after prepare — so the reread carries their rows on top
+  // of the prepared patches.
+  expect(before.find(row => row.name === 'dsh-kb-rag')).toBeDefined()
+  expect(before.find(row => row.id === 'dsh-zotero-skill')).toBeDefined()
   writeFileSync(prepared.profile.patchPath, '- id: plugin-manager\n  disabled: true\n')
   writeFileSync(join(home, 'cordis.patch.yml'), '- id: timer\n  disabled: true\n')
   const rows = read()
+  // The reread preserves the whole composition (only the two user edits differ).
+  const edited = new Set(['plugin-manager', 'timer'])
+  expect(rows.filter(row => !edited.has(row.id))).toEqual(before.filter(row => !edited.has(row.id)))
   expect(rows.find(row => row.id === 'plugin-manager')?.disabled).toBe(true)
   expect(rows.find(row => row.id === 'timer')?.disabled).toBe(true)
   expect(rows.find(row => row.id === 'desktop-shell')?.name).toBe('dsh-plugin-desktop')

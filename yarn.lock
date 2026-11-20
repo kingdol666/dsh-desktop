@@ -19192,6 +19192,18 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"dsh-kb-rag@npm:1.6.8":
+  version: 1.6.8
+  resolution: "dsh-kb-rag@npm:1.6.8"
+  peerDependencies:
+    "@deepseek-ai/cordis": ^4.0.1
+    "@deepseek-ai/dsh-tools": ">=0.2.0-rc.2 <0.3.0"
+  bin:
+    dsh-kb-rag-install: install.mjs
+  checksum: 10c0/c854b976e5bf55fb876367a68080c90dfc9d84d879806c4796f78f810bdad3d47b3d7ced1fa4a1cfefb806aa63e7c5f513d92f4f438c106c008f20a662183ab1
+  languageName: node
+  linkType: hard
+
 "dsh-plugin-desktop-beta@workspace:dsh-plugin-desktop-beta":
   version: 0.0.0-use.local
   resolution: "dsh-plugin-desktop-beta@workspace:dsh-plugin-desktop-beta"
@@ -19650,6 +19662,8 @@ __metadata:
     class-variance-authority: "npm:^0.7.1"
     clsx: "npm:^2.1.1"
     dsh-community-market: "npm:0.1.0-dev.0"
+    dsh-kb-rag: "npm:1.6.8"
+    dsh-zotero-skill: "npm:0.5.5"
     dshmarket: "npm:1.73.22"
     electron: "npm:44.7.0"
     electron-builder: "npm:26.15.7"
@@ -19688,6 +19702,13 @@ __metadata:
     dsh-plugin-desktop: lib/bin.js
   languageName: unknown
   linkType: soft
+
+"dsh-zotero-skill@npm:0.5.5":
+  version: 0.5.5
+  resolution: "dsh-zotero-skill@npm:0.5.5"
+  checksum: 10c0/2656a294d99edfcf76ee4929265aa8b833b357a90cf59a8662b52532a904d263fc4850555bdd5af15ada8bc78d23bbb27cd6e37ac997896e1d628c81b64ad88c
+  languageName: node
+  linkType: hard
 
 "dshmarket@npm:1.73.22":
   version: 1.73.22

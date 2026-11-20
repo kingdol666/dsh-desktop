@@ -32,6 +32,11 @@
       name: dsh-plugin-desktop/updates
     - id: pm-research
       name: dsh-plugin-desktop/pm
+    # Literature plugins (dsh-kb-rag, dsh-zotero-skill) ship as production
+    # dependencies and are injected into the ACTIVE profile's bundle list by
+    # syncDesktopManagedProfileBundles — the same desktop-managed pattern as the
+    # market bundles. They must NOT be inserted here: a profile-side copy
+    # (dsh plugin add) would duplicate the loader entry id and fail the boot.
     # Six prebuilt polymer experts: selectable at new-session via the preset
     # registry; polymer skills register programmatically through pm-research.
     - id: preset-pm-scientist

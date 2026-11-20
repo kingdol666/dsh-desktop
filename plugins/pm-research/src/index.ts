@@ -58,8 +58,12 @@ export function createPmHealthHandler(report: PmHealthReport): (req: IncomingMes
   return (_req, res) => { writePmJson(res, report) }
 }
 
-/** Host services required by the pm entry point. */
-export const inject = ['webServer'] as const
+/**
+ * Host services used by the pm entry point. `webServer` is OPTIONAL: the
+ * research tools must also activate in headless/CLI harness profiles that
+ * mount no HTTP surface — only the /pm routes require it.
+ */
+export const inject = [] as const
 
 /**
  * Register the PolyMechanism domain routes and tools on the shared carrier.
@@ -69,40 +73,43 @@ export const inject = ['webServer'] as const
 export function apply(ctx: Context, config: PmResearchConfig = {}): void {
   const startedAt = Date.now()
   const engine = PmResearchEngine.open(resolvePmDataRoot(config))
-  ctx.effect(
-    () => ctx.webServer.register({
-      kind: 'exact',
-      path: '/pm/health',
-      handler: (_req, res) => { writePmJson(res, { ...buildPmHealthReport(Date.now() - startedAt), tools: registeredTools() }) },
-    }),
-    'pm-research: /pm/health route',
-  )
-  ctx.effect(
-    () => ctx.webServer.register({
-      kind: 'exact',
-      path: '/pm/overview',
-      handler: (_req, res) => {
-        void engine.overview().then(
-          overview => { writePmJson(res, { ok: true, data: overview }) },
-          cause => {
-            res.statusCode = 500
-            res.setHeader('cache-control', 'no-store')
-            res.setHeader('content-type', 'application/json; charset=utf-8')
-            res.setHeader('x-content-type-options', 'nosniff')
-            res.end(JSON.stringify({
-              ok: false,
-              error: {
-                code: 'INTERNAL',
-                message: cause instanceof Error ? cause.message : String(cause),
-                hint: 'retry, or check the pm data root and its project ledgers',
-              },
-            }))
-          },
-        )
-      },
-    }),
-    'pm-research: /pm/overview route',
-  )
+  const webServer = ctx.get('webServer') as typeof ctx.webServer | undefined
+  if (webServer !== undefined) {
+    ctx.effect(
+      () => webServer.register({
+        kind: 'exact',
+        path: '/pm/health',
+        handler: (_req, res) => { writePmJson(res, { ...buildPmHealthReport(Date.now() - startedAt), tools: registeredTools() }) },
+      }),
+      'pm-research: /pm/health route',
+    )
+    ctx.effect(
+      () => webServer.register({
+        kind: 'exact',
+        path: '/pm/overview',
+        handler: (_req, res) => {
+          void engine.overview().then(
+            overview => { writePmJson(res, { ok: true, data: overview }) },
+            cause => {
+              res.statusCode = 500
+              res.setHeader('cache-control', 'no-store')
+              res.setHeader('content-type', 'application/json; charset=utf-8')
+              res.setHeader('x-content-type-options', 'nosniff')
+              res.end(JSON.stringify({
+                ok: false,
+                error: {
+                  code: 'INTERNAL',
+                  message: cause instanceof Error ? cause.message : String(cause),
+                  hint: 'retry, or check the pm data root and its project ledgers',
+                },
+              }))
+            },
+          )
+        },
+      }),
+      'pm-research: /pm/overview route',
+    )
+  }
   // The live preset registry knows a selection committed after the session
   // header was written; the header is only the session's initial composition.
   const registry = ctx.reflect?.get('agentPresets', false) as {
