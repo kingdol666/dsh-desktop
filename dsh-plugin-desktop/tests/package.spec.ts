@@ -336,19 +336,15 @@ describe('published package surface', () => {
 
   it('keeps the canonical web profile configurable while Desktop disables browser opening', () => {
     const patchPath = `./patches/dsh-web-app@${runtimeVersion}.patch`
-    const openPatchPath = './patches/open@11.0.1.patch'
-    const openPatchResolution = `patch:open@npm%3A11.0.1#${openPatchPath}`
-    // dsh 0.2.1-alpha.2 requires open ^11.0.2, which Stable's 11.0.1 pin cannot satisfy.
+    // dsh 0.2.1-alpha.2 requires open ^11.0.2; the Stable pin moved to the
+    // patched 11.0.4 release, so only that resolution remains.
     const currentOpenPatchPath = './patches/open@11.0.4.patch'
     const currentOpenPatchResolution = `patch:open@npm%3A11.0.4#${currentOpenPatchPath}`
     expect(dshResolution('@deepseek-ai/dsh-web-app')).toContain(patchPath)
     expect(workspaceManifest.resolutions).toMatchObject({
-      'open@npm:11.0.1': openPatchResolution,
-      'open@npm:^11.0.0': openPatchResolution,
       'open@npm:^11.0.2': currentOpenPatchResolution,
     })
     const patch = readFileSync(new URL(patchPath, workspaceRoot), 'utf8')
-    const openPatch = readFileSync(new URL(openPatchPath, workspaceRoot), 'utf8')
     const currentOpenPatch = readFileSync(new URL(currentOpenPatchPath, workspaceRoot), 'utf8')
     const lockfile = readFileSync(new URL('yarn.lock', workspaceRoot), 'utf8')
     const installedWebApp = readFileSync(new URL(
@@ -372,9 +368,7 @@ describe('published package surface', () => {
     expect(installedWebApp).toMatch(
       /function spawnBrowserLauncher\(url\) \{\s+return spawn\(process\.execPath, \[[\s\S]*?\], \{\s+windowsHide: true,\s+env:/u,
     )
-    expect(lockfile).toContain('open@patch:open@npm%3A11.0.1#./patches/open@11.0.1.patch')
     expect(lockfile).toContain('open@patch:open@npm%3A11.0.4#./patches/open@11.0.4.patch')
-    expect(openPatch).toContain('+\t\t\tchildProcessOptions.windowsHide = true;')
     expect(currentOpenPatch).toContain('+\t\t\tchildProcessOptions.windowsHide = true;')
     expect(installedOpen).toMatch(
       /if \(!isWsl\) \{\s+childProcessOptions\.windowsVerbatimArguments = true;\s+childProcessOptions\.windowsHide = true;\s+\}/u,
@@ -827,7 +821,7 @@ describe('published package surface', () => {
 
   it('fixes the installed application identity', () => {
     expect(workspaceManifest.version).toBeUndefined()
-    expect(manifest.version).toBe('2.0.18')
+    expect(manifest.version).toBe('2.1.0')
     expect(manifest.build?.productName).toBe('PolyMechanism Studio')
     expect(manifest.build?.appId).toBe('studio.polymechanism.desktop')
     expect(manifest.build?.asar).toBe(false)
@@ -987,10 +981,21 @@ describe('published package surface', () => {
     expect(manifest.devDependencies?.['builder-util']).toBe('26.15.3')
   })
 
-  it('carries the primary runtime beside the application like upstream Desktop', () => {
-    // Every packaged platform carries its CPU payloads beside the application as extra resources.
+  it('carries the primary runtime and the science payload beside the application like upstream Desktop', () => {
+    // Every packaged platform carries its CPU payloads beside the application as
+    // extra resources, plus the relocatable science payload the pm tools need:
+    // the repo venv cannot ship (pyvenv.cfg pins the build machine's base
+    // interpreter), so `resources/app/science` carries src + pylibs, and the
+    // skills/knowledge/config trees resolve from the same app root.
     for (const platform of ['mac', 'win', 'linux'] as const) {
-      expect(manifest.build?.[platform]?.extraResources, platform).toEqual([{ from: '.desktop-build/runtime', to: 'runtime' }])
+      expect(manifest.build?.[platform]?.extraResources, platform).toEqual([
+        { from: '.desktop-build/runtime', to: 'runtime' },
+        { from: '../science/src', to: 'app/science/src' },
+        { from: '../science/pylibs', to: 'app/science/pylibs' },
+        { from: '../skills', to: 'app/skills' },
+        { from: '../knowledge', to: 'app/knowledge' },
+        { from: '../config', to: 'app/config' },
+      ])
     }
     expect(manifest.build).not.toHaveProperty('extraResources')
     // electron-builder must not re-sign the pre-signed payloads, and the universal merge keeps the identical payloads as they are.
@@ -1167,10 +1172,13 @@ describe('published package surface', () => {
     expect(workspaceManifest.resolutions).toMatchObject({
       '@earendil-works/pi-ai@npm:^1.1.0': patchResolution,
       '@earendil-works/pi-telemetry@npm:^1.1.0': '1.1.0',
+      // Beta/Next pull the newer release; Stable keeps 1.1.0. Both carry the patch.
+      '@earendil-works/pi-ai@npm:^1.3.0':
+        'patch:@earendil-works/pi-ai@npm%3A1.3.0#./patches/pi-ai@1.3.0.patch',
     })
-    // The only npm resolution is the source the patch applies to, so no range escapes it.
-    expect([...lockfile.matchAll(/resolution: "@earendil-works\/pi-ai@npm:([^"]+)"/gu)].map(match => match[1]))
-      .toEqual(['1.1.0'])
+    // Every npm resolution the lockfile carries is one the patches apply to.
+    expect([...lockfile.matchAll(/resolution: "@earendil-works\/pi-ai@npm:([^"]+)"/gu)]
+      .map(match => match[1]).sort()).toEqual(['1.1.0', '1.3.0'])
     expect(lockfile).toContain(`"@earendil-works/pi-ai@${patchResolution}::`)
     expect(lockfile).toContain('resolution: "@earendil-works/pi-telemetry@npm:1.1.0"')
     expect(installedPiAi.version).toBe('1.1.0')

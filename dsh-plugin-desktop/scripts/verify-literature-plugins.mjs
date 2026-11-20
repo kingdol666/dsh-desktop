@@ -333,6 +333,18 @@ try {
     throw new Error(`pm-research /pm/health answered ${String(pmDenied.status)} without a renderer token`)
   }
 
+  // Workbench read surface: the client lists projects and reads one state.
+  const projectsProbe = await fetch(`http://127.0.0.1:${String(ctx.webServer.port)}/pm/projects`, {
+    headers: { [BROWSER_ACCESS.rendererHeader.name]: BROWSER_ACCESS.rendererHeader.value },
+  })
+  if (!projectsProbe.ok) {
+    throw new Error(`pm-research /pm/projects answered ${String(projectsProbe.status)} for the renderer`)
+  }
+  const projectsPayload = await projectsProbe.json()
+  if (projectsPayload?.ok !== true || !Array.isArray(projectsPayload?.data?.projects)) {
+    throw new Error(`pm-research /pm/projects returned an unexpected payload: ${JSON.stringify(projectsPayload)}`)
+  }
+
   process.stdout.write(
     'verify-literature-plugins: kb_* x10 + zotero skill + six polymer experts + pm surface + web client graph passed\n',
   )

@@ -118,6 +118,7 @@ export function registerMechanismTools(ctx: Context, engine: PmResearchEngine, r
           ...(args.theoryDoi === undefined ? {} : { theorySource: { type: 'doi', ref: args.theoryDoi } }),
           applicability: args.applicability,
           createdBy: 'agent',
+          ...(args.evidenceIds === undefined ? {} : { evidenceIds: args.evidenceIds }),
           strongSupportingEvidence: strongCount,
         })
         return toToolJson({ ok: true, data: result })

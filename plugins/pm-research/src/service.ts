@@ -74,6 +74,17 @@ export interface AnalysisRecordInput {
   readonly recordedBy: string
 }
 
+/** Simulation results may be pure-model outputs, so no data file is required. */
+export interface SimulationRecordInput {
+  readonly tool: string
+  readonly result: Record<string, unknown>
+  readonly dataPath?: string
+  readonly claimSupport: string
+  readonly polarity?: Evidence['polarity']
+  readonly strength?: Evidence['strength']
+  readonly recordedBy: string
+}
+
 /** Four hex chars from a statement digest, used in hypothesis ids. */
 export function statementHash4(statement: string): string {
   return createHash('sha256').update(statement.trim().toLowerCase()).digest('hex').slice(0, 4)
@@ -84,6 +95,8 @@ export class PmResearchEngine {
   private projects: ProjectStore | undefined
   private hypothesesStore: HypothesisStore | undefined
   private knowledgeStore: KnowledgeStore | undefined
+  /** One mechanism graph per project: instances cache their own copy. */
+  private readonly mechanismGraphs = new Map<EntityId, MechanismGraph>()
   private readonly ledgers = new Map<EntityId, EvidenceLedger>()
   private readonly ledgerAppends = new Map<EntityId, Promise<unknown>>()
 
@@ -218,6 +231,44 @@ export class PmResearchEngine {
    * Fold every project into the numbers the workbench home shows. Reads the
    * same stores the tools use, so the pulse cannot drift from the ledger.
    */
+  /**
+   * One project's full read-only state for the workbench: project row, ledger,
+   * hypotheses, mechanism graph, and the knowledge cards linked to it.
+   * @param projectId - project to read.
+   */
+  async projectState(projectId: EntityId): Promise<Record<string, unknown>> {
+    const matches = (await this.listProjects()).filter(project => project.id === projectId)
+    const project = matches[0]
+    if (project === undefined) throw new Error(`project ${projectId} not found`)
+    const [evidence, hypotheses, graph, cards] = await Promise.all([
+      this.queryEvidence(projectId),
+      this.listHypotheses(projectId),
+      this.mechanismGraph(projectId),
+      this.knowledge().query('project'),
+    ])
+    const [nodes, edges] = await Promise.all([graph.allNodes(), graph.allEdges()])
+    return {
+      project,
+      evidence,
+      hypotheses,
+      mechanism: {
+        nodes: nodes.map(node => ({
+          id: node.id, name: node.name, type: node.type,
+          ...(node.symbol === undefined ? {} : { symbol: node.symbol }),
+          ...(node.unit === undefined ? {} : { unit: node.unit }),
+        })),
+        edges: edges.map(edge => ({
+          id: edge.id, from: edge.from, to: edge.to, relation: edge.relation,
+          applicability: edge.applicability, confidence: edge.confidence,
+          ...(edge.equation === undefined ? {} : { equation: edge.equation }),
+          evidenceIds: edge.evidenceIds,
+        })),
+      },
+      knowledge: cards,
+      ledger: await this.verifyEvidence(projectId),
+    }
+  }
+
   async overview(): Promise<PmOverview> {
     const projects = await this.listProjects()
     const rows: PmOverviewProject[] = []
@@ -289,12 +340,33 @@ export class PmResearchEngine {
       const record = (await ledger).get(id)
       if (record !== undefined) resolved.push({ id: record.id, polarity: record.polarity, strength: record.strength })
     }
+    // Conclusions additionally pass the scientific gate over the ledger-resolved
+    // records: the machine checks structure and counts, the gate checks that the
+    // cited records are real, well-formed ledger entries.
+    if (to === 'supported' || to === 'refuted') {
+      const bound: Evidence[] = []
+      for (const item of resolved) {
+        const record = (await ledger).get(item.id)
+        if (record !== undefined) bound.push(record)
+      }
+      const gate = evaluateGate({ kind: 'hypothesis', evidence: bound })
+      if (gate.verdict === 'block') {
+        const failed = gate.checks.filter(check => !check.ok).map(check => check.detail).join('; ')
+        return { legal: false, reason: `scientific gate blocked the conclusion: ${failed}` }
+      }
+    }
     return this.hypothesisStore().transition(projectId, hypothesisId, to, rationale, resolved, actor)
   }
 
-  /** Project-scoped mechanism graph accessor. */
+  /** Project-scoped mechanism graph accessor (one cached instance per project:
+   * fresh instances would each hold a stale copy and overwrite each other). */
   mechanismGraph(projectId: EntityId): MechanismGraph {
-    return MechanismGraph.open(join(this.dataRoot, 'projects', projectId, 'mechanism.json'))
+    let graph = this.mechanismGraphs.get(projectId)
+    if (graph === undefined) {
+      graph = MechanismGraph.open(join(this.dataRoot, 'projects', projectId, 'mechanism.json'))
+      this.mechanismGraphs.set(projectId, graph)
+    }
+    return graph
   }
 
   /** Knowledge-card store accessor. */
@@ -354,7 +426,9 @@ export class PmResearchEngine {
           : { type: 'file', ref: source.length > 0 ? source : 'seed.json' },
         applicability: edge.applicability,
         createdBy: 'seed',
-        strongSupportingEvidence: edge.applicability === 'established' ? 1 : 0,
+        // Seed edges are the imported literature baseline. Their source lives in
+        // theorySource; they never claim project evidence they do not have.
+        strongSupportingEvidence: 0,
       })
       edgeCount += 1
     }
@@ -432,12 +506,12 @@ export class PmResearchEngine {
    */
   async recordSimulation(
     projectId: EntityId,
-    input: AnalysisRecordInput,
+    input: SimulationRecordInput,
   ): Promise<{ evidence: Evidence; artifactPath: string; deduped: boolean }> {
     const artifactPath = await this.archiveArtifact(
       projectId,
       `${input.tool}-${new Date().toISOString().replace(/[:.]/gu, '-')}`,
-      { tool: input.tool, simulation: true, result: input.result, recordedAt: new Date().toISOString() },
+      { tool: input.tool, dataPath: input.dataPath ?? null, simulation: true, result: input.result, recordedAt: new Date().toISOString() },
     )
     const { evidence, deduped } = await this.recordEvidence(projectId, {
       claimSupport: input.claimSupport,

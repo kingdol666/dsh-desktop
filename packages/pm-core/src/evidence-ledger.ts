@@ -103,10 +103,12 @@ export class EvidenceLedger {
 
   /**
    * Verify the whole chain: every stored hash must equal the digest recomputed
-   * from its own content.
+   * from its own content, and every record after the first must point at its
+   * predecessor's hash. A deleted or reordered line therefore breaks the chain.
    */
   verify(): { verified: boolean; brokenAt?: EntityId; chainLength: number } {
-    for (const record of this.records) {
+    let previous: string | undefined
+    for (const [index, record] of this.records.entries()) {
       const stored = record as Evidence
       const expected = evidenceHash({
         claimSupport: record.claimSupport,
@@ -118,6 +120,10 @@ export class EvidenceLedger {
       if (expected !== record.hash) {
         return { verified: false, brokenAt: record.id, chainLength: this.records.length }
       }
+      if (index > 0 && record.prevHash !== previous) {
+        return { verified: false, brokenAt: record.id, chainLength: this.records.length }
+      }
+      previous = record.hash
     }
     return { verified: true, chainLength: this.records.length }
   }
@@ -132,6 +138,7 @@ export class EvidenceLedger {
     const existing = this.byHash.get(hash)
     if (existing !== undefined) return { evidence: existing, deduped: true }
     const id = nextEvidenceId(this.records, hash)
+    const previous = this.records.at(-1)
     const record: Evidence = {
       id,
       ...(input.observationId === undefined ? {} : { observationId: input.observationId }),
@@ -140,6 +147,7 @@ export class EvidenceLedger {
       strength: input.strength,
       sourceRef: input.sourceRef,
       hash,
+      ...(previous === undefined ? {} : { prevHash: previous.hash }),
       recordedBy: input.recordedBy,
       recordedAt: input.recordedAt ?? new Date().toISOString(),
       ...(input.payload === undefined ? {} : { payload: { ...input.payload } }),

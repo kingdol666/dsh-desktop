@@ -124,6 +124,8 @@ describe('research engine lifecycle', () => {
     }
     const verdict = await engine.transitionHypothesis(project.id, hypothesis.id, 'supported', 'no real evidence', 'preset:polymer-scientist')
     expect(verdict.legal).toBe(false)
-    expect(verdict.reason).toContain('at least 2 evidence')
+    // The invented id does not resolve against the ledger, so the scientific
+    // gate rejects the conclusion before the count rule can even see 2 items.
+    expect(verdict.reason).toMatch(/no bound evidence|at least 2 evidence/u)
   })
 })

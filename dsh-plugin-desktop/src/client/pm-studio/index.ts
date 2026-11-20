@@ -20,6 +20,7 @@ import type { PmLocaleFace } from './copy.ts'
 import { pmStudioCopy } from './copy.ts'
 import { PmHeroBrandMark, PmSidebarBrandMark, PmSidebarBrandName } from './brand.tsx'
 import { PmHomeConsole } from './home-console.tsx'
+import { PmWorkbench, type PmWorkbenchInjected } from './workbench.tsx'
 import { installPmStudioStyles } from './styles.ts'
 
 /** The Host's preset selection result, narrowed to what the seat needs. */
@@ -134,5 +135,29 @@ export function applyPmStudio(ctx: ClientContext): void {
         }
       },
     }, PmHomeConsole))
+    // The workbench only needs the composer hand-off; it reads project state
+    // over the same-origin /pm routes the Host registers.
+    scope.slots.inject('conversation.input.dock', () => scope.slots.register({
+      name: 'conversation.input.dock',
+      id: 'pm-workbench',
+      order: -9,
+      inject: (sessionId): PmWorkbenchInjected => {
+        const actx = scope.sessions.scope(sessionId)
+        const conversation = actx?.get('conversation')
+        return {
+          applyPrompt(text) {
+            if (conversation === undefined || actx === undefined) return false
+            try {
+              const input = conversation.input.for(actx)
+              input.setDraft(text)
+              input.focus()
+              return true
+            } catch {
+              return false
+            }
+          },
+        }
+      },
+    }, PmWorkbench))
   })
 }

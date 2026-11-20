@@ -73,8 +73,10 @@ export const inject = [] as const
 export function apply(ctx: Context, config: PmResearchConfig = {}): void {
   const startedAt = Date.now()
   const engine = PmResearchEngine.open(resolvePmDataRoot(config))
-  const webServer = ctx.get('webServer') as typeof ctx.webServer | undefined
-  if (webServer !== undefined) {
+  // Routes activate only when a web carrier exists (headless harnesses have no
+  // HTTP surface); the tools below never depend on it.
+  ctx.inject(['webServer'], (webScope) => {
+    const webServer = webScope.webServer
     ctx.effect(
       () => webServer.register({
         kind: 'exact',
@@ -109,7 +111,49 @@ export function apply(ctx: Context, config: PmResearchConfig = {}): void {
       }),
       'pm-research: /pm/overview route',
     )
-  }
+    // Read-only workbench surface: the client lists projects and renders one
+    // project's ledger, hypotheses, mechanism graph, and knowledge cards.
+    ctx.effect(
+      () => webServer.register({
+        kind: 'prefix',
+        path: '/pm/projects',
+        handler: (req, res) => {
+          const path = (req.url ?? '').split('?')[0] ?? ''
+          const stateMatch = /^\/pm\/projects\/([^/]+)\/state$/u.exec(path)
+          const produce = async (): Promise<unknown> => {
+            if (path === '/pm/projects') {
+              return {
+                projects: (await engine.listProjects()).map(project => ({
+                  id: project.id,
+                  title: project.title,
+                  status: project.status,
+                  domain: project.domain,
+                })),
+              }
+            }
+            if (stateMatch !== null) {
+              return engine.projectState(decodeURIComponent(stateMatch[1] ?? ''))
+            }
+            return { error: 'unknown pm route' }
+          }
+          void produce().then(
+            data => { writePmJson(res, { ok: true, data }) },
+            cause => {
+              res.statusCode = 500
+              res.setHeader('cache-control', 'no-store')
+              res.setHeader('content-type', 'application/json; charset=utf-8')
+              res.setHeader('x-content-type-options', 'nosniff')
+              res.end(JSON.stringify({
+                ok: false,
+                error: { code: 'INTERNAL', message: cause instanceof Error ? cause.message : String(cause) },
+              }))
+            },
+          )
+        },
+      }),
+      'pm-research: /pm/projects workbench routes',
+    )
+  })
   // The live preset registry knows a selection committed after the session
   // header was written; the header is only the session's initial composition.
   const registry = ctx.reflect?.get('agentPresets', false) as {

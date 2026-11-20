@@ -43,6 +43,11 @@ export interface Evidence {
   readonly payload?: Readonly<Record<string, unknown>>
   /** SHA-256 over the canonical form of claimSupport/polarity/strength/sourceRef/payload. */
   readonly hash: string
+  /**
+   * Hash of the previous record in the append-only chain. Absent only on the
+   * first record (genesis) and on ledgers written before the chain existed.
+   */
+  readonly prevHash?: string
   /** Identity of the recording actor (preset id or 'human:<name>'). */
   readonly recordedBy: string
   /** ISO-8601 instant. */
@@ -128,6 +133,8 @@ export interface MechanismEdge {
   /** 0..1 confidence assigned by review, never by the proposing agent alone. */
   readonly confidence: number
   readonly openQuestions: readonly string[]
+  /** Ledger evidence bound to this edge (ids resolve to evidence.jsonl). */
+  readonly evidenceIds: readonly EntityId[]
   readonly createdBy: 'seed' | 'agent' | 'human'
   readonly createdAt: string
 }

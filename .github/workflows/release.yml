@@ -1,0 +1,84 @@
+name: Release
+
+# Builds the Stable (dsh-plugin-desktop) installers on all three hosts and
+# attaches them to a GitHub Release. Unsigned by design: signing certificates
+# stay on the maintainer's machines, so the artifacts are reproducible but not
+# notarized. Tag push (v*) or a manual run both work.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to build (e.g. v2.1.0)
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  DSH_TELEMETRY_DISABLED: '1'
+  CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            script: dist:win
+          - os: ubuntu-latest
+            script: dist:linux
+          - os: macos-latest
+            script: dist:mac-smoke
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          submodules: recursive
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.14.0
+      - run: corepack enable
+      - name: Install the Stable workspaces
+        run: yarn workspaces focus dsh-plugin-desktop dsh-community-market
+      # `yarn workspace dsh-plugin-desktop build` runs scripts/prepare-science-libs.mjs,
+      # which materializes science/pylibs (numpy/scipy/pypdf wheels for this host).
+      - name: Build the desktop app
+        run: yarn workspace dsh-plugin-desktop build
+      - name: Package
+        run: yarn workspace dsh-plugin-desktop ${{ matrix.script }}
+      - name: List artifacts
+        shell: bash
+        run: ls -la dsh-plugin-desktop/dist || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: polymechanism-${{ runner.os }}
+          path: |
+            dsh-plugin-desktop/dist/*.exe
+            dsh-plugin-desktop/dist/*.zip
+            dsh-plugin-desktop/dist/*.dmg
+            dsh-plugin-desktop/dist/*.AppImage
+            dsh-plugin-desktop/dist/*.deb
+          if-no-files-found: error
+
+  publish:
+    needs: package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: List release assets
+        run: find artifacts -type f -maxdepth 2 -printf '%p %s bytes\n'
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          name: PolyMechanism Studio ${{ github.event.inputs.tag || github.ref_name }}
+          draft: false
+          generate_release_notes: true
+          files: artifacts/**

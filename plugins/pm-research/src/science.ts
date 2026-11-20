@@ -16,6 +16,7 @@ export type ScienceTool =
   | 'literature_search'
   | 'literature_download'
   | 'literature_screen'
+  | 'md_run'
   | 'chain_mech'
   | 'rubber'
   | 'viscoelastic'
@@ -37,6 +38,10 @@ export interface ScienceRuntime {
   readonly cli: string
   readonly envPath: string
   readonly timeoutMs: number
+  /** Interpreter arguments before `--`; isolated mode only for the repo venv. */
+  readonly pythonArgs: readonly string[]
+  /** Extra environment for the science process (bundled mode sets PYTHONPATH). */
+  readonly extraEnv: Readonly<Record<string, string>>
 }
 
 /** Failure carrying the code the tool envelope should expose. */
@@ -69,16 +74,61 @@ export function resolveScienceRuntime(config: ScienceConfig = {}): ScienceRuntim
   const venvDir = resolve(scienceRoot, '.venv', process.platform === 'win32' ? 'Scripts' : 'bin')
   const python = process.platform === 'win32' ? 'python.exe' : 'python'
   const interpreter = resolve(venvDir, python)
-  if (!existsSync(interpreter)) {
-    throw new ScienceUnavailable('science venv missing; create science/.venv with uv sync')
+  if (existsSync(interpreter)) {
+    return {
+      root,
+      python,
+      cli,
+      envPath: `${venvDir}${delimiter}${process.env.PATH ?? ''}`,
+      timeoutMs: config.timeoutMs ?? 120_000,
+      pythonArgs: ['-I'],
+      extraEnv: {},
+    }
   }
-  return {
-    root,
-    python,
-    cli,
-    envPath: `${venvDir}${delimiter}${process.env.PATH ?? ''}`,
-    timeoutMs: config.timeoutMs ?? 120_000,
+  // Packaged layout: the installer carries `science/pylibs` (pure wheels built per
+  // platform at package time) and the desktop primary runtime ships a relocatable
+  // CPython. A venv cannot be shipped — pyvenv.cfg records the build machine's
+  // base interpreter — so the bundled interpreter runs with PYTHONPATH instead.
+  const bundled = resolveBundledPython()
+  const pylibs = resolve(scienceRoot, 'pylibs')
+  if (bundled !== undefined && existsSync(pylibs)) {
+    return {
+      root,
+      python: bundled,
+      cli,
+      envPath: `${resolve(scienceRoot, 'pylibs')}${delimiter}${process.env.PATH ?? ''}`,
+      timeoutMs: config.timeoutMs ?? 120_000,
+      pythonArgs: ['-s'],
+      extraEnv: {
+        PYTHONPATH: [resolve(scienceRoot, 'src'), pylibs].join(delimiter),
+      },
+    }
   }
+  throw new ScienceUnavailable(
+    'science runtime missing: create science/.venv with uv sync (dev), or package with science/pylibs (release)',
+  )
+}
+
+/**
+ * Locate the CPython shipped by the desktop primary runtime.
+ * @returns absolute interpreter path, or undefined when no runtime is provisioned.
+ */
+function resolveBundledPython(): string | undefined {
+  const arch = process.arch
+  const candidates: string[] = []
+  const resources = (process as { resourcesPath?: string }).resourcesPath
+  if (typeof resources === 'string' && resources.length > 0) {
+    candidates.push(resolve(resources, 'runtime', arch, 'primary-runtime', 'dependencies', 'python'))
+  }
+  candidates.push(resolve(import.meta.dirname, '..', '..', '..', '.desktop-build', 'runtime', arch, 'primary-runtime', 'dependencies', 'python'))
+  candidates.push(resolve(import.meta.dirname, '..', '..', '..', 'dsh-plugin-desktop', '.desktop-build', 'runtime', arch, 'primary-runtime', 'dependencies', 'python'))
+  for (const dir of candidates) {
+    for (const relative of [['python.exe'], ['bin', 'python3'], ['bin', 'python']]) {
+      const candidate = resolve(dir, ...relative)
+      if (existsSync(candidate)) return candidate
+    }
+  }
+  return undefined
 }
 
 /**
@@ -97,13 +147,14 @@ export async function runScience(
   return new Promise<Record<string, unknown>>((resolvePromise, rejectPromise) => {
     // Fixed literal launcher; the repository venv is selected through PATH and
     // `--` ends option parsing before the repository-owned CLI path.
-    const child = spawn(runtime.python, ['-I', '--', runtime.cli], {
+    const child = spawn(runtime.python, [...runtime.pythonArgs, '--', runtime.cli], {
       cwd: resolve(runtime.root, 'science'),
       shell: false,
       windowsHide: true,
       stdio: ['pipe', 'pipe', 'pipe'],
       env: {
         ...process.env,
+        ...runtime.extraEnv,
         PATH: runtime.envPath,
         PYTHONIOENCODING: 'utf-8',
         PYTHONUTF8: '1',
