@@ -177,9 +177,13 @@ export function apply(ctx: Context, config: DesktopShellConfig): void {
     throw new Error('dsh-plugin-desktop: the WebServer has not bound a port')
   }
   lanHttps.attach(webServerPort)
+  // Windows reads the window/taskbar icon from the ICO's own exact-DPI frames
+  // (16..256); a single 1024px PNG does not survive the shell's downscaling.
   const iconFilename = runtime.platform === 'darwin'
     ? 'app-icon-mac.png'
-    : 'app-icon.png'
+    : runtime.platform === 'win32'
+      ? 'app-icon.ico'
+      : 'app-icon.png'
   const iconPath = fileURLToPath(new URL(`../build/${iconFilename}`, import.meta.url))
   const trayIcons = {
     templatePath: fileURLToPath(new URL('../build/tray-iconTemplate.png', import.meta.url)),
