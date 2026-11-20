@@ -131,7 +131,7 @@
     }
   },
   "scripts": {
-    "build": "yarn workspace @polymechanism/pm-domain build && yarn workspace @polymechanism/pm-core build && yarn workspace pm-research build && node scripts/clean.mjs && node ../scripts/run-parallel.mjs \"tsdown\" \"vite build --config vite.client.config.ts\" \"vite build --config vite.native-ui.config.ts\" \"tsc -p tsconfig.json --emitDeclarationOnly\" \"tsc -p tsconfig.client.json --emitDeclarationOnly\"",
+    "build": "node ../scripts/prepare-science-libs.mjs && yarn workspace @polymechanism/pm-domain build && yarn workspace @polymechanism/pm-core build && yarn workspace pm-research build && node scripts/clean.mjs && node ../scripts/run-parallel.mjs \"tsdown\" \"vite build --config vite.client.config.ts\" \"vite build --config vite.native-ui.config.ts\" \"tsc -p tsconfig.json --emitDeclarationOnly\" \"tsc -p tsconfig.client.json --emitDeclarationOnly\"",
     "typecheck": "node ../scripts/run-parallel.mjs \"tsc -p tsconfig.native-ui.json --noEmit\" \"tsc -p tsconfig.tests.json --noEmit\" \"tsc -p tsconfig.tests.client.json --noEmit\"",
     "test": "vitest run",
     "verify:closure": "node --test scripts/runtime-closure.spec.mjs && node scripts/verify-runtime-closure.mjs",
@@ -451,6 +451,26 @@
         {
           "from": ".desktop-build/runtime",
           "to": "runtime"
+        },
+        {
+          "from": "../science/src",
+          "to": "app/science/src"
+        },
+        {
+          "from": "../science/pylibs",
+          "to": "app/science/pylibs"
+        },
+        {
+          "from": "../skills",
+          "to": "app/skills"
+        },
+        {
+          "from": "../knowledge",
+          "to": "app/knowledge"
+        },
+        {
+          "from": "../config",
+          "to": "app/config"
         }
       ],
       "icon": "build/app-icon.icon",
@@ -470,6 +490,26 @@
         {
           "from": ".desktop-build/runtime",
           "to": "runtime"
+        },
+        {
+          "from": "../science/src",
+          "to": "app/science/src"
+        },
+        {
+          "from": "../science/pylibs",
+          "to": "app/science/pylibs"
+        },
+        {
+          "from": "../skills",
+          "to": "app/skills"
+        },
+        {
+          "from": "../knowledge",
+          "to": "app/knowledge"
+        },
+        {
+          "from": "../config",
+          "to": "app/config"
         }
       ],
       "target": [
@@ -526,6 +566,26 @@
         {
           "from": ".desktop-build/runtime",
           "to": "runtime"
+        },
+        {
+          "from": "../science/src",
+          "to": "app/science/src"
+        },
+        {
+          "from": "../science/pylibs",
+          "to": "app/science/pylibs"
+        },
+        {
+          "from": "../skills",
+          "to": "app/skills"
+        },
+        {
+          "from": "../knowledge",
+          "to": "app/knowledge"
+        },
+        {
+          "from": "../config",
+          "to": "app/config"
         }
       ]
     },

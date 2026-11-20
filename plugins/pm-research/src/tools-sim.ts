@@ -91,10 +91,12 @@ async function citeSim(
   auth: Auth,
   result: Record<string, unknown>,
   describe: (result: Record<string, unknown>) => string,
+  dataPath?: string,
 ): Promise<{ evidence: unknown; artifactPath: string; deduped: boolean }> {
   return engine.recordSimulation(projectId, {
     tool,
     result,
+    ...(dataPath === undefined ? {} : { dataPath }),
     claimSupport: args.claimSupport ?? describe(result),
     ...(args.polarity === undefined ? {} : { polarity: args.polarity }),
     ...(args.strength === undefined ? {} : { strength: args.strength }),
@@ -129,7 +131,9 @@ async function simulate(
 async function simulateFromCsv(
   tool: string,
   scienceTool: ScienceTool,
-  args: SimArgs & { readonly dataPath: string; readonly xColumn?: string; readonly yColumn?: string },
+  args: SimArgs,
+  dataPath: string,
+  columns: { readonly x?: string | undefined; readonly y?: string | undefined },
   buildRequest: (series: Awaited<ReturnType<typeof readCsvSeries>>) => Record<string, unknown>,
   exec: ToolRunContext,
   engine: PmResearchEngine,
@@ -140,22 +144,20 @@ async function simulateFromCsv(
   if (!auth.ok) return toToolJson(auth)
   try {
     const root = sessionWorkspace(exec.agent)
-    const path = resolveDataPath(args.dataPath, root)
+    const path = resolveDataPath(dataPath, root)
     const series = await readCsvSeries(path, {
-      ...(args.xColumn === undefined ? {} : { x: args.xColumn }),
-      ...(args.yColumn === undefined ? {} : { y: args.yColumn }),
+      ...(columns.x === undefined ? {} : { x: columns.x }),
+      ...(columns.y === undefined ? {} : { y: columns.y }),
     })
     const result = await runScience(scienceTool, buildRequest(series), { signal: exec.signal })
     if (args.record === false) return toToolJson({ ok: true, data: { simulation: result, dataPath: path, evidence: null } })
-    const recorded = await citeSim(tool, engine, args.projectId, args, auth, result, describe)
+    const recorded = await citeSim(tool, engine, args.projectId, args, auth, result, describe, path)
     return toToolJson({ ok: true, data: { simulation: result, dataPath: path, ...recorded } })
   } catch (cause) {
     return toToolJson(failure(cause))
   }
 }
 
-const STRENGTH = { type: 'string', enum: ['strong', 'moderate', 'weak'] } as const
-const POLARITY = { type: 'string', enum: ['supports', 'refutes', 'neutral'] } as const
 
 /**
  * Register the polymer simulation tools (analytic layer A of docs 10).
@@ -361,7 +363,8 @@ export function registerSimTools(ctx: Context, engine: PmResearchEngine, resolve
       },
       output: { schema: { type: 'object', additionalProperties: true }, render },
       async execute(args: SimArgs & { dataPath: string; timeColumn?: string; crystallinityColumn?: string }, exec) {
-        return simulateFromCsv('pm_sim_crystallization', 'avrami', args, series => ({
+        return simulateFromCsv('pm_sim_crystallization', 'avrami', args, args.dataPath,
+          { x: args.timeColumn, y: args.crystallinityColumn }, series => ({
           time: series.x,
           crystallinity: series.y,
         }), exec, engine, result => {
@@ -454,7 +457,8 @@ export function registerSimTools(ctx: Context, engine: PmResearchEngine, resolve
           if (args.dataPath === undefined) {
             return toToolJson({ ok: false, error: { code: 'INVALID_ARGUMENT', message: 'fox-flory-fit needs dataPath (mass, Tg columns)' } })
           }
-          return simulateFromCsv('pm_sim_tg_blend', 'tg_blend', args, series => ({
+          return simulateFromCsv('pm_sim_tg_blend', 'tg_blend', args, args.dataPath,
+            { x: args.massColumn, y: args.tgColumn }, series => ({
             part: 'fox-flory-fit',
             molarMass: series.x,
             tgK: series.y,
@@ -529,8 +533,9 @@ export function registerSimTools(ctx: Context, engine: PmResearchEngine, resolve
           if (args.dataPath === undefined) {
             return toToolJson({ ok: false, error: { code: 'INVALID_ARGUMENT', message: 'arrhenius needs dataPath (temperature, diffusivity columns)' } })
           }
-          return simulateFromCsv('pm_sim_diffusion', 'diffusion', args, series => ({
-            temperature_k: series.x,
+          return simulateFromCsv('pm_sim_diffusion', 'diffusion', args, args.dataPath,
+            { x: args.temperatureColumn, y: args.diffusivityColumn }, series => ({
+            temperatureK: series.x,
             diffusivity: series.y,
           }), exec, engine, result => `Arrhenius Ea=${String(result.EaKJPerMol)} kJ/mol, D0=${String(result.D0)} m²/s`, resolvePreset)
         }
@@ -553,7 +558,7 @@ export function registerSimTools(ctx: Context, engine: PmResearchEngine, resolve
         }
         if (args.gamma !== undefined) request.gamma = args.gamma
         return simulate('pm_sim_diffusion', 'diffusion', args, request, exec, engine, result => {
-          return `Vrentas-Duda D1=${String(result.D1).toExponential(3)} m²/s at free volume ${String(result.freeVolumeOverGamma)} cm³/g`
+          return `Vrentas-Duda D1=${Number(result.D1).toExponential(3)} m²/s at free volume ${String(result.freeVolumeOverGamma)} cm³/g`
         }, resolvePreset)
       },
     }))

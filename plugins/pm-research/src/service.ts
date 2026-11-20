@@ -74,6 +74,17 @@ export interface AnalysisRecordInput {
   readonly recordedBy: string
 }
 
+/** Simulation results may be pure-model outputs, so no data file is required. */
+export interface SimulationRecordInput {
+  readonly tool: string
+  readonly result: Record<string, unknown>
+  readonly dataPath?: string
+  readonly claimSupport: string
+  readonly polarity?: Evidence['polarity']
+  readonly strength?: Evidence['strength']
+  readonly recordedBy: string
+}
+
 /** Four hex chars from a statement digest, used in hypothesis ids. */
 export function statementHash4(statement: string): string {
   return createHash('sha256').update(statement.trim().toLowerCase()).digest('hex').slice(0, 4)
@@ -432,12 +443,12 @@ export class PmResearchEngine {
    */
   async recordSimulation(
     projectId: EntityId,
-    input: AnalysisRecordInput,
+    input: SimulationRecordInput,
   ): Promise<{ evidence: Evidence; artifactPath: string; deduped: boolean }> {
     const artifactPath = await this.archiveArtifact(
       projectId,
       `${input.tool}-${new Date().toISOString().replace(/[:.]/gu, '-')}`,
-      { tool: input.tool, simulation: true, result: input.result, recordedAt: new Date().toISOString() },
+      { tool: input.tool, dataPath: input.dataPath ?? null, simulation: true, result: input.result, recordedAt: new Date().toISOString() },
     )
     const { evidence, deduped } = await this.recordEvidence(projectId, {
       claimSupport: input.claimSupport,
