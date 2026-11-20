@@ -1,55 +1,81 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!--
+    PolyMechanism Studio app mark.
+
+    Concept: a polymer backbone whose terminal bead splits one incident ray
+    into ordinary (amber) and extraordinary (teal) rays - chain + birefringence,
+    the two halves of the product. Geometry stays bold (>=40px at 1024) so the
+    16px frame still reads as "chain + split ray" instead of noise.
+  -->
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#5B7BFF"/>
-      <stop offset="0.55" stop-color="#4F6BFF"/>
-      <stop offset="1" stop-color="#2B3691"/>
+    <linearGradient id="bg" x1="0.08" y1="0" x2="0.92" y2="1">
+      <stop offset="0" stop-color="#6C88FF"/>
+      <stop offset="0.46" stop-color="#4F6BFF"/>
+      <stop offset="1" stop-color="#232C7A"/>
     </linearGradient>
-    <radialGradient id="glow" cx="0.28" cy="0.22" r="0.9">
-      <stop offset="0" stop-color="#AFC0FF" stop-opacity="0.55"/>
-      <stop offset="0.5" stop-color="#AFC0FF" stop-opacity="0.12"/>
-      <stop offset="1" stop-color="#AFC0FF" stop-opacity="0"/>
+    <radialGradient id="glow" cx="0.26" cy="0.18" r="0.92">
+      <stop offset="0" stop-color="#C9D5FF" stop-opacity="0.5"/>
+      <stop offset="0.52" stop-color="#C9D5FF" stop-opacity="0.1"/>
+      <stop offset="1" stop-color="#C9D5FF" stop-opacity="0"/>
     </radialGradient>
-    <radialGradient id="bead" cx="0.35" cy="0.3" r="0.95">
+    <linearGradient id="chain" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.72"/>
+      <stop offset="1" stop-color="#FFFFFF"/>
+    </linearGradient>
+    <radialGradient id="bead" cx="0.34" cy="0.28" r="0.95">
       <stop offset="0" stop-color="#FFFFFF"/>
-      <stop offset="0.65" stop-color="#EDF0FF"/>
-      <stop offset="1" stop-color="#C9D4FF"/>
+      <stop offset="0.62" stop-color="#EEF2FF"/>
+      <stop offset="1" stop-color="#C6D2FF"/>
     </radialGradient>
-    <radialGradient id="beadAccent" cx="0.35" cy="0.3" r="0.95">
-      <stop offset="0" stop-color="#FFE3A6"/>
-      <stop offset="0.6" stop-color="#FFC46A"/>
-      <stop offset="1" stop-color="#F0A437"/>
+    <radialGradient id="beadHot" cx="0.34" cy="0.28" r="0.95">
+      <stop offset="0" stop-color="#FFF3D2"/>
+      <stop offset="0.58" stop-color="#FFC968"/>
+      <stop offset="1" stop-color="#E79B2E"/>
     </radialGradient>
-    <filter id="softGlow" x="-30%" y="-30%" width="160%" height="160%">
-      <feGaussianBlur stdDeviation="26"/>
+    <linearGradient id="rayOrdinary" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#FFD98A"/>
+      <stop offset="1" stop-color="#FFB43D"/>
+    </linearGradient>
+    <linearGradient id="rayExtra" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#8FF3E0"/>
+      <stop offset="1" stop-color="#2ED3B4"/>
+    </linearGradient>
+    <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="16"/>
     </filter>
   </defs>
-  <rect width="1024" height="1024" rx="230" fill="url(#bg)"/>
-  <rect width="1024" height="1024" rx="230" fill="url(#glow)"/>
-  <g opacity="0.16" stroke="#FFFFFF" stroke-width="26" stroke-linecap="round">
-    <path d="M322 856 L427 751 L532 856 L637 751 L742 856" fill="none"/>
+
+  <!-- Squircle plate -->
+  <rect width="1024" height="1024" rx="232" fill="url(#bg)"/>
+  <rect width="1024" height="1024" rx="232" fill="url(#glow)"/>
+  <rect x="8" y="8" width="1008" height="1008" rx="226" fill="none"
+        stroke="#FFFFFF" stroke-opacity="0.14" stroke-width="6"/>
+
+  <!-- Polymer backbone: three covalent bonds through two beads, plus one pendant -->
+  <g fill="none" stroke="url(#chain)" stroke-linecap="round">
+    <path d="M214 742 L408 590 L590 664 L782 470" stroke-width="34" stroke-opacity="0.9"/>
+    <path d="M408 590 L372 424" stroke-width="24" stroke-opacity="0.55"/>
   </g>
-  <g filter="url(#softGlow)" opacity="0.5" stroke="#9DB4FF" stroke-width="34" stroke-linecap="round">
-    <path d="M300 724 L405 619 L510 724 L615 619 L720 724" fill="none"/>
+
+  <!-- Chain beads -->
+  <circle cx="214" cy="742" r="62" fill="url(#bead)"/>
+  <circle cx="214" cy="742" r="62" fill="none" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="4"/>
+  <circle cx="408" cy="590" r="52" fill="url(#bead)"/>
+  <circle cx="590" cy="664" r="46" fill="url(#bead)"/>
+  <circle cx="590" cy="664" r="46" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="4"/>
+
+  <!-- Split point at the chain end: birefringence origin -->
+  <circle cx="782" cy="470" r="86" fill="#FFB43D" opacity="0.28" filter="url(#soft)"/>
+  <circle cx="782" cy="470" r="60" fill="url(#beadHot)"/>
+
+  <!-- Ordinary + extraordinary rays -->
+  <g fill="none" stroke-linecap="round">
+    <path d="M826 436 C884 392 936 348 962 286" stroke="url(#rayExtra)" stroke-width="30"/>
+    <path d="M830 502 C890 548 934 596 952 656" stroke="url(#rayOrdinary)" stroke-width="30"/>
   </g>
-  <g stroke="#DDE6FF" stroke-width="30" stroke-linecap="round">
-    <path d="M300 724 L405 619 L510 724 L615 619 L720 724" fill="none"/>
-  </g>
-  <g>
-    <circle cx="300" cy="724" r="62" fill="url(#bead)"/>
-    <circle cx="405" cy="619" r="62" fill="url(#beadAccent)"/>
-    <circle cx="510" cy="724" r="62" fill="url(#bead)"/>
-    <circle cx="615" cy="619" r="62" fill="url(#bead)"/>
-    <circle cx="720" cy="724" r="62" fill="url(#bead)"/>
-  </g>
-  <g fill="#FFFFFF" opacity="0.9">
-    <circle cx="782" cy="300" r="17"/>
-    <circle cx="822" cy="348" r="11"/>
-    <circle cx="744" cy="342" r="11"/>
-  </g>
-  <g stroke="#FFFFFF" stroke-opacity="0.22" stroke-width="6">
-    <path d="M136 216 H322" fill="none"/>
-    <path d="M136 216 V402" fill="none"/>
-    <circle cx="136" cy="216" r="10" fill="#FFFFFF" stroke="none" opacity="0.35"/>
-  </g>
+  <circle cx="962" cy="286" r="22" fill="#2ED3B4"/>
+  <circle cx="952" cy="656" r="22" fill="#FFB43D"/>
+
+  <!-- Incident ray arriving along the backbone -->
+  <path d="M700 470 L740 470" stroke="#FFFFFF" stroke-opacity="0.8" stroke-width="22" stroke-linecap="round" fill="none"/>
 </svg>

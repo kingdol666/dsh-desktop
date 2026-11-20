@@ -987,10 +987,21 @@ describe('published package surface', () => {
     expect(manifest.devDependencies?.['builder-util']).toBe('26.15.3')
   })
 
-  it('carries the primary runtime beside the application like upstream Desktop', () => {
-    // Every packaged platform carries its CPU payloads beside the application as extra resources.
+  it('carries the primary runtime and the science payload beside the application like upstream Desktop', () => {
+    // Every packaged platform carries its CPU payloads beside the application as
+    // extra resources, plus the relocatable science payload the pm tools need:
+    // the repo venv cannot ship (pyvenv.cfg pins the build machine's base
+    // interpreter), so `resources/app/science` carries src + pylibs, and the
+    // skills/knowledge/config trees resolve from the same app root.
     for (const platform of ['mac', 'win', 'linux'] as const) {
-      expect(manifest.build?.[platform]?.extraResources, platform).toEqual([{ from: '.desktop-build/runtime', to: 'runtime' }])
+      expect(manifest.build?.[platform]?.extraResources, platform).toEqual([
+        { from: '.desktop-build/runtime', to: 'runtime' },
+        { from: '../science/src', to: 'app/science/src' },
+        { from: '../science/pylibs', to: 'app/science/pylibs' },
+        { from: '../skills', to: 'app/skills' },
+        { from: '../knowledge', to: 'app/knowledge' },
+        { from: '../config', to: 'app/config' },
+      ])
     }
     expect(manifest.build).not.toHaveProperty('extraResources')
     // electron-builder must not re-sign the pre-signed payloads, and the universal merge keeps the identical payloads as they are.
