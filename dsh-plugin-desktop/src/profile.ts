@@ -757,6 +757,20 @@ const MANAGED_MARKET_BUNDLES = new Set<string>([
   DESKTOP_MARKET_IDENTITIES.dshMarket.packageName,
 ])
 
+/**
+ * Literature plugins ship with the product as production dependencies and are
+ * always active in every desktop profile. They are injected into the profile
+ * bundle list by {@link syncDesktopManagedProfileBundles} — the same
+ * desktop-managed pattern as the market bundles — and resolve from the
+ * install anchor (or a higher-version profile-side copy). They must NOT be
+ * inserted in the desktop patch: a profile-side copy would duplicate the
+ * loader entry id and fail the boot.
+ */
+export const DESKTOP_SHIPPED_PLUGIN_BUNDLES: readonly string[] = Object.freeze([
+  'dsh-kb-rag',
+  'dsh-zotero-skill',
+])
+
 /** Read the Market provider and AA toggle state encoded in the Profile manifest's bundle list. */
 export function readDesktopManagedProfileBundles(profileDir: string): {
   market: DesktopMarketProvider
@@ -814,6 +828,11 @@ export function syncDesktopManagedProfileBundles(
   }
   if (state.aaEnabled && !next.includes(AA_PACKAGE_NAME)) {
     next.push(AA_PACKAGE_NAME)
+  }
+  for (const shipped of DESKTOP_SHIPPED_PLUGIN_BUNDLES) {
+    if (!next.includes(shipped)) {
+      next.push(shipped)
+    }
   }
   if (!sameList(current, next)) {
     writeProfileManifest(profileDir, {

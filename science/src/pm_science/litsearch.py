@@ -46,6 +46,7 @@ EGRESS_HOST_ALLOWLIST = frozenset({
     "iopscience.iop.org",
     "www.mdpi.com",
     "www.nature.com",
+    "www.jstage.jst.go.jp",
     "www.sciencedirect.com",
     "linkinghub.elsevier.com",
     "www.science.org",
