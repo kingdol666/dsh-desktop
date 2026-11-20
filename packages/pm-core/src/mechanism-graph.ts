@@ -30,6 +30,8 @@ export interface MechanismEdgeInput {
   readonly theorySource?: MechanismEdge['theorySource'] | undefined
   readonly applicability: 'candidate' | 'established'
   readonly createdBy: 'seed' | 'agent' | 'human'
+  /** Ledger evidence bound to this edge (resolved by the caller). */
+  readonly evidenceIds?: readonly EntityId[] | undefined
   /** Strong supporting evidence count (resolved by the caller from a ledger). */
   readonly strongSupportingEvidence?: number | undefined
 }
@@ -140,6 +142,7 @@ export class MechanismGraph {
     const promotable = edgePromotableToEstablished(
       input.theorySource !== undefined,
       input.strongSupportingEvidence ?? 0,
+      input.createdBy,
     )
     if (applicability === 'established' && !promotable) {
       applicability = 'candidate'
@@ -159,6 +162,7 @@ export class MechanismGraph {
       ...(input.theorySource === undefined ? {} : { theorySource: input.theorySource }),
       confidence: applicability === 'established' ? 0.9 : 0.5,
       openQuestions: [],
+      evidenceIds: [...(input.evidenceIds ?? [])],
       createdBy: input.createdBy,
       createdAt: new Date().toISOString(),
     }

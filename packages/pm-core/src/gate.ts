@@ -52,6 +52,12 @@ export interface GateInput {
   readonly claim?: string | undefined
   /** Competitors with exclusion state (kind='claim'/'hypothesis'). */
   readonly competitors?: readonly { readonly statement: string; readonly excluded: boolean }[] | undefined
+  /**
+   * Result of an out-of-band DOI resolution (kind='edge', established edges).
+   * Omitted means "not checked": the verdict degrades to warn instead of
+   * claiming a verified source.
+   */
+  readonly doiResolved?: boolean | undefined
 }
 
 /**
@@ -86,8 +92,16 @@ export function evaluateGate(input: GateInput): GateVerdict {
       })
       if (input.edge.theorySource === undefined) {
         checks.push({ rule: 'G-DOI', ok: false, detail: 'established edge requires a theory source' })
+      } else if (input.doiResolved === false) {
+        checks.push({ rule: 'G-DOI', ok: false, detail: 'theory source DOI did not resolve' })
+      } else if (input.doiResolved === true) {
+        checks.push({ rule: 'G-DOI', ok: true, detail: 'theory source DOI resolved' })
       } else {
-        checks.push({ rule: 'G-DOI', ok: true, detail: 'theory source present (shape-checked)' })
+        checks.push({
+          rule: 'G-DOI',
+          ok: true,
+          detail: 'theory source present (shape-checked); DOI not resolved in this call — mark unverified',
+        })
       }
     }
   }
@@ -99,8 +113,16 @@ export function evaluateGate(input: GateInput): GateVerdict {
   }
   if ((input.kind === 'claim' || input.kind === 'hypothesis') && input.competitors !== undefined) {
     checks.push(competitorCheck(input.competitors))
-    if (input.claim !== undefined && input.claim.length > 0 && (input.evidence?.length ?? 0) === 0) {
+  }
+  if (input.kind === 'claim' || input.kind === 'hypothesis') {
+    // A conclusion must bind to at least one ledger evidence record: an
+    // unbound claim is blocked, not merely noted (docs 06 §5.3 G-EVID).
+    const bound = input.evidence?.length ?? 0
+    if (bound === 0) {
       requiredEvidence.push('claim carries no evidence ids — record evidence first')
+      checks.push({ rule: 'G-EVID', ok: false, detail: 'claim has no bound evidence records' })
+    } else {
+      checks.push({ rule: 'G-EVID', ok: true, detail: `${String(bound)} evidence record(s) bound` })
     }
   }
   const blocked = checks.some(check => !check.ok && (check.rule === 'G-EVID' || check.rule === 'G-DOI'))
@@ -119,10 +141,10 @@ function unitCheck(equation: string | undefined): GateCheck {
   const hasUnitHint = /(MPa|GPa|K\b|℃|°C|s\b|s\^|nm|μm|µm|mm|cm|g\/|mol|J\b|%|dimensionless|无量纲)/u.test(equation)
   return {
     rule: 'G-UNIT',
-    ok: true,
+    ok: hasUnitHint,
     detail: hasUnitHint
       ? 'equation carries explicit units'
-      : 'equation found without explicit units — confirm units in the Inspector',
+      : 'equation found without explicit units — declare units before promotion',
   }
 }
 
@@ -171,13 +193,15 @@ function opticsCheck(optics: {
 
 function competitorCheck(competitors: readonly { readonly statement: string; readonly excluded: boolean }[]): GateCheck {
   const excluded = competitors.filter(item => item.excluded)
+  // A conclusion needs a falsifiable alternative that was actually ruled out;
+  // declaring no competitor at all is not evidence of exclusivity (docs 06 §5.3).
   return {
     rule: 'G-COMPETE',
-    ok: competitors.length === 0 || excluded.length >= 1,
+    ok: excluded.length >= 1,
     detail: competitors.length === 0
-      ? 'no competitors declared'
+      ? 'no competitors declared — enumerate at least one alternative and exclude it'
       : excluded.length >= 1
-        ? `${excluded.length} competitor(s) excluded`
+        ? `${String(excluded.length)} competitor(s) excluded`
         : 'declare at least one excluded competitor before concluding',
   }
 }

@@ -10,7 +10,18 @@ export type ProposeHypothesisInput = Omit<Hypothesis, 'id' | 'status' | 'transit
 
 /** JSON-file persistence for hypotheses with machine-gated transitions. */
 export class HypothesisStore {
+  /** Per-project write queue: read-modify-write must not interleave. */
+  private readonly queues = new Map<EntityId, Promise<unknown>>()
+
   private constructor(private readonly root: string) {}
+
+  /** Run one read-modify-write critical section for a project, in order. */
+  private serialize<T>(projectId: EntityId, task: () => Promise<T>): Promise<T> {
+    const previous = this.queues.get(projectId) ?? Promise.resolve()
+    const next = previous.then(task, task)
+    this.queues.set(projectId, next.catch(() => undefined))
+    return next
+  }
 
   /**
    * Open the hypothesis store rooted at `root` (usually `<dataRoot>/hypotheses`).
@@ -61,24 +72,26 @@ export class HypothesisStore {
     hash4: string,
     actor: string,
   ): Promise<Hypothesis> {
-    const items = await this.readProject(projectId)
-    const hypothesis: Hypothesis = {
-      projectId,
-      ...input,
-      id: `HY-${ordinal}-${hash4}`,
-      status: 'proposed',
-      transitions: [{
-        from: null,
-        to: 'proposed',
-        rationale: 'hypothesis proposed',
-        evidenceIds: input.evidenceIds,
-        at: new Date().toISOString(),
-        actor,
-      }],
-    }
-    items.push(hypothesis)
-    await this.writeProject(projectId, items)
-    return hypothesis
+    return this.serialize(projectId, async () => {
+      const items = await this.readProject(projectId)
+      const hypothesis: Hypothesis = {
+        projectId,
+        ...input,
+        id: `HY-${ordinal}-${hash4}`,
+        status: 'proposed',
+        transitions: [{
+          from: null,
+          to: 'proposed',
+          rationale: 'hypothesis proposed',
+          evidenceIds: input.evidenceIds,
+          at: new Date().toISOString(),
+          actor,
+        }],
+      }
+      items.push(hypothesis)
+      await this.writeProject(projectId, items)
+      return hypothesis
+    })
   }
 
   /**
@@ -98,24 +111,26 @@ export class HypothesisStore {
     evidence: readonly GateEvidenceItem[],
     actor: string,
   ): Promise<HypothesisMoveVerdict & { readonly hypothesis?: Hypothesis }> {
-    const items = await this.readProject(projectId)
-    const index = items.findIndex(item => item.id === hypothesisId)
-    if (index < 0) return { legal: false, reason: `hypothesis ${hypothesisId} not found` }
-    const current = items[index] as Hypothesis
-    const verdict = attemptHypothesisMove({
-      from: current.status,
-      to,
-      rationale,
-      evidence,
-      actor,
-      at: new Date().toISOString(),
-      ...(current.discriminatingTest === undefined ? {} : { discriminatingTest: current.discriminatingTest }),
+    return this.serialize(projectId, async () => {
+      const items = await this.readProject(projectId)
+      const index = items.findIndex(item => item.id === hypothesisId)
+      if (index < 0) return { legal: false, reason: `hypothesis ${hypothesisId} not found` }
+      const current = items[index] as Hypothesis
+      const verdict = attemptHypothesisMove({
+        from: current.status,
+        to,
+        rationale,
+        evidence,
+        actor,
+        at: new Date().toISOString(),
+        ...(current.discriminatingTest === undefined ? {} : { discriminatingTest: current.discriminatingTest }),
+      })
+      if (!verdict.legal) return verdict
+      const updated: Hypothesis = { ...current, status: to, transitions: [...current.transitions, verdict.transition] }
+      items[index] = updated
+      await this.writeProject(projectId, items)
+      return { ...verdict, hypothesis: updated }
     })
-    if (!verdict.legal) return verdict
-    const updated: Hypothesis = { ...current, status: to, transitions: [...current.transitions, verdict.transition] }
-    items[index] = updated
-    await this.writeProject(projectId, items)
-    return { ...verdict, hypothesis: updated }
   }
 
   /** Remove the store directory (test helper only). */

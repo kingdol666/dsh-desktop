@@ -76,14 +76,22 @@ export function hypothesisReadyForConclusion(hypothesis: Hypothesis): boolean {
 }
 
 /**
- * Whether a mechanism edge may be promoted to `established`: it needs a theory
- * source and at least one strong supporting evidence reference.
+ * Whether a mechanism edge may be promoted to `established`.
+ *
+ * Agent/human proposals need a theory source AND at least one strong supporting
+ * evidence bound from the ledger. Seed edges are the imported literature
+ * baseline: their `createdBy: 'seed'` origin plus a theory source is the
+ * reference itself, so they do not have to fabricate project evidence.
  * @param hasTheorySource - whether edge.theorySource is present.
  * @param strongSupportingEvidence - count of strong `supports` evidence bound to the edge.
+ * @param origin - who created the edge; seeds carry their source in theorySource.
  */
 export function edgePromotableToEstablished(
   hasTheorySource: boolean,
   strongSupportingEvidence: number,
+  origin: 'seed' | 'agent' | 'human' = 'agent',
 ): boolean {
-  return hasTheorySource && strongSupportingEvidence >= 1
+  if (!hasTheorySource) return false
+  if (origin === 'seed') return true
+  return strongSupportingEvidence >= 1
 }

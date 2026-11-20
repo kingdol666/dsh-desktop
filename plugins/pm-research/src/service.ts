@@ -95,6 +95,8 @@ export class PmResearchEngine {
   private projects: ProjectStore | undefined
   private hypothesesStore: HypothesisStore | undefined
   private knowledgeStore: KnowledgeStore | undefined
+  /** One mechanism graph per project: instances cache their own copy. */
+  private readonly mechanismGraphs = new Map<EntityId, MechanismGraph>()
   private readonly ledgers = new Map<EntityId, EvidenceLedger>()
   private readonly ledgerAppends = new Map<EntityId, Promise<unknown>>()
 
@@ -300,12 +302,33 @@ export class PmResearchEngine {
       const record = (await ledger).get(id)
       if (record !== undefined) resolved.push({ id: record.id, polarity: record.polarity, strength: record.strength })
     }
+    // Conclusions additionally pass the scientific gate over the ledger-resolved
+    // records: the machine checks structure and counts, the gate checks that the
+    // cited records are real, well-formed ledger entries.
+    if (to === 'supported' || to === 'refuted') {
+      const bound: Evidence[] = []
+      for (const item of resolved) {
+        const record = (await ledger).get(item.id)
+        if (record !== undefined) bound.push(record)
+      }
+      const gate = evaluateGate({ kind: 'hypothesis', evidence: bound })
+      if (gate.verdict === 'block') {
+        const failed = gate.checks.filter(check => !check.ok).map(check => check.detail).join('; ')
+        return { legal: false, reason: `scientific gate blocked the conclusion: ${failed}` }
+      }
+    }
     return this.hypothesisStore().transition(projectId, hypothesisId, to, rationale, resolved, actor)
   }
 
-  /** Project-scoped mechanism graph accessor. */
+  /** Project-scoped mechanism graph accessor (one cached instance per project:
+   * fresh instances would each hold a stale copy and overwrite each other). */
   mechanismGraph(projectId: EntityId): MechanismGraph {
-    return MechanismGraph.open(join(this.dataRoot, 'projects', projectId, 'mechanism.json'))
+    let graph = this.mechanismGraphs.get(projectId)
+    if (graph === undefined) {
+      graph = MechanismGraph.open(join(this.dataRoot, 'projects', projectId, 'mechanism.json'))
+      this.mechanismGraphs.set(projectId, graph)
+    }
+    return graph
   }
 
   /** Knowledge-card store accessor. */
@@ -365,7 +388,9 @@ export class PmResearchEngine {
           : { type: 'file', ref: source.length > 0 ? source : 'seed.json' },
         applicability: edge.applicability,
         createdBy: 'seed',
-        strongSupportingEvidence: edge.applicability === 'established' ? 1 : 0,
+        // Seed edges are the imported literature baseline. Their source lives in
+        // theorySource; they never claim project evidence they do not have.
+        strongSupportingEvidence: 0,
       })
       edgeCount += 1
     }
