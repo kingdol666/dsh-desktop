@@ -4,6 +4,9 @@
 
 <h1 align="center">DSH Desktop</h1>
 
+> [!IMPORTANT]
+> **PolyMechanism fork notice**: this repository is a fork of `anywhere-labs/dsh-desktop` being rebuilt as **PolyMechanism Studio** — an AI research workbench for polymer science (multi-expert agents plus a domain engine). The stable desktop package (`dsh-plugin-desktop/`) already carries the new product identity and UI; the upstream DSH runtime (`deepseek-harness/` submodule and vendored runtime) stays untouched. See [docs/polymechanism/](docs/polymechanism/) for the architecture analysis and the full execution plan. The original DSH Desktop documentation is kept below.
+
 <p align="center">
   <strong>An open-source desktop client for Windows, macOS, and Linux, built on DeepSeek Harness.</strong>
 </p>
