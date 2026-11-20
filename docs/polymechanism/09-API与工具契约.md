@@ -219,6 +219,35 @@ pm_literature_extract
   returns: { title, sourceRef, recorded:[{evidence,deduped}] }
 ```
 
+### 2.8a 文献检索与下载（docs 11，G013）
+
+```ts
+pm_literature_search
+  parameters: { query:{type:'string',required:true}, yearFrom:{type:'integer'},
+                yearTo:{type:'integer'}, maxResults:{type:'integer',max:50},
+                sources:{type:'array',items:{enum:['openalex','crossref']}},
+                screen:{type:'boolean',default:true} }
+  // OpenAlex 主源 + Crossref 辅源；每条候选附 screen rubric 评分并按总分排序
+  returns: { ok, query, count, candidates:[{ doi,title,venue,year,authors,citedByCount,
+             oaStatus,oaUrl,topics[],type,source,
+             screen:{ total,grade:'core|important|reference',breakdown:{venue,topic,lexicon,quality,freshness,availability},reasons[] } }] }
+
+pm_literature_screen
+  parameters: { candidates:{type:'array',required:true,items:{doi,title,venue,year,citedByCount,oaStatus,oaUrl,topics,abstract}} }
+  // 离线确定性 rubric（G013 内联表；G014 外提配置+校准）
+  returns: { ok, count, candidates:[候选+screen] }   // 按 total 降序
+
+pm_literature_download
+  parameters: { doi:{type:'string',required:true}, targetPath:{type:'string'} }  // 默认 literature/，workspace 围栏
+  // OA 链 arXiv→OpenAlex→Unpaywall→Crossref；出口主机白名单+DNS 全局校验；不绕过付费墙
+  returns: { ok, status:'DOWNLOADED|OA_LINK_ONLY|CAMPUS_REQUIRED|MANUAL_REQUIRED', doi, file,
+             landingUrl, attempts[], manifestEntry, manifestDeduped }
+  // 每次调用（含失败态）追加 literature-manifest.jsonl；DOWNLOADED 按 doi 幂等去重
+```
+
+安全边界：egress 仅允许固定学术 API/出版商主机白名单；scheme http/https；每跳重定向全量重校验；
+50MiB/8 跳/45s 上限；路径含 `..` 段直接拒绝，写盘前 realpath+commonpath 包含检查。
+
 ### 2.9 高分子仿真（真实引擎，docs 10）
 
 Layer A 解析物性（常驻）——结果自动归档并登记证据（payload 标记 simulation=true）：
@@ -364,6 +393,7 @@ interface PmScience   { caeRun(i); caeStudy(i); opticsAnalyze(i); characterizati
 | pm_sim_md_run | ✓ | ✓ | — | ✓ | — | — |
 | pm_literature_read | ✓ | — | — | — | ✓ | — |
 | pm_literature_extract | ✓ | — | — | — | ✓ | — |
+| pm_literature_search / screen / download | ✓ | — | — | — | ✓ | — |
 | pm_knowledge_propose | ✓ | ✓ | ✓ | ✓ | ✓ | — |
 | pm_knowledge_review | — | — | — | — | — | ✓ |
 | pm_gate_check | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |

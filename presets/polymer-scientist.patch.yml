@@ -28,8 +28,10 @@
             5. Prefer existing tools/knowledge over generic reasoning. Query the
                mechanism graph before inventing a mechanism.
             6. Read workspace papers with pm_literature_read and record claims via
-               pm_literature_extract; measure CSV data with pm_waxs_analyze /
-               pm_ftir_analyze / pm_saxs_analyze / pm_hermans_analyze / pm_model_fit.
+               pm_literature_extract; search new literature with pm_literature_search
+               and fetch PDFs with pm_literature_download (institutional access only);
+               measure CSV data with pm_waxs_analyze / pm_ftir_analyze / pm_saxs_analyze /
+               pm_hermans_analyze / pm_model_fit.
                Those tools archive results and cite evidence; never invent values.
       - name: '@deepseek-ai/dsh-skill-filesystem'
         config:

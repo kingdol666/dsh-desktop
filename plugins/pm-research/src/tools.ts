@@ -9,6 +9,7 @@ import { registerMechanismTools } from './tools-mechanism.ts'
 import { registerKnowledgeTools } from './tools-knowledge.ts'
 import { registerSimTools } from './tools-sim.ts'
 import { registerScienceTools } from './tools-science.ts'
+import { registerLiteratureTools } from './tools-literature.ts'
 
 /** Structured tool envelope (docs 09 §1). */
 type PmEnvelope = Record<string, unknown>
@@ -230,5 +231,6 @@ export function registerPmTools(ctx: Context, engine: PmResearchEngine, resolveP
     registerKnowledgeTools(ctx, engine, resolvePreset)
     registerSimTools(ctx, engine, resolvePreset)
     registerScienceTools(ctx, engine, resolvePreset)
+    registerLiteratureTools(ctx, resolvePreset)
   })
 }
