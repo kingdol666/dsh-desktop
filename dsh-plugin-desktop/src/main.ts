@@ -757,7 +757,11 @@ async function start(): Promise<void> {
     await app.whenReady()
     startupStage = 'shell-environment'
     lifecycleRecorder.transitionStartupStage(startupStage)
-    if (process.platform === 'win32') app.setAppUserModelId(DESKTOP_APP_ID)
+    // AUMID only for the packaged app: an explicit AUMID without an installed
+    // shortcut makes the Windows taskbar fall back to electron.exe's embedded
+    // icon, ignoring the window icon. Dev runs keep the window icon path
+    // (build/app-icon.ico), which the taskbar reads directly.
+    if (process.platform === 'win32' && app.isPackaged) app.setAppUserModelId(DESKTOP_APP_ID)
     if (app.isPackaged && process.cwd() === '/') process.chdir(app.getPath('home'))
     const shellEnvironmentResolution = await resolveDesktopShellEnvironment({
       environment: process.env,
