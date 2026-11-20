@@ -34,7 +34,9 @@ if (alreadyPrepared()) {
 }
 
 mkdirSync(target, { recursive: true })
-const index = ['--index-url', process.env.PM_PYPI_INDEX ?? 'https://pypi.tuna.tsinghua.edu.cn/simple']
+// Default to public PyPI: CN mirrors are not reachable from every CI host.
+// Set PM_PYPI_INDEX to use a mirror on your own machine.
+const index = process.env.PM_PYPI_INDEX ? ['--index-url', process.env.PM_PYPI_INDEX] : []
 let installed = false
 try {
   run('uv', ['pip', 'install', '--target', target, ...index, ...packages])
