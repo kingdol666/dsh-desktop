@@ -1,0 +1,129 @@
+# Polymer-domain literature screening profile (docs/polymechanism/11-文献检索与高分子筛选设计.md §5).
+# Loaded by science/src/pm_science/litprofile.py; falls back to built-in tables
+# in litsearch.py when this file is missing or malformed.
+# All keys optional — omitted sections keep built-in defaults.
+
+profile: polymer
+version: 1
+
+venue_tiers:
+  tier_a:
+    - macromolecules
+    - progress in polymer science
+    - polymer
+    - acs macro letters
+    - macromolecular rapid communications
+    - journal of membrane science
+    - biomacromolecules
+  tier_b:
+    - european polymer journal
+    - polymer international
+    - journal of applied polymer science
+    - acs applied polymer materials
+    - polymer chemistry
+    - journal of polymer science
+    - soft matter
+    - carbohydrate polymers
+    - composites science and technology
+    - polymer degradation and stability
+    - materials & design
+    - composites part a
+    - composites part b-engineering
+    - journal of materials science
+  tier_c:
+    - polymers
+    - rsc advances
+    - polymer bulletin
+    - journal of polymer research
+    - e-polymers
+    - polymer testing
+    - journal of elastomers and plastics
+    - gaofenzi xuebao
+    - 高分子学报
+    - 高分子材料科学与工程
+  tier_cross:
+    - nature materials
+    - nature communications
+    - science advances
+    - pnas
+    - journal of the american chemical society
+    - angewandte chemie international edition
+    - advanced materials
+    - advanced functional materials
+    - chemical reviews
+    - chemical society reviews
+
+scores:
+  venue: { a: 35, b: 20, c: 12, cross: 30, other: 5 }
+  topic: { polymer: 15, materials: 8 }
+  lexicon:
+    core_term_title: 8
+    core_term_text: 4
+    core_cap: 30
+    extended_per_hit: 2
+    extended_cap: 10
+  quality:
+    coefficient: 3          # int(3*sqrt(cited)/2), capped
+    divisor: 2
+    cap: 10
+  freshness:
+    grace_years: 5          # full 5 points within 5 years
+    zero_years: 15          # linear decay to 0 at 15 years
+  availability:
+    oa: 10
+    oa_url: 8
+    doi_only: 6
+    none: 2
+
+grades:
+  core: 70
+  important: 45
+
+lexicon:
+  core:
+    - polymer
+    - copolymer
+    - poly(vinyl alcohol)
+    - polyvinyl alcohol
+    - pva
+    - biaxial stretching
+    - uniaxial stretching
+    - biaxially stretched
+    - draw ratio
+    - crystallinity
+    - orientation
+    - birefringence
+    - waxs
+    - saxs
+    - ftir
+    - hermans
+    - glass transition
+    - viscoelastic
+    - chain orientation
+    - hydrogel
+    - elastomer
+    - film
+    - membrane
+    - molecular dynamics
+  extended:
+    - amorphous
+    - semi-crystalline
+    - free volume
+    - entanglement
+    - rheology
+    - melt spinning
+    - hot drawing
+    - heat setting
+    - optical film
+    - retardation
+    - polarizing
+    - strain hardening
+    - necking
+    - plastic deformation
+    - dsc
+    - young modulus
+    - tensile
+    - elongation
+    - crystalline
+    - lamellar
+    - spherulite

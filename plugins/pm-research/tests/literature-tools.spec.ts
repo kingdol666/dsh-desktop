@@ -141,4 +141,17 @@ describe('literature tool surface', () => {
     expect(candidates[0]?.screen?.grade).toBe('core')
     expect(candidates[1]?.screen?.grade).toBe('reference')
   })
+
+  it('scores identically to the shipped polymer profile config (config-driven rubric)', async () => {
+    const tools = register()
+    const root = await tempRoot()
+    const exec = execFor(root, 'polymer-literature')
+    const result = await tools.get('pm_literature_screen')!.execute({ candidates: [POLYMER_PAPER] }, exec)
+    const screen = (result as { data?: { candidates?: { screen?: { total?: number; breakdown?: Record<string, number>; reasons?: string[] } }[] } }).data?.candidates?.[0]?.screen
+    // The shipped config/literature-profile.polymer.yml mirrors the built-in
+    // tables, so the breakdown must match the documented rubric exactly.
+    expect(screen?.breakdown).toEqual({ venue: 35, topic: 15, lexicon: 30, quality: 10, freshness: 2, availability: 6 })
+    expect(screen?.total).toBe(98)
+    expect(screen?.reasons?.join(' ')).toContain('tier=a')
+  })
 })
