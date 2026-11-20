@@ -115,6 +115,162 @@ def _literature_read(args: dict[str, object]) -> dict[str, object]:
     }
 
 
+def _chain_mech(args: dict[str, object]) -> dict[str, object]:
+    from pm_science.chain_mech import chain_mechanics
+
+    probe_force = args.get("probeForcePn")
+    probe_extension = args.get("probeExtensionNm")
+    return chain_mechanics(
+        str(args["model"]),
+        float(args["contourNm"]),
+        float(args["temperatureK"]),
+        segment_nm=float(args.get("segmentNm", 1.0)),
+        persistence_nm=float(args.get("persistenceNm", 1.0)),
+        probe_force_pn=None if probe_force is None else float(probe_force),
+        probe_extension_nm=None if probe_extension is None else float(probe_extension),
+        grid_points=int(args.get("gridPoints", 60)),
+    )
+
+
+def _rubber(args: dict[str, object]) -> dict[str, object]:
+    from pm_science.rubber import rubber_elasticity
+
+    return rubber_elasticity(
+        str(args["mode"]),
+        float(args["shearModulusMPa"]),
+        int(args["linksPerChain"]),
+        stretch_x=float(args.get("stretchX", 1.0)),
+        stretch_y=float(args.get("stretchY", 1.0)),
+        grid_points=int(args.get("gridPoints", 40)),
+        max_stretch=float(args.get("maxStretch", 2.0)),
+    )
+
+
+def _viscoelastic(args: dict[str, object]) -> dict[str, object]:
+    part = str(args["part"])
+    if part == "rouse":
+        from pm_science.viscoelastic import rouse_spectrum
+
+        return rouse_spectrum(
+            int(args["beadsPerChain"]),
+            float(args["kuhnLengthNm"]),
+            float(args["frictionPerBead"]),
+            float(args["chainNumberDensity"]),
+            float(args["temperatureK"]),
+            modes_reported=int(args.get("modesReported", 10)),
+        )
+    from pm_science.viscoelastic import shift_factors
+
+    temps = args.get("temperaturesK")
+    if not isinstance(temps, list):
+        raise ValueError("shift needs temperaturesK list")
+    shift_model = str(args.get("shiftModel", "wlf"))
+    c1 = args.get("c1")
+    c2 = args.get("c2K")
+    return shift_factors(
+        shift_model,  # type: ignore[arg-type]
+        float(args["referenceTemperatureK"]),
+        [float(v) for v in temps],
+        **({
+            "c1": float(c1),
+            "c2_k": float(c2),
+        } if c1 is not None and c2 is not None else {}),
+        vft_t_inf_k=None if args.get("vftTinfK") is None else float(args["vftTinfK"]),  # type: ignore[arg-type]
+    )
+
+
+def _chain_stats(args: dict[str, object]) -> dict[str, object]:
+    from pm_science.chain_stats import chain_stats
+
+    stretch_y = args.get("stretchY")
+    stretch_z = args.get("stretchZ")
+    return chain_stats(
+        int(args["beadsPerChain"]),
+        float(args["kuhnLengthNm"]),
+        stretch_x=float(args.get("stretchX", 1.0)),
+        stretch_y=None if stretch_y is None else float(stretch_y),
+        stretch_z=None if stretch_z is None else float(stretch_z),
+    )
+
+
+def _avrami(args: dict[str, object]) -> dict[str, object]:
+    from pm_science.avrami import avrami_fit, avrami_predict
+
+    times = args.get("time")
+    x = args.get("crystallinity")
+    if isinstance(times, list) and isinstance(x, list):
+        return avrami_fit([float(v) for v in times], [float(v) for v in x])
+    exponent = args.get("n")
+    rate = args.get("K")
+    predict_time = args.get("predictTime")
+    if exponent is None or rate is None or not isinstance(predict_time, list):
+        raise ValueError("avrami needs time+crystallinity lists, or n+K+predictTime")
+    return avrami_predict(float(exponent), float(rate), [float(v) for v in predict_time])
+
+
+def _flory(args: dict[str, object]) -> dict[str, object]:
+    from pm_science.flory import flory_huggins
+
+    chi = args.get("chi")
+    chi_a = args.get("chiA")
+    chi_b = args.get("chiB")
+    temperature = args.get("temperatureK")
+    return flory_huggins(
+        int(args["n1"]),
+        int(args["n2"]),
+        chi=None if chi is None else float(chi),
+        chi_a=None if chi_a is None else float(chi_a),
+        chi_b=float(chi_b if chi_b is not None else 0.0),
+        temperature_k=None if temperature is None else float(temperature),
+        phi=float(args.get("phi", 0.5)),
+        phi_grid_points=int(args.get("gridPoints", 49)),
+    )
+
+
+def _tg_blend(args: dict[str, object]) -> dict[str, object]:
+    from pm_science.tg_blend import tg_blend
+
+    masses = args.get("molarMass")
+    temps = args.get("tgK")
+    return tg_blend(
+        str(args["part"]),
+        molar_mass=[float(v) for v in masses] if isinstance(masses, list) else None,
+        tg_k=[float(v) for v in temps] if isinstance(temps, list) else None,
+        tg_infinity_k=None if args.get("tgInfinityK") is None else float(args["tgInfinityK"]),
+        constant_k=None if args.get("constantK") is None else float(args["constantK"]),
+        predict_molar_mass=None if args.get("predictMolarMass") is None else float(args["predictMolarMass"]),
+        weight1=None if args.get("weight1") is None else float(args["weight1"]),
+        tg1_k=None if args.get("tg1K") is None else float(args["tg1K"]),
+        weight2=None if args.get("weight2") is None else float(args["weight2"]),
+        tg2_k=None if args.get("tg2K") is None else float(args["tg2K"]),
+        k_constant=float(args.get("kConstant", 1.0)),
+    )
+
+
+def _diffusion(args: dict[str, object]) -> dict[str, object]:
+    from pm_science.diffusion import diffusion as run_diffusion
+
+    temps = args.get("temperatureK")
+    diffs = args.get("diffusivity")
+    if isinstance(temps, list) and isinstance(diffs, list):
+        return run_diffusion("arrhenius", temperature_k=[float(v) for v in temps], diffusivity=[float(v) for v in diffs])
+    fields = {
+        key: args[key]
+        for key in (
+            "d0", "activationJPerMol", "omega1", "v1Star", "k11", "k21K", "tg1K",
+            "k12", "k22K", "tg2K", "temperatureK", "gamma",
+        )
+        if key in args
+    }
+    snake = {
+        "d0": "d0", "activationJPerMol": "activation_j_per_mol", "omega1": "omega1",
+        "v1Star": "v1_star", "k11": "k11", "k21K": "k21_k", "tg1K": "tg1_k",
+        "k12": "k12", "k22K": "k22_k", "tg2K": "tg2_k", "temperatureK": "temperature_k",
+        "gamma": "gamma",
+    }
+    return run_diffusion("vrentas-duda", **{snake[key]: value for key, value in fields.items()})
+
+
 HANDLERS = {
     "waxs": _waxs,
     "ftir": _ftir,
@@ -122,6 +278,14 @@ HANDLERS = {
     "hermans": _hermans,
     "relax": _relax,
     "literature_read": _literature_read,
+    "chain_mech": _chain_mech,
+    "rubber": _rubber,
+    "viscoelastic": _viscoelastic,
+    "chain_stats": _chain_stats,
+    "avrami": _avrami,
+    "flory": _flory,
+    "tg_blend": _tg_blend,
+    "diffusion": _diffusion,
 }
 
 
