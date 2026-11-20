@@ -240,8 +240,10 @@ pm_literature_screen
 pm_literature_download
   parameters: { doi:{type:'string',required:true}, targetPath:{type:'string'} }  // 默认 literature/，workspace 围栏
   // OA 链 arXiv→OpenAlex→Unpaywall→Crossref；出口主机白名单+DNS 全局校验；不绕过付费墙
-  returns: { ok, status:'DOWNLOADED|OA_LINK_ONLY|CAMPUS_REQUIRED|MANUAL_REQUIRED', doi, file,
+  returns: { ok, status:'DOWNLOADED|OA_LINK_ONLY|CAMPUS_REQUIRED|CLOUDFLARE_CHALLENGE|MANUAL_REQUIRED', doi, file,
              landingUrl, attempts[], manifestEntry, manifestDeduped }
+  // attempts[] 每项含 source/transport(proxy|direct)/status/bytes/challenge；
+  // Cloudflare 挑战 ≠ 付费墙，可用真实浏览器过 Turnstile 或改走 OA 仓库副本
   // 每次调用（含失败态）追加 literature-manifest.jsonl；DOWNLOADED 按 doi 幂等去重
 ```
 

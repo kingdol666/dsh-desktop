@@ -54,6 +54,15 @@ EGRESS_HOST_ALLOWLIST = frozenset({
     "pubs.aip.org",
     "aip.scitation.org",
     "ieeexplore.ieee.org",
+    # OA aggregators/repositories used as fallbacks when a publisher serves a
+    # Cloudflare challenge instead of the PDF. All still pass the public-DNS
+    # guard on every hop.
+    "europepmc.org",
+    "www.ebi.ac.uk",
+    "pmc.ncbi.nlm.nih.gov",
+    "www.ncbi.nlm.nih.gov",
+    "eprints.whiterose.ac.uk",
+    "zenodo.org",
 })
 
 ANTI_BOT_MARKS = (
@@ -71,6 +80,9 @@ def _validated_parts(url):
     Both openers run this immediately before issuing a request so every
     caller and every redirect hop gets the full check.
     """
+    # Repository APIs sometimes return literal spaces (e.g. "paper (1).pdf");
+    # percent-encode them while preserving existing escapes.
+    url = urllib.parse.quote(url, safe=":/?#[]@!$&'()*+,;=%~")
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme not in ("http", "https"):
         raise UrlBlocked("BLOCKED_SCHEME")
@@ -122,9 +134,23 @@ def open_public_url_stay(url, headers=None, direct=False):
         return error
 
 
-def fetch_json(url):
-    with open_public_url(url) as response:
+def fetch_json(url, direct=False):
+    with open_public_url(url, direct=direct) as response:
         return json.loads(response.read(MAX_BYTES).decode("utf-8", "replace"))
+
+
+def fetch_json_adaptive(url):
+    """Fetch JSON through the configured proxy, falling back to direct egress.
+
+    OpenAlex/Unpaywall rate-limit or block one egress IP while the other still
+    works; a 429/403 is a transport problem, not a data problem.
+    """
+    try:
+        return fetch_json(url)
+    except urllib.error.HTTPError as cause:
+        if cause.code not in (403, 429):
+            raise
+        return fetch_json(url, direct=not bool(os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")))
 
 
 def safe_join(base_dir, name):
@@ -143,7 +169,7 @@ def is_pdf_payload(payload):
 def download_bytes(url, cookie_jar=None, direct=False):
     """Manually follow redirects; full guard re-runs on every hop. Caps size.
 
-    Returns (payload, content_type, cookie_jar, status).
+    Returns (payload, content_type, cookie_jar, status, headers).
     """
     jar = list(cookie_jar or [])
     current = url
@@ -163,7 +189,8 @@ def download_bytes(url, cookie_jar=None, direct=False):
         payload = response.read(MAX_BYTES + 1)
         if len(payload) > MAX_BYTES:
             raise UrlBlocked("BLOCKED_TOO_LARGE")
-        return payload, (response.headers.get("Content-Type") or "").lower(), jar, response.status
+        headers = {key.lower(): value for key, value in response.headers.items()}
+        return payload, (response.headers.get("Content-Type") or "").lower(), jar, response.status, headers
     raise UrlBlocked("BLOCKED_TOO_MANY_REDIRECTS")
 
 
@@ -179,17 +206,75 @@ def unpaywall_pdf_url(doi):
     params = urllib.parse.urlencode({"email": email})
     url = UNPAYWALL_API + urllib.parse.quote(doi, safe="") + "?" + params
     try:
-        payload = fetch_json(url)
+        payload = fetch_json_adaptive(url)
     except (UrlBlocked, urllib.error.URLError, json.JSONDecodeError):
         return None
     best = payload.get("best_oa_location") or {}
     return best.get("url_for_pdf") or best.get("url") or None
 
 
+def _pmc_render_url(url):
+    """Turn a PMC landing URL into Europe PMC's PDF render endpoint."""
+    if not isinstance(url, str):
+        return None
+    match = re.search(r"(?:pmc\.ncbi\.nlm\.nih\.gov|www\.ncbi\.nlm\.nih\.gov)/pmc/articles/(PMC\d+)", url, re.IGNORECASE)
+    if match is None:
+        match = re.search(r"/articles/(PMC\d+)", url, re.IGNORECASE)
+    return ("https://europepmc.org/articles/%s?pdf=render" % match.group(1).upper()) if match else None
+
+
+def oa_pdf_candidates(doi):
+    """All plausible OA PDF URLs for one DOI, cheapest/most reliable first.
+
+    Publisher URLs are not bypassed: only locations the OA APIs themselves
+    declare open (repository copies included) are returned. Europe PMC is
+    queried because it often holds the accepted manuscript of a paper whose
+    publisher PDF is behind a Cloudflare challenge.
+    """
+    candidates = []
+
+    def add(url):
+        if not isinstance(url, str) or not url.startswith(("http://", "https://")):
+            return
+        render = _pmc_render_url(url)
+        for value in (render, url):
+            if value and value not in candidates:
+                candidates.append(value)
+
+    email = os.environ.get("UNPAYWALL_EMAIL") or MAILTO
+    params = urllib.parse.urlencode({"email": email})
+    try:
+        payload = fetch_json_adaptive(UNPAYWALL_API + urllib.parse.quote(doi, safe="") + "?" + params)
+    except (UrlBlocked, urllib.error.URLError, json.JSONDecodeError):
+        payload = {}
+    for location in payload.get("oa_locations") or []:
+        add(location.get("url_for_pdf") or location.get("url"))
+
+    try:
+        work = fetch_json_adaptive(OPENALEX_API + "/" + urllib.parse.quote("doi:" + doi, safe="") + "?mailto=" + urllib.parse.quote(MAILTO, safe=""))
+    except (UrlBlocked, urllib.error.URLError, json.JSONDecodeError):
+        work = {}
+    for location in work.get("locations") or []:
+        if location.get("is_oa") or location.get("pdf_url"):
+            add(location.get("pdf_url") or location.get("landing_page_url"))
+
+    try:
+        query = urllib.parse.urlencode({"query": 'DOI:"%s"' % doi, "format": "json", "resultType": "core"})
+        epmc = fetch_json_adaptive("https://www.ebi.ac.uk/europepmc/webservices/rest/search?" + query)
+        for result in (epmc.get("resultList") or {}).get("result") or []:
+            pmcid = result.get("pmcid")
+            if isinstance(pmcid, str) and pmcid.upper().startswith("PMC"):
+                add("https://europepmc.org/articles/%s?pdf=render" % pmcid.upper())
+    except (UrlBlocked, urllib.error.URLError, json.JSONDecodeError):
+        pass
+
+    return candidates
+
+
 def crossref_pdf_urls(doi):
     url = CROSSREF_API + "/" + urllib.parse.quote(doi, safe="")
     try:
-        payload = fetch_json(url)
+        payload = fetch_json_adaptive(url)
     except (UrlBlocked, urllib.error.URLError, json.JSONDecodeError):
         return []
     links = []
@@ -403,7 +488,7 @@ def search_works(request):
         if filters:
             params["filter"] = ",".join(filters)
         url = OPENALEX_API + "?" + urllib.parse.urlencode(params)
-        payload = fetch_json(url)
+        payload = fetch_json_adaptive(url)
         candidates = [openalex_work_to_candidate(item) for item in (payload.get("results") or [])]
     if "crossref" in sources and len(candidates) < limit:
         params = {
@@ -412,7 +497,7 @@ def search_works(request):
             "select": "DOI,title,container-title,issued,is-referenced-by-count,type,URL,subject",
         }
         url = CROSSREF_API + "?" + urllib.parse.urlencode(params)
-        payload = fetch_json(url)
+        payload = fetch_json_adaptive(url)
         seen = {c["doi"] for c in candidates if c.get("doi")}
         for item in (payload.get("message", {}).get("items") or []):
             doi_value = (item.get("DOI") or "").lower() or None
@@ -651,7 +736,7 @@ def download_doi(request):
     try:
         url = (OPENALEX_API + "/" + urllib.parse.quote("doi:" + doi_value, safe="")
                + "?mailto=" + urllib.parse.quote(MAILTO, safe=""))
-        top_up = openalex_work_to_candidate(fetch_json(url))
+        top_up = openalex_work_to_candidate(fetch_json_adaptive(url))
         meta.update({key: value for key, value in top_up.items() if value})
         meta["doi"] = doi_value
     except (UrlBlocked, urllib.error.URLError, json.JSONDecodeError):
@@ -684,17 +769,30 @@ def download_doi(request):
         return result
 
     saw_campus_wall = False
+    saw_cloudflare = False
 
-    def attempt(source, url, direct=False):
-        nonlocal saw_campus_wall
-        entry = {"source": source, "url": url}
+    def has_proxy():
+        return bool(os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")
+                    or os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy"))
+
+    def try_one(source, url, direct):
+        nonlocal saw_campus_wall, saw_cloudflare
+        entry = {
+            "source": source,
+            "url": url,
+            "transport": "direct" if direct else ("proxy" if has_proxy() else "direct"),
+        }
         attempts.append(entry)
         try:
-            payload, content_type, _jar, status = download_bytes(url, direct=direct)
+            payload, content_type, _jar, status, headers = download_bytes(url, direct=direct)
         except (UrlBlocked, urllib.error.URLError) as cause:
             entry["error"] = str(cause)
             return None
         entry["status"] = status
+        entry["bytes"] = len(payload)
+        if headers.get("cf-mitigated") == "challenge" or "cf-mitigated" in headers:
+            entry["challenge"] = "cloudflare"
+            saw_cloudflare = True
         if status in ANTI_BOT_STATUS:
             # The publisher answered but refused this client: a subscriber PDF
             # exists, so the honest outcome is "needs campus/institutional access".
@@ -703,34 +801,52 @@ def download_doi(request):
             entry["contentType"] = content_type
             entry["note"] = "not a PDF"
             return None
-        path = save_pdf(target_dir, filename, payload)
-        entry["saved"] = path
+        return payload
+
+    def attempt(source, url, prefer_direct=False):
+        # Campus entitlement needs the direct egress; OA aggregators such as
+        # Europe PMC are often only reachable through the proxy. Try the
+        # preferred transport, then the other, and keep the larger PDF (some
+        # J-STAGE edges serve a short preview directly and the full file via
+        # the proxy).
+        order = [True, False] if prefer_direct else [False, True]
+        if not has_proxy():
+            order = [True]
+        best = None
+        for direct in order:
+            payload = try_one(source, url, direct)
+            if payload is not None and (best is None or len(payload) > len(best)):
+                best = payload
+            if payload is not None and len(payload) >= 200_000:
+                break
+        if best is None:
+            return None
+        path = save_pdf(target_dir, filename, best)
+        attempts[-1]["saved"] = path
         return finish("DOWNLOADED", source=source, path=path)
 
     result = None
     arxiv_id = arxiv_id_of(doi_value)
     if arxiv_id:
         result = attempt("arxiv", ARXIV_PDF + arxiv_id)
-    if result is None and meta.get("oaUrl"):
-        result = attempt("openalex-oa", meta["oaUrl"])
-    saw_oa_link = bool(meta.get("oaUrl"))
-    if result is None:
-        unpaywall_url = unpaywall_pdf_url(doi_value)
-        if unpaywall_url:
-            saw_oa_link = True
-            result = attempt("unpaywall", unpaywall_url)
+    oa_candidates = oa_pdf_candidates(doi_value) if result is None else []
+    saw_oa_link = bool(oa_candidates)
+    for url in oa_candidates:
+        result = attempt("oa-repository", url)
+        if result is not None:
+            break
     # Subscriber route: the campus IP entitlement is what makes these work.
     if result is None:
         landing_urls, landing_blocked = landing_pdf_urls(doi_value)
         if landing_blocked:
             saw_campus_wall = True
         for url in landing_urls:
-            result = attempt("landing", url, direct=True)
+            result = attempt("landing", url, prefer_direct=True)
             if result is not None:
                 break
     if result is None:
         for url in publisher_template_urls(doi_value):
-            result = attempt("publisher", url, direct=True)
+            result = attempt("publisher", url, prefer_direct=True)
             if result is not None:
                 break
     if result is None:
@@ -740,6 +856,11 @@ def download_doi(request):
                 break
     if result is not None:
         return result
+    if saw_cloudflare:
+        return finish("CLOUDFLARE_CHALLENGE",
+                      note="publisher serves a Cloudflare Turnstile challenge instead of the PDF; "
+                           "open the DOI in a real browser on the campus network (or CARSI) once, "
+                           "or use an OA repository copy")
     if saw_campus_wall:
         return finish("CAMPUS_REQUIRED",
                       note="publisher refused this client (401/403/429); open the DOI in a browser on the campus network")

@@ -104,7 +104,7 @@ describe('literature closed loop (live components)', () => {
         }, execFor(dir, 'polymer-literature'))
         expect(paywalled).toMatchObject({ ok: true })
         const paywalledStatus = (paywalled as { data?: { status?: string } }).data?.status
-        expect(['DOWNLOADED', 'OA_LINK_ONLY', 'CAMPUS_REQUIRED', 'MANUAL_REQUIRED'])
+        expect(['DOWNLOADED', 'OA_LINK_ONLY', 'CAMPUS_REQUIRED', 'CLOUDFLARE_CHALLENGE', 'MANUAL_REQUIRED'])
           .toContain(paywalledStatus)
 
         // 3) kb-rag engine ingest + search hit (desktop profile installed?).
