@@ -267,17 +267,24 @@ TIER_SCORE_TABLE = {"a": 35, "b": 20, "c": 12, "cross": 30, "other": 5}
 
 
 def venue_tier(name):
-    """Classify one venue name into a/b/c/cross/other."""
+    """Classify one venue name into a/b/c/cross/other (config-driven)."""
     value = re.sub(r"\s+", " ", (name or "").strip().lower())
-    if value in TIER_CROSS_VENUES:
+    from pm_science import litprofile
+
+    tiers = litprofile.venue_tiers()
+    tier_a = tuple(tiers.get("a") or TIER_A_VENUES)
+    tier_b = tuple(tiers.get("b") or TIER_B_VENUES)
+    tier_c = tuple(tiers.get("c") or TIER_C_VENUES)
+    tier_cross = tuple(tiers.get("cross") or TIER_CROSS_VENUES)
+    if value in tier_cross:
         return "cross"
-    if value in TIER_A_VENUES:
+    if value in tier_a:
         return "a"
-    if value in TIER_B_VENUES:
+    if value in tier_b:
         return "b"
-    if value in TIER_C_VENUES:
+    if value in tier_c:
         return "c"
-    for known in TIER_C_VENUES:
+    for known in tier_c:
         if known in value or value in known:
             return "c"
     return "other"
@@ -285,21 +292,24 @@ def venue_tier(name):
 
 def score_candidate(candidate, now_year=None):
     """Deterministic polymer screening rubric v1 (docs/polymechanism/11 §5)."""
+    from pm_science import litprofile
+
     now_year = int(now_year) if now_year else time.gmtime().tm_year
     title = candidate.get("title") or ""
     haystack = (title + " \u241f " + (candidate.get("abstract") or "")).lower()
     breakdown = {}
     reasons = []
 
-    venue = candidate.get("venue") or ""
-    tier = venue_tier(venue)
-    breakdown["venue"] = VENUE_TIER_SCORES[tier]
+    venue_scores = litprofile.scores("venue")
+    tier = venue_tier(venue := (candidate.get("venue") or ""))
+    breakdown["venue"] = int(venue_scores.get(tier, venue_scores.get("other", 5)))
     reasons.append("venue=%s tier=%s" % (venue or "unknown", tier))
 
+    topic_scores = litprofile.scores("topic")
     topics = [t.lower() for t in (candidate.get("topics") or [])]
     topic_score = 0
     topic_hit = ""
-    for key, base in TOPIC_BASE_SCORES.items():
+    for key, base in topic_scores.items():
         if any(key in t for t in topics):
             if base > topic_score:
                 topic_score = base
@@ -308,39 +318,53 @@ def score_candidate(candidate, now_year=None):
     if topic_hit:
         reasons.append("topic match: %s" % topic_hit)
 
+    lex_scores = litprofile.scores("lexicon")
     title_lower = title.lower()
-    core_hits = [t for t in CORE_TERMS if t in haystack]
-    extended_hits = [t for t in EXTENDED_TERMS if t in haystack]
+    core_terms = litprofile.lexicon("core") or list(CORE_TERMS)
+    extended_terms = litprofile.lexicon("extended") or list(EXTENDED_TERMS)
+    core_hits = [t for t in core_terms if t in haystack]
+    extended_hits = [t for t in extended_terms if t in haystack]
     lexicon = 0
     for term in core_hits:
-        lexicon += 8 if term in title_lower else 4
-    lexicon = min(lexicon, 30) + min(2 * len(extended_hits), 10)
+        lexicon += int(lex_scores.get("core_term_title", 8)) if term in title_lower else int(lex_scores.get("core_term_text", 4))
+    lexicon = min(lexicon, int(lex_scores.get("core_cap", 30))) + min(
+        int(lex_scores.get("extended_per_hit", 2)) * len(extended_hits),
+        int(lex_scores.get("extended_cap", 10)))
     breakdown["lexicon"] = lexicon
     if core_hits:
         reasons.append("core terms: %s" % ", ".join(core_hits[:6]))
 
+    quality_scores = litprofile.scores("quality")
     cited = int(candidate.get("citedByCount") or 0)
-    breakdown["quality"] = min(int(3 * (cited ** 0.5) / 2), 10)
+    breakdown["quality"] = min(
+        int(int(quality_scores.get("coefficient", 3)) * (cited ** 0.5) / int(quality_scores.get("divisor", 2))),
+        int(quality_scores.get("cap", 10)))
     year = candidate.get("year")
     age = (now_year - int(year)) if isinstance(year, int) else 10
-    if age > 5:
-        freshness = max(0.0, min(5.0, 5.0 - (age - 5) / 2.0))
+    grace = int(litprofile.scores("freshness").get("grace_years", 5))
+    zero_at = int(litprofile.scores("freshness").get("zero_years", 15))
+    if age > grace:
+        span = max(1, zero_at - grace)
+        freshness = max(0.0, min(5.0, 5.0 - (age - grace) / span * 5.0))
     else:
         freshness = 5.0
     breakdown["freshness"] = int(freshness)
 
+    availability_scores = litprofile.scores("availability")
     oa_status = str(candidate.get("oaStatus") or "").lower()
     if oa_status in ("gold", "green", "hybrid", "bronze", "oa"):
-        breakdown["availability"] = 10
+        breakdown["availability"] = int(availability_scores.get("oa", 10))
     elif candidate.get("oaUrl"):
-        breakdown["availability"] = 8
+        breakdown["availability"] = int(availability_scores.get("oa_url", 8))
     elif candidate.get("doi"):
-        breakdown["availability"] = 6
+        breakdown["availability"] = int(availability_scores.get("doi_only", 6))
     else:
-        breakdown["availability"] = 2
+        breakdown["availability"] = int(availability_scores.get("none", 2))
 
+    grade_thresholds = litprofile.grades()
     total = min(100, sum(breakdown.values()))
-    grade = "core" if total >= 70 else ("important" if total >= 45 else "reference")
+    grade = ("core" if total >= int(grade_thresholds.get("core", 70))
+             else ("important" if total >= int(grade_thresholds.get("important", 45)) else "reference"))
     return {"total": total, "grade": grade, "breakdown": breakdown, "reasons": reasons}
 
 
