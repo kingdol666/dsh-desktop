@@ -21,6 +21,18 @@ if not exist "%PM_ROOT%\science\.venv\Scripts\python.exe" (
 set "PATH=%PM_ROOT%\science\.venv\Scripts;%PATH%"
 set "HF_ENDPOINT=%HF_ENDPOINT%"
 if "%HF_ENDPOINT%"=="" set "HF_ENDPOINT=https://hf-mirror.com"
+rem Proxy-aware: PM_PROXY wins; otherwise use a listening local Clash/V2Ray
+rem port if present. litsearch still falls back to direct egress per request.
+if not "%PM_PROXY%"=="" set "HTTPS_PROXY=%PM_PROXY%"
+if not "%PM_PROXY%"=="" set "HTTP_PROXY=%PM_PROXY%"
+if not defined HTTPS_PROXY (
+  netstat -ano | findstr /R /C:"127.0.0.1:7890 .*LISTENING" >nul 2>&1
+  if not errorlevel 1 (
+    set "HTTPS_PROXY=http://127.0.0.1:7890"
+    set "HTTP_PROXY=http://127.0.0.1:7890"
+  )
+)
+if defined HTTPS_PROXY echo [start-polymechanism] proxy: %HTTPS_PROXY%
 cd /d "%PM_ROOT%\dsh-plugin-desktop"
 corepack yarn workspace dsh-plugin-desktop start %*
 endlocal

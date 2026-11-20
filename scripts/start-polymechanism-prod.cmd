@@ -14,5 +14,17 @@ if exist "%PM_ROOT%\science\.venv\Scripts\python.exe" (
   echo [start-polymechanism-prod] science\.venv missing; KB vector search will degrade to keyword mode.
 )
 if "%HF_ENDPOINT%"=="" set "HF_ENDPOINT=https://hf-mirror.com"
+rem Proxy-aware: PM_PROXY wins; otherwise use a listening local Clash/V2Ray
+rem port if present. litsearch still falls back to direct egress per request.
+if not "%PM_PROXY%"=="" set "HTTPS_PROXY=%PM_PROXY%"
+if not "%PM_PROXY%"=="" set "HTTP_PROXY=%PM_PROXY%"
+if not defined HTTPS_PROXY (
+  netstat -ano | findstr /R /C:"127.0.0.1:7890 .*LISTENING" >nul 2>&1
+  if not errorlevel 1 (
+    set "HTTPS_PROXY=http://127.0.0.1:7890"
+    set "HTTP_PROXY=http://127.0.0.1:7890"
+  )
+)
+if defined HTTPS_PROXY echo [start-polymechanism-prod] proxy: %HTTPS_PROXY%
 start "" "%PM_ROOT%\dsh-plugin-desktop\dist\win-unpacked\PolyMechanism Studio.exe" %*
 endlocal
