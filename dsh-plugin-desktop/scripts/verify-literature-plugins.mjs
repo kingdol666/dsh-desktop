@@ -35,7 +35,10 @@ const KB_TOOLS = Object.freeze([
   'kb_ingest', 'kb_search', 'kb_rag', 'kb_zotero', 'kb_fetch',
   'kb_scope', 'kb_dedup', 'kb_clear', 'kb_stats', 'kb_status',
 ])
-const PM_REGRESSION_TOOLS = Object.freeze(['pm_literature_read', 'pm_literature_extract'])
+const PM_REGRESSION_TOOLS = Object.freeze([
+  'pm_literature_read', 'pm_literature_extract',
+  'pm_literature_search', 'pm_literature_screen', 'pm_literature_download',
+])
 const REQUIRED_SKILLS = Object.freeze([
   'zotero',
   'literature-review',

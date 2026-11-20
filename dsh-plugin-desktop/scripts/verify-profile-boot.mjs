@@ -399,8 +399,11 @@ try {
   if (!pmHealthPayload.capabilities?.includes('/pm/overview')) {
     throw new Error(`pm-research /pm/health did not advertise /pm/overview: ${JSON.stringify(pmHealthPayload.capabilities)}`)
   }
-  if (!pmHealthPayload.tools?.includes('pm_cae_coupon')) {
-    throw new Error('pm-research /pm/health did not advertise the CAE tool surface')
+  if (!pmHealthPayload.tools?.includes('pm_sim_crystallization')) {
+    throw new Error('pm-research /pm/health did not advertise the simulation tool surface')
+  }
+  if (!pmHealthPayload.tools?.includes('pm_literature_search')) {
+    throw new Error('pm-research /pm/health did not advertise the literature tool surface')
   }
   // The blank-home pulse reads the same stores; a missing route would silently
   // leave the product surface in its loading state.
@@ -413,7 +416,8 @@ try {
   const pmOverviewPayload = await pmOverview.json()
   if (pmOverviewPayload?.ok !== true
     || typeof pmOverviewPayload?.data?.totals?.evidence !== 'number'
-    || typeof pmOverviewPayload?.data?.cae?.configured !== 'boolean') {
+    || typeof pmOverviewPayload?.data?.sim?.analytic !== 'boolean'
+    || typeof pmOverviewPayload?.data?.sim?.md !== 'boolean') {
     throw new Error(`pm-research /pm/overview returned an unexpected payload: ${JSON.stringify(pmOverviewPayload)}`)
   }
   const pmDenied = await fetch(`http://127.0.0.1:${String(ctx.webServer.port)}/pm/health`)

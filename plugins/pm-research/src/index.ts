@@ -153,5 +153,8 @@ export function registeredTools(): readonly string[] {
     'pm_model_fit',
     'pm_literature_read',
     'pm_literature_extract',
+    'pm_literature_search',
+    'pm_literature_screen',
+    'pm_literature_download',
   ]
 }

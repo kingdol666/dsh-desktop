@@ -115,6 +115,24 @@ def _literature_read(args: dict[str, object]) -> dict[str, object]:
     }
 
 
+def _literature_search(args: dict[str, object]) -> dict[str, object]:
+    from pm_science.litsearch import search_works
+
+    return search_works(dict(args))
+
+
+def _literature_download(args: dict[str, object]) -> dict[str, object]:
+    from pm_science.litsearch import download_doi
+
+    return download_doi(dict(args))
+
+
+def _literature_screen(args: dict[str, object]) -> dict[str, object]:
+    from pm_science.litsearch import screen_candidates
+
+    return screen_candidates(dict(args))
+
+
 def _chain_mech(args: dict[str, object]) -> dict[str, object]:
     from pm_science.chain_mech import chain_mechanics
 
@@ -284,6 +302,9 @@ HANDLERS = {
     "hermans": _hermans,
     "relax": _relax,
     "literature_read": _literature_read,
+    "literature_search": _literature_search,
+    "literature_download": _literature_download,
+    "literature_screen": _literature_screen,
     "chain_mech": _chain_mech,
     "rubber": _rubber,
     "viscoelastic": _viscoelastic,

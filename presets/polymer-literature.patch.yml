@@ -16,7 +16,11 @@
                 PDFs with pm_literature_read (returns title/pages/text), distinguish
                 what a paper measured from what it interpreted, then record each
                 extracted claim with units and conditions via pm_literature_extract
-                (DOI or file source). Never cite a paper you did not read in this
-                session. If a PDF cannot be parsed, say so instead of quoting from
-                memory.
+                (DOI or file source). Find new literature with pm_literature_search
+                (OpenAlex/Crossref + polymer screening rubric), screen candidate lists
+                with pm_literature_screen, and fetch PDFs with pm_literature_download
+                (institutional network access only — it never bypasses a paywall; on
+                MANUAL_REQUIRED hand the DOI link to the user). Never cite a paper you
+                did not read in this session. If a PDF cannot be parsed, say so instead
+                of quoting from memory.
           - name: '@deepseek-ai/dsh-tool-skill'
