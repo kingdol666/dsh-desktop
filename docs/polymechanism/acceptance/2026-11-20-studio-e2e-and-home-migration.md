@@ -111,3 +111,39 @@ gate 的排除状态。实机复验:
 - `saxs_pva_reference.csv` 为 q⁻³ 解析参考数据,不能当真实 Rg;WAXS 参考数据缺 (101) 峰。
 - 工作台为六标签覆盖层(非 Dockview 可停靠);契约仍为前后端各一份手写类型。
 - macOS/Linux 安装包由 CI 构建(未签名)。
+
+
+---
+
+# 增补(2026-11-20 晚): 图标修复 + 真实论文数据自动分析
+
+## 图标(Windows 任务栏)
+
+- 根因: dev 模式 BrowserWindow icon 传 1024px 单尺寸 PNG, Windows shell 对其降采样失真, 任务栏回退 electron.exe 内嵌图标。
+- 修复: win32 加载 `build/app-icon.ico`(16..256 精确 DPI 帧), darwin 用 app-icon-mac.png, Linux 用 app-icon.png。已提交 a9147d0e03。
+- **程序化验证**: 向运行中的 Studio 窗口(PolyMechanism Studio, hwnd)发 `WM_GETICON` 取回 ICON_BIG/ICON_SMALL, 保存后确认为新 PolyMechanism 标记(48x48 与 24x24)。注: Windows 自身的任务栏图标缓存可能仍显示旧图——重启应用/资源管理器或重新固定到任务栏即可刷新。
+
+## 真实论文数据自动分析(Zenodo 公开支持数据, 均为已发表论文的实验数据)
+
+| 数据集 | 来源(Zenodo 记录) | 内容 | 分析结果 |
+| --- | --- | --- | --- |
+| saxs_star_polymer_real.csv | 1066849《Synthesis and electrokinetics of cationic star polymer nanoparticles》 | 星形聚合物纳米粒 SAXS, 175 点(q Å⁻¹) | CONVERGED, Rg=0.983 nm(窗 0.0078-0.0083 Å⁻¹), rmse 0.0032 |
+| waxs_nail_real.csv / saxs_nail_real.csv | 22100448《Benign/cancer diagnostics based on X-ray diffraction》(2024) | 人指甲角蛋白 WAXS(2θ 7.16-34.7°)与 SAXS(q nm⁻¹), 300 点 | WAXS: PVA 默认猜测→**NO_FIT(诚实失败)**; 角蛋白猜测(峰 9.8/20.2°, 晕 15°)→**CONVERGED, Xc=40.6%**。SAXS: CONVERGED, Rg=3.262 nm |
+| ftir_pe_film_real.csv | 14417456《UV light and abrasion's role in degrading plasticulture film》 | PE 地膜 80 天 UV+磨蚀老化 FTIR, 1868 点 | PVA 调参的 OH/羰基指数在 PE 上拟合出负面积(**域不适配, 如实报告**); 自定义羰基指数(A1700-1780/A1450-1480)跨 0-80 天 **≈2.51 恒定**——与论文"80 天内光氧化有限"一致 |
+| ftir_lldpe_afmir_real.csv | 5607039《AFM-IR of commercial polymers》 | LLDPE AFM-IR, 1094 点 | 同上域限制(carbonyl -1.34) |
+
+### 评价(诚实)
+
+1. **SAXS 工具在真实数据上表现良好**: 两套独立真实数据均 CONVERGED, Guinier/Porod 自动窗口, Rg 量级合理。
+2. **WAXS 工具能出正确结果但默认参数是 PVA 专属**: 对非 PVA 谱先 NO_FIT(诚实不造假), 需领域知识给峰位猜测后 CONVERGED——建议后续加"从峰检测自动生成猜测"的预处理。
+3. **FTIR 指数是 PVA 专属**(3330/2940/1420/1090): 对 PE 类应该用 CH2/羰基相对指数(本次已演示自定义计算)。这是最高价值的改进点: 让 FTIR 指数按聚合物类型可配置。
+4. **数据可信度边界**: 指甲 WAXS 为 meridional 单方向; PE 数据集无内标; 星形聚合物论文未在本地核对论文正文报告值——结果解读需回到原文。
+
+## 真实数据作业 C 的边界
+
+USTC 网关 key 的 3 小时滚动预算($30)在作业 C 中段耗尽(422 budget_exceeded), 模型驱动的真实数据评价未完成; 引擎级确定性分析(上表)已用同一批 handler 完成。预算窗口重置后可直接重跑:
+
+```
+$env:DSH_HOME="$HOME\.pmstudio"; $env:USTC_API_KEY=<...>; cd ~/.pmstudio/workspaces/pva-e2e
+node <desktop>/node_modules/@deepseek-ai/dsh/lib/bin.js --profile lit "<任务原文见会话记录>"
+```
