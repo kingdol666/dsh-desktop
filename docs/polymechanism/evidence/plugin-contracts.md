@@ -40,6 +40,17 @@
 - 检索:`search <query>` 返回题录(题名/作者/年份/item key/BibTeX key);OpenAlex/Crossref 检索带加权排序(期刊 0.45/引用速度 0.30/相关 0.15/新鲜 0.10);**收录只导题录与摘要,不自动下载 PDF**(PDF 落地靠 kb_fetch 或手动)
 - 本机状态:Zotero 未安装(127.0.0.1:23119 无响应)→ 库管理/收录/全文精读功能 N/A,**检索/筛选/下载链不依赖 Zotero**;G015 端到端的 Zotero 步骤在装 Zotero 后补测
 
+## pm 文献工具契约(G013/G014 实测,docs 09 §2.8a)
+
+Python 引擎:`science/src/pm_science/litsearch.py`(CLI handler `literature_search/download/screen`);rubric 配置 `config/literature-profile.polymer.yml`(litprofile.py 加载,缺失回退内置)。
+
+| 工具 | 关键参数 | 返回要点(实测) |
+| --- | --- | --- |
+| `pm_literature_search` | `query`,yearFrom/To,maxResults≤50,sources,screen | OpenAlex 主源+Crossref 辅;候选含 `{doi,title,venue,year,authors,citedByCount,oaStatus,oaUrl,topics,screen:{total,grade,breakdown,reasons}}`,按 total 降序;实网"PVA biaxial"首条 72 分 core |
+| `pm_literature_screen` | `candidates[]` | 离线确定性;判级 core≥70/important≥45/reference;breakdown 六维透明 |
+| `pm_literature_download` | `doi`,targetPath(围栏) | `{status:'DOWNLOADED\|OA_LINK_ONLY\|CAMPUS_REQUIRED\|MANUAL_REQUIRED',path,attempts[],manifestEntry,manifestDeduped,landingUrl}`;状态型结果(ok:true + data.status)非错误;实测 arXiv→DOWNLOADED,Elsevier 付费墙→MANUAL_REQUIRED 附直链 |
+| `kb_fetch`(对照) | identifiers,target_dir,ingest | kb-rag 自带出版商落地页链(citation_pdf_url+反爬识别),pm 下载器 v1 不重复该链;`doi_pdf.mjs` 为参考实现 |
+
 ## G013 设计修订(基于实测)
 
 1. `pm_literature_download` 不重复实现下载链——kb_fetch 已覆盖 DOI/arXiv→PDF(含 `target_dir` 指定位置 + manifest v2 + 反爬识别);pm 层新增价值收窄为:**manifest 与证据账本/RSI 的对接、状态分类(DOWNLOADED/PAYWALL_MANUAL/CAMPUS_REQUIRED)、批量 screening 编排**
