@@ -138,6 +138,7 @@
     "verify:cli": "node scripts/verify-cli-runtime.mjs",
     "verify:loader": "node scripts/verify-loader-boot.mjs",
     "verify:profile": "node scripts/verify-profile-boot.mjs",
+    "verify:literature": "node scripts/verify-literature-plugins.mjs",
     "verify:licenses": "node scripts/verify-licenses.mjs",
     "verify:operations": "node scripts/verify-operation-reliability.mjs",
     "verify:notices": "node scripts/verify-licenses.mjs --notices THIRD_PARTY_NOTICES.md",
