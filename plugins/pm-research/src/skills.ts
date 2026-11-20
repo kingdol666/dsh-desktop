@@ -17,7 +17,7 @@ export const PM_SKILL_NAMES: readonly string[] = Object.freeze([
   'ftir-analysis',
   'saxs-analysis',
   'optics-birefringence',
-  'cae-workflow',
+  'simulation-workflow',
   'experiment-design',
   'scientific-review',
   'research-project-management',

@@ -12,7 +12,7 @@ const PAYLOAD = {
   ok: true,
   data: {
     totals: { projects: 1, evidence: 42, hypotheses: 3, supported: 2, refuted: 0, pendingKnowledge: 7 },
-    cae: { configured: true },
+    sim: { analytic: true, md: false },
   },
 }
 
@@ -117,7 +117,7 @@ describe('PmHomeConsole', () => {
     expect(container.querySelectorAll('.pm-quick')).toHaveLength(3)
     expect(container.textContent).toContain('42')
     expect(container.textContent).toContain('7')
-    expect(container.textContent).toContain('CAE 已配置')
+    expect(container.textContent).toContain('仿真引擎就绪')
     expect(container.querySelector('[aria-pressed="true"]')?.textContent).toContain('科学家')
     expect(fetchMock).toHaveBeenCalledWith('/pm/overview', expect.objectContaining({ cache: 'no-store' }))
   })
@@ -131,7 +131,7 @@ describe('PmHomeConsole', () => {
     await act(async () => { root!.render(createElement(PmHomeConsole, consoleProps())) })
 
     expect(container.textContent).toContain('研究脉冲不可用')
-    expect(container.textContent).not.toContain('CAE 未配置')
+    expect(container.textContent).not.toContain('仿真引擎降级')
   })
 
   it('fills the composer draft from a start instead of sending', async () => {

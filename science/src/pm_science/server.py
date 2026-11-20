@@ -7,20 +7,9 @@ The module imports lazily so the pure bridge stays usable without fastmcp.
 
 from __future__ import annotations
 
-import os
 from typing import Any
 
 import numpy as np
-
-from .cae import CaeError, run_cae, summarize
-
-PM_CAE_ROOT = os.environ.get("PM_CAE_ROOT", "")
-
-
-def _cae_root() -> str:
-    if not PM_CAE_ROOT:
-        raise RuntimeError("PM_CAE_ROOT environment variable is required")
-    return PM_CAE_ROOT
 
 
 def build_server() -> Any:
@@ -30,22 +19,6 @@ def build_server() -> Any:
     except ImportError as cause:  # pragma: no cover - exercised only without extra
         raise RuntimeError("install the science extra first: pip install -e '.[mcp]'") from cause
     server: Any = FastMCP("pm_science")
-
-    @server.tool
-    def cae_run(mode: str = "run", time_s: float = 0.0, params: dict[str, Any] | None = None) -> dict[str, Any]:
-        """Run the oblique biaxial CAE engine and return its verified JSON result."""
-        result = run_cae(_cae_root(), mode=mode, time_s=time_s, params=params)
-        return {"result": result, "summary": summarize(result)}
-
-    @server.tool
-    def cae_coupon(mesh: str = "4,8", stretch_x: float = 1.2, stretch_y: float = 1.1) -> dict[str, Any]:
-        """Run the affine verification coupon (fast engine self-check)."""
-        result = run_cae(
-            _cae_root(),
-            mode="coupon",
-            extra_args={"mesh": mesh, "stretch-x": str(stretch_x), "stretch-y": str(stretch_y)},
-        )
-        return {"result": result, "summary": summarize(result)}
 
     @server.tool
     def waxs_crystallinity(two_theta_deg: list[float], intensity: list[float]) -> dict[str, Any]:
@@ -85,6 +58,145 @@ def build_server() -> Any:
         from .relax import fit_relaxation as run
 
         return run(np.asarray(time_s, dtype=float), np.asarray(signal, dtype=float), model=model)
+
+    @server.tool
+    def chain_mechanics(
+        model: str,
+        contour_nm: float,
+        temperature_k: float,
+        segment_nm: float = 1.0,
+        persistence_nm: float = 1.0,
+        probe_force_pn: float | None = None,
+        probe_extension_nm: float | None = None,
+    ) -> dict[str, Any]:
+        """Single-chain mechanics (FJC/WLC): curve or single-point probe."""
+        from .chain_mech import chain_mechanics as run
+
+        return run(
+            model,  # type: ignore[arg-type]
+            contour_nm,
+            temperature_k,
+            segment_nm=segment_nm,
+            persistence_nm=persistence_nm,
+            probe_force_pn=probe_force_pn,
+            probe_extension_nm=probe_extension_nm,
+        )
+
+    @server.tool
+    def rubber_elasticity(
+        mode: str,
+        shear_modulus_mpa: float,
+        links_per_chain: int,
+        stretch_x: float = 1.0,
+        stretch_y: float = 1.0,
+        max_stretch: float = 2.0,
+    ) -> dict[str, Any]:
+        """8-chain (Arruda-Boyce) stresses and deformation work density."""
+        from .rubber import rubber_elasticity as run
+
+        return run(
+            mode,  # type: ignore[arg-type]
+            shear_modulus_mpa,
+            links_per_chain,
+            stretch_x=stretch_x,
+            stretch_y=stretch_y,
+            max_stretch=max_stretch,
+        )
+
+    @server.tool
+    def rouse_spectrum(
+        beads_per_chain: int,
+        kuhn_length_nm: float,
+        friction_per_bead: float,
+        chain_number_density: float,
+        temperature_k: float,
+    ) -> dict[str, Any]:
+        """Rouse linear-viscoelastic spectrum (τ modes, G(t), G'/G'')."""
+        from .viscoelastic import rouse_spectrum as run
+
+        return run(beads_per_chain, kuhn_length_nm, friction_per_bead, chain_number_density, temperature_k)
+
+    @server.tool
+    def shift_factors(
+        model: str,
+        reference_temperature_k: float,
+        temperatures_k: list[float],
+        c1: float = 17.44,
+        c2_k: float = 51.6,
+    ) -> dict[str, Any]:
+        """WLF or VFT time-temperature shift factors log10(aT)."""
+        from .viscoelastic import shift_factors as run
+
+        return run(
+            model,  # type: ignore[arg-type]
+            reference_temperature_k,
+            np.asarray(temperatures_k, dtype=float),
+            c1=c1,
+            c2_k=c2_k,
+        )
+
+    @server.tool
+    def chain_stats(
+        beads_per_chain: int,
+        kuhn_length_nm: float,
+        stretch_x: float = 1.0,
+        stretch_y: float | None = None,
+        stretch_z: float | None = None,
+    ) -> dict[str, Any]:
+        """Ideal-chain sizes + affine orientation factor f(λ)."""
+        from .chain_stats import chain_stats as run
+
+        return run(
+            beads_per_chain,
+            kuhn_length_nm,
+            stretch_x=stretch_x,
+            stretch_y=stretch_y,
+            stretch_z=stretch_z,
+        )
+
+    @server.tool
+    def avrami_fit(time_s: list[float], crystallinity: list[float]) -> dict[str, Any]:
+        """Fit Avrami crystallization kinetics (n, K, halfTime)."""
+        from .avrami import avrami_fit as run
+
+        return run(np.asarray(time_s, dtype=float), np.asarray(crystallinity, dtype=float))
+
+    @server.tool
+    def flory_huggins(
+        n1: int,
+        n2: int,
+        chi: float,
+        phi: float = 0.5,
+        temperature_k: float | None = None,
+        chi_a: float | None = None,
+        chi_b: float = 0.0,
+    ) -> dict[str, Any]:
+        """Flory-Huggins spinodal, critical point, and blend stability verdict."""
+        from .flory import flory_huggins as run
+
+        return run(
+            n1,
+            n2,
+            chi=None if chi == 0.0 and chi_a is not None else chi,
+            chi_a=chi_a,
+            chi_b=chi_b,
+            temperature_k=temperature_k,
+            phi=phi,
+        )
+
+    @server.tool
+    def tg_blend(part: str, **kwargs: float) -> dict[str, Any]:
+        """Fox-Flory fit/predict or Gordon-Taylor blend glass transition."""
+        from .tg_blend import tg_blend as run
+
+        return run(part, **kwargs)
+
+    @server.tool
+    def diffusion(part: str, **kwargs: float) -> dict[str, Any]:
+        """Arrhenius fit or Vrentas-Duda free-volume diffusivity."""
+        from .diffusion import diffusion as run
+
+        return run(part, **kwargs)  # type: ignore[arg-type]
 
     return server
 

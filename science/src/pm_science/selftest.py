@@ -1,5 +1,5 @@
 """PolyMechanism science self-test: truth-recovery checks for every analysis
-and simulation module. Usage: python -I src/pm_science/selftest.py [cae-root]"""
+and simulation module. Usage: python -I src/pm_science/selftest.py"""
 
 from __future__ import annotations
 
@@ -40,21 +40,11 @@ def check(results: dict[str, bool]) -> int:
 
 
 def main() -> int:
+    if len(sys.argv) > 1:
+        print("usage: python -I src/pm_science/selftest.py (no arguments)", file=sys.stderr)
+        return 2
     rng = np.random.default_rng(42)
     checks: dict[str, bool] = {}
-
-    # 0) Optional real CAE engine coupon (kept for legacy checkouts).
-    if len(sys.argv) > 1:
-        from pm_science.cae import run_cae, summarize  # noqa: PLC0415
-
-        result = run_cae(sys.argv[1], mode="coupon", extra_args={"mesh": "4,8", "stretch-x": "1.2", "stretch-y": "1.1"})
-        summary = summarize(result)
-        checks["cae_coupon_converged_with_provenance"] = (
-            summary["status"] == "CONVERGED"
-            and summary["valid"] is True
-            and isinstance(summary["sourceSha256"], str)
-            and len(summary["sourceSha256"]) == 64
-        )
 
     # 1) WAXS: synth halo+peaks, expect crystallinity near the injected area fraction.
     x = np.linspace(10.0, 35.0, 300)

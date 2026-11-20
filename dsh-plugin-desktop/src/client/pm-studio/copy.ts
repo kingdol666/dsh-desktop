@@ -54,8 +54,9 @@ export interface PmStudioCopy {
   readonly hypothesisUnit: string
   readonly knowledgeUnit: string
   readonly projectUnit: string
-  readonly caeReady: string
-  readonly caeMissing: string
+  readonly simReady: string
+  readonly simReadyMd: string
+  readonly simDegraded: string
   readonly seatUnavailable: string
   readonly fillFailed: string
   readonly switched: (name: string) => string
@@ -113,8 +114,9 @@ export const PM_STUDIO_ZH: PmStudioCopy = Object.freeze({
   hypothesisUnit: '个假设',
   knowledgeUnit: '张待审知识卡',
   projectUnit: '个项目',
-  caeReady: 'CAE 已配置',
-  caeMissing: 'CAE 未配置',
+  simReady: '仿真引擎就绪',
+  simReadyMd: '仿真引擎就绪 · MD 可用',
+  simDegraded: '仿真引擎降级 · 解析层不可用',
   seatUnavailable: '专家席位暂不可用',
   fillFailed: '未能写入输入框 · 请直接粘贴任务描述',
   switched: (name: string) => `已切换专家：${name}`,
@@ -172,8 +174,9 @@ export const PM_STUDIO_EN: PmStudioCopy = Object.freeze({
   hypothesisUnit: 'hypotheses',
   knowledgeUnit: 'cards pending',
   projectUnit: 'projects',
-  caeReady: 'CAE configured',
-  caeMissing: 'CAE not configured',
+  simReady: 'Simulation engine ready',
+  simReadyMd: 'Simulation ready · MD available',
+  simDegraded: 'Simulation degraded · analytic layer unavailable',
   seatUnavailable: 'Expert seat is not available',
   fillFailed: 'Could not fill the composer · paste the task instead',
   switched: (name: string) => `Expert selected: ${name}`,

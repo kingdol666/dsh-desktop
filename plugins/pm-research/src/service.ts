@@ -14,7 +14,7 @@ import {
   type GateVerdict,
   type RecordEvidenceInput,
 } from '@polymechanism/pm-core'
-import { spawnCae, persistCaeArtifact, summarizeCae, type CaeRunResult, type CaeSummary } from './cae.ts'
+import { resolveScienceRuntime } from './science.ts'
 import type {
   DiscriminatingTest,
   EntityId,
@@ -29,8 +29,6 @@ import type {
 export interface PmResearchConfig {
   /** Absolute data root; defaults to `$DSH_HOME/pm`. */
   readonly dataRoot?: string
-  /** Absolute checkout of the oblique biaxial CAE engine; defaults to `$PM_CAE_ROOT`. */
-  readonly caeRoot?: string
 }
 
 /** Resolve the plugin data root from config and environment. */
@@ -38,13 +36,6 @@ export function resolvePmDataRoot(config: PmResearchConfig = {}): string {
   if (config.dataRoot !== undefined && config.dataRoot.length > 0) return config.dataRoot
   const home = process.env.DSH_HOME
   return join(home === undefined || home.length === 0 ? process.cwd() : home, 'pm')
-}
-
-/** Resolve the CAE engine checkout from config and environment. */
-export function resolveCaeRoot(config: PmResearchConfig = {}): string | undefined {
-  if (config.caeRoot !== undefined && config.caeRoot.length > 0) return config.caeRoot
-  const env = process.env.PM_CAE_ROOT
-  return env !== undefined && env.length > 0 ? env : undefined
 }
 
 /** One project row in the workbench overview. */
@@ -67,14 +58,8 @@ export interface PmOverview {
     readonly refuted: number
     readonly pendingKnowledge: number
   }
-  readonly cae: { readonly configured: boolean }
-}
-
-/** One archived engine outcome. */
-export interface CaeRunOutcome {
-  readonly result: CaeRunResult
-  readonly summary: CaeSummary
-  readonly artifactPath?: string
+  /** Simulation engine availability surfaced on the home pulse. */
+  readonly sim: { readonly analytic: boolean; readonly md: boolean }
 }
 
 /** One characterization analysis to archive and cite. */
@@ -101,15 +86,14 @@ export class PmResearchEngine {
   private readonly ledgers = new Map<EntityId, EvidenceLedger>()
   private readonly ledgerAppends = new Map<EntityId, Promise<unknown>>()
 
-  private constructor(private readonly dataRoot: string, private readonly caeRoot?: string) {}
+  private constructor(private readonly dataRoot: string) {}
 
   /**
    * Create the engine over `dataRoot` (created on demand).
    * @param dataRoot - absolute directory for all pm state.
-   * @param caeRoot - optional CAE engine checkout enabling pm_cae_* capabilities.
    */
-  static open(dataRoot: string, caeRoot?: string): PmResearchEngine {
-    return new PmResearchEngine(dataRoot, caeRoot)
+  static open(dataRoot: string): PmResearchEngine {
+    return new PmResearchEngine(dataRoot)
   }
 
   /** Directory root (diagnostics and tests). */
@@ -268,7 +252,7 @@ export class PmResearchEngine {
         refuted,
         pendingKnowledge: cards.filter(card => card.status === 'pending').length,
       },
-      cae: { configured: this.caeRoot !== undefined },
+      sim: { analytic: scienceAnalyticAvailable(), md: false },
     }
   }
 
@@ -394,37 +378,6 @@ export class PmResearchEngine {
   }
 
   /**
-   * Run the affine verification coupon through the real CAE engine and archive the artifact.
-   * @param projectId - owning project (artifact lands in its directory).
-   * @param args - coupon stretch parameters.
-   */
-  async runCaeCoupon(projectId: EntityId, args: { stretchX: number; stretchY: number; mesh?: string }): Promise<CaeRunOutcome> {
-    const result = await this.spawnCaeChecked(['--mode', 'coupon', '--mesh', args.mesh ?? '4,8', '--stretch-x', String(args.stretchX), '--stretch-y', String(args.stretchY)])
-    const archived = await this.archiveCaeResult(projectId, `coupon-${args.stretchX}-${args.stretchY}`, result)
-    return { result, summary: summarizeCae(result), ...(archived === undefined ? {} : { artifactPath: archived }) }
-  }
-
-  /**
-   * Run the whole-machine CAE process and archive the artifact.
-   * @param projectId - owning project.
-   * @param params - engine parameter overrides (material/machine/process).
-   */
-  async runCaeRun(projectId: EntityId, params?: Record<string, unknown>): Promise<CaeRunOutcome> {
-    const argv = ['--mode', 'run', '--time', '0']
-    if (params !== undefined) argv.push('--params', JSON.stringify(params))
-    const result = await this.spawnCaeChecked(argv)
-    const archived = await this.archiveCaeResult(projectId, `run-${Date.now()}`, result)
-    return { result, summary: summarizeCae(result), ...(archived === undefined ? {} : { artifactPath: archived }) }
-  }
-
-  private async spawnCaeChecked(argv: readonly string[]): Promise<CaeRunResult> {
-    if (this.caeRoot === undefined || this.caeRoot.length === 0) {
-      throw new Error('CAE engine root not configured (set caeRoot config or PM_CAE_ROOT)')
-    }
-    return spawnCae(this.caeRoot, argv)
-  }
-
-  /**
    * Persist one JSON artifact under the project's artifacts directory.
    * @param projectId - owning project.
    * @param name - human label; sanitized before it becomes a file name.
@@ -469,13 +422,31 @@ export class PmResearchEngine {
     return { evidence, artifactPath, deduped }
   }
 
-  private async archiveCaeResult(projectId: EntityId, name: string, result: CaeRunResult): Promise<string | undefined> {
-    try {
-      const { artifactPath } = await persistCaeArtifact(join(this.dataRoot, 'projects', projectId, 'artifacts'), name, result)
-      return artifactPath
-    } catch {
-      return undefined
-    }
+  /**
+   * Archive one simulation result and cite it as engine-backed evidence. The
+   * evidence payload marks the result as simulation output so gates and
+   * reviewers can keep model predictions apart from measured facts.
+   * @param projectId - owning project.
+   * @param input - tool/result plus the claim the simulation supports.
+   */
+  async recordSimulation(
+    projectId: EntityId,
+    input: AnalysisRecordInput,
+  ): Promise<{ evidence: Evidence; artifactPath: string; deduped: boolean }> {
+    const artifactPath = await this.archiveArtifact(
+      projectId,
+      `${input.tool}-${new Date().toISOString().replace(/[:.]/gu, '-')}`,
+      { tool: input.tool, simulation: true, result: input.result, recordedAt: new Date().toISOString() },
+    )
+    const { evidence, deduped } = await this.recordEvidence(projectId, {
+      claimSupport: input.claimSupport,
+      polarity: input.polarity ?? 'neutral',
+      strength: input.strength ?? 'moderate',
+      sourceRef: { type: 'run', ref: artifactPath },
+      payload: { simulation: input.tool, artifactPath, result: input.result },
+      recordedBy: input.recordedBy,
+    })
+    return { evidence, artifactPath, deduped }
   }
 }
 
@@ -507,3 +478,16 @@ function isEdgeRelation(value: string): value is MechanismEdge['relation'] {
 
 /** Not-found error surfaced to tools as INVALID_ARGUMENT-shaped failures. */
 export class PmNotFound extends Error {}
+
+/**
+ * Whether the analytic polymer-physics engine (science venv + CLI) is runnable.
+ * @returns true when the repository-fixed science runtime resolves.
+ */
+function scienceAnalyticAvailable(): boolean {
+  try {
+    resolveScienceRuntime()
+    return true
+  } catch {
+    return false
+  }
+}

@@ -52,7 +52,7 @@ interface PmOverviewEnvelope {
       readonly refuted: number
       readonly pendingKnowledge: number
     }
-    readonly cae: { readonly configured: boolean }
+    readonly sim: { readonly analytic: boolean; readonly md: boolean }
   }
 }
 
@@ -204,9 +204,9 @@ export function PmHomeConsole({
           </span>
         )}
         {pulseState === 'ready' && overview !== null ? (
-          <span className={overview.cae.configured ? 'pm-cae pm-cae-on' : 'pm-cae'}>
+          <span className={overview.sim.analytic ? 'pm-sim pm-sim-on' : 'pm-sim'}>
             <span className="pm-console-dot" aria-hidden="true" />
-            {overview.cae.configured ? copy.caeReady : copy.caeMissing}
+            {overview.sim.analytic ? (overview.sim.md ? copy.simReadyMd : copy.simReady) : copy.simDegraded}
           </span>
         ) : null}
       </div>

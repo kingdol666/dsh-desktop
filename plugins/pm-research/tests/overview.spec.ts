@@ -19,7 +19,7 @@ afterEach(async () => {
 })
 
 describe('PmResearchEngine.overview', () => {
-  it('starts empty and reports CAE availability', async () => {
+  it('starts empty and reports simulation availability', async () => {
     const engine = PmResearchEngine.open(await tempRoot())
     const overview = await engine.overview()
     expect(overview.totals).toEqual({
@@ -31,12 +31,13 @@ describe('PmResearchEngine.overview', () => {
       pendingKnowledge: 0,
     })
     expect(overview.projects).toEqual([])
-    expect(overview.cae.configured).toBe(false)
+    expect(overview.sim.analytic).toBe(true)
+    expect(overview.sim.md).toBe(false)
   })
 
   it('aggregates evidence, hypotheses and pending knowledge cards', async () => {
     const root = await tempRoot()
-    const engine = PmResearchEngine.open(root, 'D:/cae-checkout')
+    const engine = PmResearchEngine.open(root)
     const project = await engine.createProject({
       title: 'PVA 斜拉光学膜',
       question: '拉伸比如何影响双折射？',
@@ -78,6 +79,6 @@ describe('PmResearchEngine.overview', () => {
       evidence: 1,
       hypotheses: 1,
     }])
-    expect(overview.cae.configured).toBe(true)
+    expect(overview.sim.analytic).toBe(true)
   })
 })
