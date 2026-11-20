@@ -6,7 +6,21 @@ import { readFile } from 'node:fs/promises'
 import { delimiter, isAbsolute, normalize, relative, resolve } from 'node:path'
 
 /** Tools the bridge may invoke. */
-export type ScienceTool = 'waxs' | 'ftir' | 'saxs' | 'hermans' | 'relax' | 'literature_read'
+export type ScienceTool =
+  | 'waxs'
+  | 'ftir'
+  | 'saxs'
+  | 'hermans'
+  | 'relax'
+  | 'literature_read'
+  | 'chain_mech'
+  | 'rubber'
+  | 'viscoelastic'
+  | 'chain_stats'
+  | 'avrami'
+  | 'flory'
+  | 'tg_blend'
+  | 'diffusion'
 
 /** Optional per-call overrides (timeout only; the interpreter is repository-fixed). */
 export interface ScienceConfig {
