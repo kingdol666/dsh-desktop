@@ -28,13 +28,18 @@ jobs:
         include:
           - os: windows-latest
             script: dist:win
+            artifacts: dsh-plugin-desktop/dist/PolyMechanism-Studio-*-Setup.exe
           - os: ubuntu-latest
             script: dist:linux
+            artifacts: |
+              dsh-plugin-desktop/dist/*.AppImage
+              dsh-plugin-desktop/dist/*.deb
           - os: macos-latest
             script: dist:mac-smoke
             # Single-arch package: the universal merge rejects platform-specific
             # science/pylibs binaries that legitimately differ between CPU slices.
             macArch: arm64
+            artifacts: dsh-plugin-desktop/dist/mac-smoke/*.dmg
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     steps:
@@ -62,14 +67,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: polymechanism-${{ runner.os }}
-          # Each host produces a different subset, and macOS writes its DMG under
-          # dist/mac-smoke/: match recursively and tolerate missing kinds.
-          path: |
-            dsh-plugin-desktop/dist/**/*.exe
-            dsh-plugin-desktop/dist/**/*.zip
-            dsh-plugin-desktop/dist/**/*.dmg
-            dsh-plugin-desktop/dist/**/*.AppImage
-            dsh-plugin-desktop/dist/**/*.deb
+          # Installer-level outputs only; unpacked app trees also contain .exe
+          # binaries that must never become release assets.
+          path: ${{ matrix.artifacts }}
           if-no-files-found: ignore
 
   publish:
