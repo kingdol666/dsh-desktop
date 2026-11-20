@@ -62,14 +62,14 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: polymechanism-${{ runner.os }}
-          # Each host produces a different subset (exe/zip on Windows, dmg on
-          # macOS, AppImage/deb on Linux); missing kinds are expected.
+          # Each host produces a different subset, and macOS writes its DMG under
+          # dist/mac-smoke/: match recursively and tolerate missing kinds.
           path: |
-            dsh-plugin-desktop/dist/*.exe
-            dsh-plugin-desktop/dist/*.zip
-            dsh-plugin-desktop/dist/*.dmg
-            dsh-plugin-desktop/dist/*.AppImage
-            dsh-plugin-desktop/dist/*.deb
+            dsh-plugin-desktop/dist/**/*.exe
+            dsh-plugin-desktop/dist/**/*.zip
+            dsh-plugin-desktop/dist/**/*.dmg
+            dsh-plugin-desktop/dist/**/*.AppImage
+            dsh-plugin-desktop/dist/**/*.deb
           if-no-files-found: ignore
 
   publish:
