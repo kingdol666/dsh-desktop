@@ -1,7 +1,7 @@
 {
   "version": 1,
   "createdAt": "2026-11-19T15:53:51.168Z",
-  "updatedAt": "2026-11-20T03:29:21.330Z",
+  "updatedAt": "2026-11-20T04:15:56.735Z",
   "briefPath": ".omc/ultragoal/brief.md",
   "goalsPath": ".omc/ultragoal/goals.json",
   "ledgerPath": ".omc/ultragoal/ledger.jsonl",
@@ -23,19 +23,25 @@
       "id": "G013",
       "title": "检索与下载工具族",
       "objective": "按 docs/polymechanism/11 §4:pm_literature_search(OpenAlex 主+Crossref 辅,Python 侧 litsearch.py)+pm_literature_download(OA 链→出版商直连模板→DOWNLOADED/OA_LINK_ONLY/CAMPUS_REQUIRED/MANUAL_REQUIRED 状态分类,workspace 围栏 targetPath,literature-manifest.jsonl,PDF magic+50MB+限速)+pm_literature_screen(独立复用);SSRF 守卫(http/https only,拒私有/保留/环回,重定向逐跳复验,不伪装 UA 绕付费墙);permissions 3 行+cordis.patch.yml preset persona+presets 镜像;单测(rubric 确定性+mock HTTP);09 文档 §2.9 契约",
-      "status": "pending",
-      "attempt": 0,
+      "status": "complete",
+      "attempt": 1,
       "createdAt": "2026-11-20T02:46:26.178Z",
-      "updatedAt": "2026-11-20T02:46:26.178Z"
+      "updatedAt": "2026-11-20T04:09:29.398Z",
+      "startedAt": "2026-11-20T04:09:28.000Z",
+      "completedAt": "2026-11-20T04:09:29.398Z",
+      "evidence": "PR#15 merged 26245893eb: pm_literature_search/screen/download (litsearch.py OpenAlex+Crossref+OA chain+polymer rubric+egress allowlist+SSRF/DNS/path guards+manifest); 44/44 vitest(+7); live search PVA paper 72pts core ranked #1; live download arXiv DOWNLOADED/paywall MANUAL_REQUIRED; verify:profile fixed 2 stale PR#11 assertions EXIT=0; verify:literature EXIT=0"
     },
     {
       "id": "G014",
       "title": "高分子筛选引擎",
       "objective": "按 docs/polymechanism/11 §5:config/literature-profile.polymer.yml(期刊 Tier A/B/C+核心/扩展词库+OpenAlex topic 权重+年份窗+质量权重+判级阈值);litprofile.py 加载;rubric v1(期刊 35/主题 40/质量 15/可得性 10);literature-review SKILL 扩章(Agent 终审协议:accept/review/reject+理由);以 PVA 双轴拉伸课题 30-50 篇锚集校准 precision@10>=0.7",
-      "status": "pending",
-      "attempt": 0,
+      "status": "complete",
+      "attempt": 1,
       "createdAt": "2026-11-20T02:46:26.823Z",
-      "updatedAt": "2026-11-20T02:46:26.823Z"
+      "updatedAt": "2026-11-20T04:15:56.735Z",
+      "startedAt": "2026-11-20T04:15:56.000Z",
+      "completedAt": "2026-11-20T04:15:56.735Z",
+      "evidence": "PR#16 merged 1175749e99: config/literature-profile.polymer.yml + litprofile.py (YAML load, fallback to built-ins) + config-driven litsearch scoring; literature-review SKILL v2 two-stage screening protocol (tool prescreen -> agent accept/review/reject with reasons, divergence=calibration clue); calibration honest small-N: domain queries relevance 8/10 9/10 6/10, off-domain control 0/10 false positives; 45/45 vitest; Vlit=0 Vprofile=0"
     },
     {
       "id": "G015",
