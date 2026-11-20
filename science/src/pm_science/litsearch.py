@@ -237,9 +237,13 @@ def oa_pdf_candidates(doi):
         if not isinstance(url, str) or not url.startswith(("http://", "https://")):
             return
         render = _pmc_render_url(url)
-        for value in (render, url):
-            if value and value not in candidates:
-                candidates.append(value)
+        if render is not None:
+            # A PMC landing page is HTML; only the render endpoint is a PDF.
+            if render not in candidates:
+                candidates.append(render)
+            return
+        if url not in candidates:
+            candidates.append(url)
 
     email = os.environ.get("UNPAYWALL_EMAIL") or MAILTO
     params = urllib.parse.urlencode({"email": email})
@@ -268,7 +272,25 @@ def oa_pdf_candidates(doi):
     except (UrlBlocked, urllib.error.URLError, json.JSONDecodeError):
         pass
 
-    return candidates
+    # Repository/PMC copies first: publisher edges often answer a Cloudflare
+    # challenge, so trying them first just burns time before the same OA copy.
+    publisher_hosts = frozenset({
+        "pubs.acs.org", "pubs.rsc.org", "onlinelibrary.wiley.com", "link.springer.com",
+        "www.sciencedirect.com", "www.mdpi.com", "www.tandfonline.com",
+        "iopscience.iop.org", "www.nature.com", "www.jstage.jst.go.jp",
+        "www.science.org", "www.pnas.org", "pubs.aip.org", "aip.scitation.org",
+        "ieeexplore.ieee.org",
+    })
+
+    def rank(url):
+        host = (urllib.parse.urlparse(url).hostname or "").lower()
+        if "europepmc.org" in host or "pmc.ncbi" in host or host.endswith("ebi.ac.uk"):
+            return 0
+        if host in publisher_hosts:
+            return 2
+        return 1
+
+    return sorted(candidates, key=rank)
 
 
 def crossref_pdf_urls(doi):
