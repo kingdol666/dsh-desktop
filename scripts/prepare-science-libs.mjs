@@ -17,10 +17,10 @@ import { fileURLToPath } from 'node:url'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const target = join(repoRoot, 'science', 'pylibs')
-const packages = ['numpy', 'scipy', 'pypdf']
+const packages = ['numpy', 'scipy', 'pypdf', 'PyYAML']
 
 function alreadyPrepared() {
-  return ['numpy', 'scipy', 'pypdf'].every(name => existsSync(join(target, name)))
+  return ['numpy', 'scipy', 'pypdf', 'yaml'].every(name => existsSync(join(target, name)))
 }
 
 function run(command, args) {

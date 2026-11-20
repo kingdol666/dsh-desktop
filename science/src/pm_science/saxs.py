@@ -8,6 +8,66 @@ from numpy.typing import NDArray
 FloatArray = NDArray[np.float64]
 
 
+def _guinier_fit(q: FloatArray, ln_i: FloatArray, max_qr: float) -> dict[str, object]:
+    """Fit the Guinier region self-consistently in ln I vs q².
+
+    The Guinier law is ln I = ln I(0) − Rg²q²/3, so the regression variable is
+    q², not q. A power-law regression on ln q would return a meaningless
+    "Rg" (it estimates the Porod/fractal exponent instead). The window grows
+    until q·Rg reaches ``max_qr``, iterating because the cap depends on Rg.
+    """
+    if q.size < 5:
+        return {"status": "NO_FIT", "reason": "fewer than 5 positive-q points"}
+    slope, intercept = np.polyfit(q[:5] ** 2, ln_i[:5], 1)
+    if slope >= 0:
+        return {"status": "NO_FIT", "reason": "ln I vs q² has non-negative slope"}
+    rg = float(np.sqrt(-3.0 * slope))
+    mask = q <= max_qr / rg
+    iterations = 0
+    for _ in range(20):
+        iterations += 1
+        if not np.isfinite(rg) or rg <= 1.5:
+            return {"status": "NO_FIT", "reason": f"unphysical Rg={rg:.3f} Å"}
+        mask = q <= max_qr / rg
+        if int(mask.sum()) < 5:
+            return {"status": "NO_FIT", "reason": "fewer than 5 points inside q·Rg cap"}
+        slope, intercept = np.polyfit(q[mask] ** 2, ln_i[mask], 1)
+        if slope >= 0:
+            return {"status": "NO_FIT", "reason": "ln I vs q² has non-negative slope"}
+        nxt = float(np.sqrt(-3.0 * slope))
+        if abs(nxt - rg) <= 1e-3:
+            rg = nxt
+            break
+        rg = nxt
+    fitted = intercept + slope * q[mask] ** 2
+    rmse = float(np.sqrt(np.mean((ln_i[mask] - fitted) ** 2)))
+    qr = q[mask] * rg
+    qr_max = float(qr[-1])
+    if qr_max < 0.5:
+        return {
+            "status": "NO_FIT",
+            "reason": f"q·Rg only reaches {qr_max:.3f}; no Guinier curvature in the measured window",
+            "rg": round(rg, 3),
+            "qRgRange": [float(qr[0]), qr_max],
+        }
+    if rmse > 0.08:
+        return {
+            "status": "NO_FIT",
+            "reason": f"Guinier residual rmse={rmse:.4f} is too large for a linear ln I vs q² region",
+            "rg": round(rg, 3),
+            "qRgRange": [float(qr[0]), qr_max],
+        }
+    return {
+        "status": "CONVERGED",
+        "rg": round(rg, 3),
+        "rmse": rmse,
+        "fitRange": [float(q[mask][0]), float(q[mask][-1])],
+        "qRgRange": [float(qr[0]), qr_max],
+        "points": int(mask.sum()),
+        "iterations": iterations,
+    }
+
+
 def saxs_reduce(
     q: FloatArray,
     intensity: FloatArray,
@@ -37,27 +97,9 @@ def saxs_reduce(
         return {"status": "NO_SIGNAL", "points": int(keep.sum())}
 
     # Guinier: scan the low-q window for the best exponential fit with q·Rg cap.
-    best: dict[str, object] | None = None
     ln_i = np.log(subtracted[keep])
     qk = qx[keep]
-    ln_q = np.log(qk)
-    for window in range(5, min(len(qk) + 1, 25)):
-        slope, intercept = np.polyfit(ln_q[:window], ln_i[:window], 1)
-        if slope >= 0:
-            continue
-        rg_squared = -3.0 * slope
-        rg = float(np.sqrt(rg_squared)) if rg_squared > 0 else 0.0
-        if rg <= 0 or qk[window - 1] * rg > guinier_max_qr:
-            continue
-        fitted = intercept + slope * ln_q[:window]
-        rmse = float(np.sqrt(np.mean((ln_i[:window] - fitted) ** 2)))
-        if best is None or rmse < float(best["rmse"]):
-            best = {
-                "rmse": rmse,
-                "rg": round(rg, 3),
-                "fitRange": [float(qk[0]), float(qk[window - 1])],
-            }
-    guinier = best if best is not None else {"rg": None, "note": "no valid Guinier window"}
+    guinier = _guinier_fit(qk, ln_i, guinier_max_qr)
 
     # Porod: power-law slope in the high-q window.
     window_mask = qx >= porod_q_min * (qx.max() - qx.min()) + qx.min()

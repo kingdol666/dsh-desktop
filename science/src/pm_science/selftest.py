@@ -101,6 +101,17 @@ def main() -> int:
         and -4.0 < slope < -2.0
     )
 
+    # 4b) Guinier regression must use q² (not ln q) and recover a known Rg.
+    qg = np.linspace(0.002, 0.05, 120)
+    rg_true = 120.0  # Å
+    ig = 50.0 * np.exp(-(qg**2) * (rg_true**2) / 3.0) + 1e-9
+    guinier = saxs_reduce(qg, ig)["guinier"]
+    checks["saxs_guinier_rg_recovered"] = (
+        guinier.get("status") == "CONVERGED"
+        and isinstance(guinier.get("rg"), float)
+        and abs(float(guinier["rg"]) - rg_true) / rg_true < 0.1
+    )
+
     # 5) KWW recovery: τ=40s, β=0.6 → recovered within tolerance.
     t = np.linspace(1.0, 200.0, 120)
     sig = 100.0 * np.exp(-np.power(t / 40.0, 0.6))
