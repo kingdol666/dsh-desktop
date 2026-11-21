@@ -1,0 +1,3 @@
+2026-11-21 ralph run
+US-001..US-005 complete: app+session 561317d7, PR-16-30b7 evidence chain 15 verified, PLOS source paper 10.1371/journal.pone.0344790 added (Zotero 27PQQMUY + KB), comparison+verdicts+agent rubric in acceptance doc 2026-11-21-waxs-ftir-comparison-agent-eval.md
+learnings: scientist preset lacks pm_evidence_record (used literature_extract path); PE needs native 1733/1462 windows; reference datasets need _truth.json provenance

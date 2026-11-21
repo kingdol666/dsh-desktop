@@ -1,0 +1,53 @@
+{
+ "task": "启动项目 → 真实 WAXS+FTIR 数据处理 → 与文献处理结果对比合理性判定 → 专家智能体任务测评",
+ "createdAt": "2026-11-21T13:20:00+08:00",
+ "stories": [
+  {
+   "id": "US-001",
+   "title": "项目启动与工具面确认",
+   "passes": true,
+   "acceptanceCriteria": [
+    "win-unpacked 生产实例进程在运行且 CDP 9333 页面可加载",
+    "会话 UI 中可用工具面包含 pm_waxs_analyze 与 pm_ftir_analyze（由真实模型调用结果佐证）"
+   ]
+  },
+  {
+   "id": "US-002",
+   "title": "WAXS 真实数据处理与文献对比",
+   "passes": true,
+   "acceptanceCriteria": [
+    "对 data/waxs_nail_real.csv 与 data/waxs_pva_reference.csv 各至少 2 个模型规格调用 pm_waxs_analyze 并原样记录 Xc/峰位/r²/rmse",
+    "给出与文献/已知真值的定量对比表（角蛋白文献范围、PVA 合成真值、WAXD 分解方法学）",
+    "给出'处理是否合理'的判定与依据，含模型依赖与不可辨识性讨论"
+   ]
+  },
+  {
+   "id": "US-003",
+   "title": "FTIR 真实数据处理与文献对比",
+   "passes": true,
+   "acceptanceCriteria": [
+    "对 data/ftir_pe_film_real.csv 与 data/ftir_pva_reference.csv 调用 pm_ftir_analyze 并原样记录氢键/羰基指数与拟合质量",
+    "PE 老化羰基指数随时间趋势与源数据集论文口径对比（Zenodo 14417456 相关论文口径）",
+    "给出'处理是否合理'的判定，明确域适配限制（PVA 专属指数 vs PE）"
+   ]
+  },
+  {
+   "id": "US-004",
+   "title": "专家智能体任务测评",
+   "passes": true,
+   "acceptanceCriteria": [
+    "给出 ≥6 个维度的评分表（工具正确性/数值诚实性/文献接地/机理质量/实验设计/门控遵守），每维有会话证据指针",
+    "明确列出失败与边界（不掩盖），并给出总体等级判定"
+   ]
+  },
+  {
+   "id": "US-005",
+   "title": "报告落盘与提交",
+   "passes": true,
+   "acceptanceCriteria": [
+    "验收文档写入 docs/polymechanism/acceptance/ 并提交推送",
+    "原始会话报告落盘到工作区 reports/"
+   ]
+  }
+ ]
+}
