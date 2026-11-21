@@ -71,7 +71,8 @@ vi.mock('../src/diagnostic-export.ts', () => ({
 }))
 
 
-vi.mock('../src/update-download.ts', () => ({
+vi.mock('../src/update-download.ts', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/update-download.ts')>(),
   desktopUpdateFilename: updater.filename,
   downloadDesktopUpdate: updater.download,
   pendingDesktopUpdateArtifact: updater.pending,

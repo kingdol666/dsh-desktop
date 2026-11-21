@@ -16,6 +16,7 @@ import {
   type DesktopReleaseChannel,
   type DesktopReleaseAsset,
 } from './update-checker.ts'
+import { isGitHubApiHost, isGitHubAssetHost, parsePublicHttpsUrl } from './update-hosts.ts'
 
 /** Desktop platforms with a fixed installer download endpoint. */
 export type DesktopDownloadPlatform = 'darwin' | 'win32'
@@ -258,19 +259,24 @@ export async function resolveDesktopInstallerUrl(options: {
   const version = validatedVersion(options.version, channel)
   throwIfAborted(options.signal)
   let response: Response
+  let settledFinalUrl: string
   try {
     const settled = await options.request(DESKTOP_VERSION_ENDPOINT, {
       method: 'GET',
       headers: desktopVersionRequestHeaders(undefined, version, channel),
       cache: 'no-store',
-      redirect: 'error',
+      // Follow the 301 GitHub emits after a repository rename, then require
+      // the settled URL to remain on GitHub's public API host.
+      redirect: 'follow',
       ...(options.signal === undefined ? {} : { signal: options.signal }),
     })
     response = settled.response
+    settledFinalUrl = settled.finalUrl
   } catch (cause) {
     if (options.signal?.aborted === true || isAbortFailure(cause)) throw aborted(cause)
     throw new UpdateDownloadError('network', 'The update release list could not be loaded.', { cause })
   }
+  assertGitHubApiSettledUrl(settledFinalUrl)
   if (response.status !== 200) {
     await discardResponseBody(response)
     throw new UpdateDownloadError(
@@ -294,8 +300,19 @@ export async function resolveDesktopInstallerUrl(options: {
   if (asset === undefined) {
     throw new UpdateDownloadError('asset-not-found', `Release ${version} publishes no ${platform} installer asset.`)
   }
-  assertSecureDownloadUrl(asset.url)
+  const assetUrl = parsePublicHttpsUrl(asset.url)
+  if (assetUrl === null || !isGitHubAssetHost(assetUrl.hostname)) {
+    throw new UpdateDownloadError('redirect-origin', 'The release asset URL is not a public GitHub download URL.')
+  }
   return asset
+}
+
+/** Require the settled releases-list request to stay on GitHub's public API host. */
+function assertGitHubApiSettledUrl(finalUrl: string): void {
+  const parsed = parsePublicHttpsUrl(finalUrl)
+  if (parsed === null || !isGitHubApiHost(parsed.hostname)) {
+    throw new UpdateDownloadError('redirect-origin', 'The update release list did not settle on the GitHub API host.')
+  }
 }
 
 /** Read a bounded UTF-8 body from one artifact-transport response. */
@@ -545,16 +562,15 @@ function assertDeclaredSize(response: Response): void {
   }
 }
 
-/** Require a usable HTTPS URL even when an update channel permits external artifact hosts. */
+/**
+ * Require the settled URL to be public HTTPS. Rejects embedded credentials,
+ * non-default ports, localhost, and loopback/private/reserved IP literals so a
+ * compromised redirect cannot point the downloader at an internal service.
+ */
 export function assertSecureDownloadUrl(finalUrl: string): URL {
-  let parsed: URL
-  try {
-    parsed = new URL(finalUrl)
-  } catch {
-    throw new UpdateDownloadError('redirect-origin', 'The update download transport reported no usable final URL.')
-  }
-  if (parsed.protocol !== 'https:' || parsed.username || parsed.password || parsed.port && parsed.port !== '443') {
-    throw new UpdateDownloadError('redirect-origin', 'The update download must settle on HTTPS.')
+  const parsed = parsePublicHttpsUrl(finalUrl)
+  if (parsed === null) {
+    throw new UpdateDownloadError('redirect-origin', 'The update download must settle on a public HTTPS URL.')
   }
   return parsed
 }

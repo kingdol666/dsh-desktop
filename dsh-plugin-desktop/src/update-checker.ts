@@ -5,6 +5,7 @@ import {
   DESKTOP_INSTALLATION_ID_HEADER,
   type DesktopInstallationId,
 } from './desktop-installation-id.ts'
+import { isGitHubApiHost, parsePublicHttpsUrl } from './update-hosts.ts'
 
 /**
  * GitHub Releases list for this fork. The newest non-draft release whose tag
@@ -187,7 +188,9 @@ export async function checkForDesktopUpdate(
     method: 'GET',
     headers,
     cache: 'no-store',
-    redirect: 'error',
+    // A renamed GitHub repository answers the old API path with 301 to
+    // `/repositories/<id>/...`; follow it, then pin the settled URL below.
+    redirect: 'follow',
     ...(options.signal === undefined ? {} : { signal: options.signal }),
   }
   const request = options.request ?? defaultRequest
@@ -199,6 +202,13 @@ export async function checkForDesktopUpdate(
     return null
   }
   if (response.status !== 200) return null
+  // `Response.url` is the settled URL after redirects (Node/undici and
+  // Electron net.fetch). When present it must stay on GitHub's public API
+  // host so a tampered redirect cannot exfiltrate the installation ID.
+  if (response.url !== '') {
+    const finalUrl = parsePublicHttpsUrl(response.url)
+    if (finalUrl === null || !isGitHubApiHost(finalUrl.hostname)) return null
+  }
 
   let body: string
   try {

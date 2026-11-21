@@ -9,10 +9,12 @@ import {
   DESKTOP_TARGET_VERSION_HEADER,
   MAX_UPDATE_DOWNLOAD_BYTES,
   UpdateDownloadError,
+  assertSecureDownloadUrl,
   desktopUpdateFilename,
   downloadDesktopUpdate,
   pendingDesktopUpdateArtifact,
   recordDesktopUpdateArtifact,
+  resolveDesktopInstallerUrl,
   resolveDesktopUpdateArtifact,
   type DesktopDownloadPlatform,
   type UpdateArtifactRequest,
@@ -531,3 +533,80 @@ it('downloads Next with a pinned release, a distinct filename and byte progress'
   expect(headers.get(DESKTOP_RELEASE_CHANNEL_HEADER)).toBe('next');
   expect(headers.get(DESKTOP_TARGET_VERSION_HEADER)).toBe('2.0.14-next');
 });
+
+describe('GitHub install-asset resolution', () => {
+  function releaseList(finalUrl: string, assetUrl: string): UpdateArtifactResponse {
+    const response = Response.json([{
+      tag_name: 'v2.2.1',
+      draft: false,
+      prerelease: false,
+      html_url: 'https://github.com/kingdol666/polymechanism-studio/releases/tag/v2.2.1',
+      assets: [{
+        name: 'PolyMechanism-Studio-2.2.1-x64-Setup.exe',
+        browser_download_url: assetUrl,
+        size: 1024 * 1024,
+        digest: `sha256:${'a'.repeat(64)}`,
+      }],
+    }])
+    return { response, finalUrl }
+  }
+
+  it('resolves the Windows asset of a renamed repository through the API redirect', async () => {
+    const assetUrl = 'https://github.com/kingdol666/polymechanism-studio/releases/download/v2.2.1/PolyMechanism-Studio-2.2.1-x64-Setup.exe'
+    await expect(resolveDesktopInstallerUrl({
+      platform: 'win32',
+      version: '2.2.1',
+      request: async () => releaseList('https://api.github.com/repositories/123456789/releases', assetUrl),
+    })).resolves.toMatchObject({
+      url: assetUrl,
+      sha256: 'a'.repeat(64),
+    })
+  })
+
+  it('rejects an asset URL that is not hosted by GitHub', async () => {
+    await expectFailure(resolveDesktopInstallerUrl({
+      platform: 'win32',
+      version: '2.2.1',
+      request: async () => releaseList(
+        'https://api.github.com/repos/kingdol666/polymechanism-studio/releases',
+        'https://evil.example/installer.exe',
+      ),
+    }), 'redirect-origin')
+  })
+
+  it('rejects a releases request that settles outside the GitHub API host', async () => {
+    await expectFailure(resolveDesktopInstallerUrl({
+      platform: 'win32',
+      version: '2.2.1',
+      request: async () => releaseList(
+        'https://evil.example/repositories/123456789/releases',
+        'https://github.com/kingdol666/polymechanism-studio/releases/download/v2.2.1/setup.exe',
+      ),
+    }), 'redirect-origin')
+  })
+})
+
+describe('public host gate', () => {
+  it.each([
+    'https://release-assets.githubusercontent.com/github-production-release-asset/1/file.exe',
+    'https://github.com/owner/repo/releases/download/v2.2.1/setup.exe',
+    'https://www.dshdesktop.cn/api/downloads/windows',
+  ])('accepts public HTTPS host %s', url => {
+    expect(assertSecureDownloadUrl(url).hostname).toBe(new URL(url).hostname)
+  })
+
+  it.each([
+    ['localhost', 'https://localhost/installer.exe'],
+    ['a trailing-dot localhost', 'https://localhost./installer.exe'],
+    ['a loopback literal', 'https://127.0.0.1/installer.exe'],
+    ['the metadata service', 'https://169.254.169.254/latest/meta-data'],
+    ['a private range', 'https://10.1.2.3/installer.exe'],
+    ['a unique-local IPv6 literal', 'https://[fd00::1]/installer.exe'],
+    ['an IPv4-mapped loopback', 'https://[::ffff:127.0.0.1]/installer.exe'],
+    ['an internal DNS suffix', 'https://registry.internal/installer.exe'],
+  ])('rejects %s', (_label, url) => {
+    expect(() => assertSecureDownloadUrl(url)).toThrowError(
+      expect.objectContaining({ code: 'redirect-origin' }),
+    )
+  })
+})

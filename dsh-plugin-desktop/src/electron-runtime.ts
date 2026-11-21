@@ -55,6 +55,7 @@ import {
   rendererRecoveryCopy,
 } from './tray-locale.ts'
 import {
+  assertSecureDownloadUrl,
   desktopUpdateFilename,
   downloadDesktopUpdate,
   pendingDesktopUpdateArtifact,
@@ -113,6 +114,12 @@ const NULL_BODY_STATUSES = new Set([204, 205, 304])
  */
 export function requestDesktopArtifact(url: string, init: RequestInit): Promise<UpdateArtifactResponse> {
   return new Promise((resolve, reject) => {
+    try {
+      assertSecureDownloadUrl(url)
+    } catch (cause) {
+      reject(cause)
+      return
+    }
     const request = net.request({ url, method: 'GET', redirect: 'manual' })
     let finalUrl = url
     let settled = false
@@ -121,6 +128,18 @@ export function requestDesktopArtifact(url: string, init: RequestInit): Promise<
     headers.set('cache-control', 'no-cache')
     headers.forEach((value, key) => { request.setHeader(key, value) })
     request.on('redirect', (_status, _method, redirectUrl) => {
+      try {
+        // Every hop must remain public HTTPS; a redirect handler that throws
+        // synchronously would escape this Promise and crash the main process.
+        assertSecureDownloadUrl(redirectUrl)
+      } catch (cause) {
+        if (!settled) {
+          settled = true
+          request.abort()
+          reject(cause)
+        }
+        return
+      }
       finalUrl = redirectUrl
       request.followRedirect()
     })

@@ -14,8 +14,6 @@ const stable = DESKTOP_RELEASE_IDENTITIES.stable
 const beta = DESKTOP_RELEASE_IDENTITIES.beta
 const userHome = process.platform === 'win32' ? 'C:\Users\tester' : '/home/tester'
 const stableHome = resolve(join(userHome, '.pmstudio'))
-/** Pre-rename Stable home; now only a migration source and Beta's shared home. */
-const legacyShared = resolve(join(userHome, '.dsh'))
 const betaHome = resolve(join(userHome, '.dsh-beta'))
 const inUse = (...paths: string[]) => (path: string) => paths.includes(path)
 const none = () => false

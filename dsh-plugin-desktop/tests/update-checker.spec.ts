@@ -174,7 +174,7 @@ describe('GitHub Desktop version check', () => {
     expect(calls[0]?.init).toMatchObject({
       method: 'GET',
       cache: 'no-store',
-      redirect: 'error',
+      redirect: 'follow',
       signal: controller.signal,
     })
     const headers = new Headers(calls[0]?.init.headers)
@@ -355,6 +355,32 @@ describe('GitHub Desktop version check', () => {
 
     await expect(checkForStableUpdate({ currentVersion, request })).resolves.toBeNull()
     expect(request).not.toHaveBeenCalled()
+  })
+
+  it('accepts the ID-based API redirect a renamed repository answers with', async () => {
+    const response = releasesResponse([releaseEntry('v2.10.0')])
+    Object.defineProperty(response, 'url', {
+      value: 'https://api.github.com/repositories/123456789/releases?per_page=15',
+    })
+
+    await expect(checkForStableUpdate({
+      currentVersion: '2.9.9',
+      request: async () => response,
+    })).resolves.toMatchObject({ status: 'update-available', latestVersion: '2.10.0' })
+  })
+
+  it.each([
+    ['an off-GitHub host', 'https://evil.example/repositories/123456789/releases'],
+    ['an insecure API URL', 'http://api.github.com/repositories/123456789/releases'],
+    ['a private address', 'https://127.0.0.1/repositories/123456789/releases'],
+  ])('rejects a version response that settles on %s', async (_label, url) => {
+    const response = releasesResponse([releaseEntry('v2.10.0')])
+    Object.defineProperty(response, 'url', { value: url })
+
+    await expect(checkForStableUpdate({
+      currentVersion: '2.9.9',
+      request: async () => response,
+    })).resolves.toBeNull()
   })
 })
 
