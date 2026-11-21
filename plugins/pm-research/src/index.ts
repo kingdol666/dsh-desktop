@@ -213,5 +213,6 @@ export function registeredTools(): readonly string[] {
     'pm_literature_search',
     'pm_literature_screen',
     'pm_literature_download',
+    'pm_experiment_plan',
   ]
 }

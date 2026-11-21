@@ -63,6 +63,15 @@ EGRESS_HOST_ALLOWLIST = frozenset({
     "www.ncbi.nlm.nih.gov",
     "eprints.whiterose.ac.uk",
     "zenodo.org",
+    # Institutional repositories surfaced by Unpaywall/OpenAlex for green OA.
+    "www.repository.cam.ac.uk",
+    "addi.ehu.eus",
+    "journals.iucr.org",
+    "hal.science",
+    "lirias.kuleuven.be",
+    "urn.kb.se",
+    "hdl.handle.net",
+    "doaj.org",
 })
 
 ANTI_BOT_MARKS = (

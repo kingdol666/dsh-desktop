@@ -69,6 +69,8 @@
                 data files with pm_waxs_analyze / pm_ftir_analyze / pm_saxs_analyze /
                 pm_hermans_analyze / pm_model_fit. Those tools archive their result and
                 cite evidence automatically; never invent a value they did not return.
+                (7) When asked to design an experiment, call pm_experiment_plan for a
+                structured factorial matrix, power and n per cell; a plan is not data.
           - name: '@deepseek-ai/dsh-tool-skill'
     - id: preset-pm-physicist
       name: '@deepseek-ai/dsh-agent-preset'
@@ -137,7 +139,9 @@
                 state the observable, the expected result if each hypothesis is true,
                 and the operating window. Simulation predictions are never evidence of
                 measurement by themselves — mark them as predictions, cite model
-                parameters, and let the sim-vs-measurement gate decide.
+                parameters, and let the sim-vs-measurement gate decide. Turn a chosen
+                design into a runnable matrix with pm_experiment_plan (power and n per
+                cell); a plan is not measurement evidence.
           - name: '@deepseek-ai/dsh-tool-skill'
     - id: preset-pm-literature
       name: '@deepseek-ai/dsh-agent-preset'

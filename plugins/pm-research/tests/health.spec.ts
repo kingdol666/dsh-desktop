@@ -37,9 +37,10 @@ describe('pm health surface', () => {
   it('reports every registered tool exactly once', () => {
     const tools = registeredTools()
     expect(new Set(tools).size).toBe(tools.length)
-    expect(tools).toHaveLength(32)
+    expect(tools).toHaveLength(33)
     expect(tools).toContain('pm_sim_rubber_elasticity')
     expect(tools).toContain('pm_knowledge_review')
+    expect(tools).toContain('pm_experiment_plan')
   })
 
   it('serves JSON with no-store caching and nosniff protection', () => {

@@ -164,6 +164,14 @@ pm_model_fit
                 model:{type:'string',enum:['maxwell','kww'],required:true} }
   // 服务端调用 science engine；结果归档并自动登记证据（record 默认 true）
   returns: { analysis:{params,fit:{rmse,r2},halfTime}, evidence, artifactPath }
+
+pm_experiment_plan
+  parameters: { factors:[{name, levels:[...], unit?}], response:{name, effectSize, sigma, unit?},
+                alpha?:number, power?:number, replicates?:number, blocking?:string[], seed?:number }
+  // 全因子矩阵 + 每组样本量（正态近似功效公式）+ 随机化顺序 + block 提示
+  returns: { cells, sampleSize:{nPerCell, recommended, standardizedEffect}, totalRuns,
+             designMatrixPreview[], randomization:{seed, orderPreview[]}, blocking, warnings[] }
+  // 这是设计计划，不是实验数据；不得当作测量证据
 ```
 
 ### 2.6 知识（RSI）
