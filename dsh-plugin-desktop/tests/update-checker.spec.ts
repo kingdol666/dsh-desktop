@@ -23,7 +23,7 @@ import {
 } from '../src/desktop-installation-id.ts'
 
 const INSTALLATION_ID = assertDesktopInstallationId('01234567-89ab-4cde-8f01-23456789abcd')
-const RELEASE_PAGE = 'https://github.com/kingdol666/dsh-desktop/releases/tag'
+const RELEASE_PAGE = 'https://github.com/kingdol666/polymechanism-studio/releases/tag'
 
 function assetUrl(tag: string, name: string): string {
   return `https://github.com/${DESKTOP_GITHUB_OWNER}/${DESKTOP_GITHUB_REPO}/releases/download/${tag}/${name}`

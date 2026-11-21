@@ -34,7 +34,7 @@
 
 ## 当前状态
 
-- ✅ Fork：`kingdol666/dsh-desktop`（上游 MIT）
+- ✅ Fork：`kingdol666/polymechanism-studio`（上游 MIT）
 - ✅ Stable 桌面包品牌改造完成并**实机启动验证**（窗口标题 PolyMechanism Studio、advanced 模式、上游 UI 与既有数据完好）
 - ✅ `AGENT.md` 开发规范（含前端风格约束）与读取链
 - ✅ 调研完成：345 官方包能力盘点 + 6,245 插件目录筛选 + 逐个 GitHub 核实

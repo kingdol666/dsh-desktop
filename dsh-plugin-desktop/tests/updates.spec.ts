@@ -35,7 +35,7 @@ function versionResponse(
   if (digests.windows !== undefined) {
     assets.push({
       name: 'PolyMechanism-Studio-2.1.0-x64-Setup.exe',
-      browser_download_url: 'https://github.com/kingdol666/dsh-desktop/releases/download/v2.1.0/PolyMechanism-Studio-2.1.0-x64-Setup.exe',
+      browser_download_url: 'https://github.com/kingdol666/polymechanism-studio/releases/download/v2.1.0/PolyMechanism-Studio-2.1.0-x64-Setup.exe',
       size: 1024,
       digest: `sha256:${digests.windows}`,
     })
@@ -43,7 +43,7 @@ function versionResponse(
   if (digests.mac !== undefined) {
     assets.push({
       name: 'PolyMechanism-Studio-2.1.0-mac.dmg',
-      browser_download_url: 'https://github.com/kingdol666/dsh-desktop/releases/download/v2.1.0/PolyMechanism-Studio-2.1.0-mac.dmg',
+      browser_download_url: 'https://github.com/kingdol666/polymechanism-studio/releases/download/v2.1.0/PolyMechanism-Studio-2.1.0-mac.dmg',
       size: 1024,
       digest: `sha256:${digests.mac}`,
     })

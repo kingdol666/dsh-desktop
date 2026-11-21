@@ -13,7 +13,7 @@ import { isGitHubApiHost, parsePublicHttpsUrl } from './update-hosts.ts'
  * are the installer artifacts the download path consumes.
  */
 export const DESKTOP_GITHUB_OWNER = 'kingdol666'
-export const DESKTOP_GITHUB_REPO = 'dsh-desktop'
+export const DESKTOP_GITHUB_REPO = 'polymechanism-studio'
 export const DESKTOP_VERSION_ENDPOINT =
   `https://api.github.com/repos/${DESKTOP_GITHUB_OWNER}/${DESKTOP_GITHUB_REPO}/releases?per_page=15`
 

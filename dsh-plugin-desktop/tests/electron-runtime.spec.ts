@@ -19,7 +19,7 @@ const updater = vi.hoisted(() => ({
   resolve: vi.fn(),
   resolveInstaller: vi.fn(async () => ({
     name: 'PolyMechanism-Studio-2.1.0-x64-Setup.exe',
-    url: 'https://github.com/kingdol666/dsh-desktop/releases/download/v2.1.0/PolyMechanism-Studio-2.1.0-x64-Setup.exe',
+    url: 'https://github.com/kingdol666/polymechanism-studio/releases/download/v2.1.0/PolyMechanism-Studio-2.1.0-x64-Setup.exe',
   })),
 }))
 const childProcess = vi.hoisted(() => {
@@ -2705,7 +2705,7 @@ describe('Electron desktop runtime', () => {
       platform: 'darwin',
       version: '2.1.0',
       destinationPath: '/tmp/Downloads/PolyMechanism-Studio-2.1.0-mac.dmg',
-      downloadUrl: expect.stringMatching(/^https:\/\/github\.com\/kingdol666\/dsh-desktop\/releases\/download\//),
+      downloadUrl: expect.stringMatching(/^https:\/\/github\.com\/kingdol666\/polymechanism-studio\/releases\/download\//),
       request: expect.any(Function),
       signal: controller.signal,
     })
