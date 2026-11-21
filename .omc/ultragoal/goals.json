@@ -1,7 +1,7 @@
 {
   "version": 1,
   "createdAt": "2026-11-19T15:53:51.168Z",
-  "updatedAt": "2026-11-21T17:22:31.117Z",
+  "updatedAt": "2026-11-21T18:30:09.211Z",
   "briefPath": ".omc/ultragoal/brief.md",
   "goalsPath": ".omc/ultragoal/goals.json",
   "ledgerPath": ".omc/ultragoal/ledger.jsonl",
@@ -296,29 +296,38 @@
       "id": "G026-reporename-polymechanism-studio",
       "title": "RepoRename::仓库更名 polymechanism-studio",
       "objective": "GitHub 仓库 kingdol666/dsh-desktop 更名为 polymechanism-studio；同步 git remote、更新器常量、文档与仓库元数据",
-      "status": "pending",
-      "attempt": 0,
+      "status": "complete",
+      "attempt": 1,
       "createdAt": "2026-11-21T17:22:29.286Z",
-      "updatedAt": "2026-11-21T17:22:29.286Z"
+      "updatedAt": "2026-11-21T18:29:45.410Z",
+      "startedAt": "2026-11-21T18:28:00.000Z",
+      "completedAt": "2026-11-21T18:29:45.410Z",
+      "evidence": "gh repo rename kingdol666/dsh-desktop -> kingdol666/polymechanism-studio; origin set to new URL; old API 301 Location=https://api.github.com/repositories/1464220214/releases; description updated; docs/polymechanism/README.md + updater constants/tests switched in v2.2.2"
     },
     {
       "id": "G027-bridgerelease-2-2-1",
       "title": "BridgeRelease::2.2.1 重定向兼容桥接版",
       "objective": "更新器支持 GitHub 仓库改名后的 301 重定向(仅 https+api.github.com 同源)；版本 2.2.1 全量测试、构建、发布 Release",
-      "status": "pending",
-      "attempt": 0,
+      "status": "complete",
+      "attempt": 1,
       "createdAt": "2026-11-21T17:22:30.192Z",
-      "updatedAt": "2026-11-21T17:22:30.192Z"
+      "updatedAt": "2026-11-21T18:30:01.329Z",
+      "startedAt": "2026-11-21T18:28:00.000Z",
+      "completedAt": "2026-11-21T18:30:01.329Z",
+      "evidence": "v2.2.1 installer 364,309,383 bytes SHA-256 0a7cf7863d9c96ee0121ece72ba0bd2a26694aee0fdde268a799c30ee107d7cb; GitHub release digest matches; updater tests 97/97 + targeted 298/298 + typecheck clean; installed 2.2.0 real check/download/hash/install to 2.2.1"
     },
     {
       "id": "G028-updatee2e",
       "title": "UpdateE2E::已安装版真实检查+下载+升级",
       "objective": "已安装 2.2.0 从 GitHub 检查到 2.2.1、下载安装包、SHA-256 校验并升级；改名后再发 2.2.2 并验证跨仓库重定向更新",
-      "status": "pending",
-      "attempt": 0,
+      "status": "complete",
+      "attempt": 1,
       "createdAt": "2026-11-21T17:22:31.117Z",
-      "updatedAt": "2026-11-21T17:22:31.117Z"
+      "updatedAt": "2026-11-21T18:30:09.211Z",
+      "startedAt": "2026-11-21T18:28:00.000Z",
+      "completedAt": "2026-11-21T18:30:09.211Z",
+      "evidence": "2.2.0 check->2.2.1 download 364,309,383 SHA match->install; post-rename 2.2.1 check via old-endpoint 301 returned up-to-date; 2.2.1 check->2.2.2 download 364,313,447 SHA f4125ff7b50fa81648a7751c1934d4d14fb29b35c6da8ca4ec1d61cecb37d44c match->install; registry+page 2.2.2; installed bundle endpoint new repo; direct check up-to-date; acceptance doc 2026-11-22-repo-rename-github-update-e2e.md; docs/polymechanism/acceptance/2026-11-22-repo-rename-github-update-e2e.md"
     }
   ],
-  "claudeObjective": "Complete all ultragoal stories in .omc/ultragoal/goals.json: G001-m0 M0 复用底座可运行; G002 领域模型与证据账本; G003 工具权限框架与两个专家; G004-rsi 机理图谱与知识 RSI; G005-science-engine Science Engine; G006-skills 六专家与 Skills; G007-dockview Dockview 工作台核心; G008 科研面板全套; G009 交互打磨与视觉验收; G010 首个真实案例端到端; G011 打包与文档; G012 插件集成与契约冒烟; G013 检索与下载工具族; G014 高分子筛选引擎; G015 文献闭环端到端"
+  "claudeObjective": "Complete all ultragoal stories in .omc/ultragoal/goals.json: G026 repo rename to polymechanism-studio; G027 bridge release 2.2.1; G028 real installed-app update E2E"
 }
