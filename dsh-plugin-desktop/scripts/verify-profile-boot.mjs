@@ -276,7 +276,36 @@ try {
   if (!presetIds.includes('minimal') || !presetIds.includes('standard')) {
     throw new Error(`assembled Windows profile exposes unexpected presets: ${presetIds.join(', ')}`)
   }
-  // The six prebuilt polymer experts must be selectable in every desktop profile.
+  // The six prebuilt polymer experts must be selectable in every desktop profile,
+  // and each isolated preset tree must mount the complete standard tool surface.
+  const presetCompositions = await agentPresets.compositionInventory()
+  const toolsService = ctx.get('tools')
+  if (toolsService === undefined) {
+    throw new Error('assembled desktop profile is missing the tool registry')
+  }
+  const standardScope = await agentPresets.acquireScope('standard')
+  let standardTools
+  try {
+    standardTools = new Set(toolsService.schemas(standardScope.key).map(tool => tool.name))
+  } finally {
+    await standardScope[Symbol.asyncDispose]()
+  }
+  const requiredPresetPlugins = [
+    '@deepseek-ai/dsh-persona',
+    '@deepseek-ai/dsh-agent-instructions',
+    '@deepseek-ai/dsh-tool-fs',
+    '@deepseek-ai/dsh-tool-fs-search',
+    '@deepseek-ai/dsh-tool-jobs',
+    '@deepseek-ai/dsh-tool-schedule',
+    '@deepseek-ai/dsh-skill-filesystem',
+    '@deepseek-ai/dsh-tool-skill',
+    '@deepseek-ai/dsh-plan-mode',
+    '@deepseek-ai/dsh-compaction-basic',
+    '@deepseek-ai/dsh-tool-subagent',
+    '@deepseek-ai/dsh-tool-todo',
+    '@deepseek-ai/dsh-tool-web',
+    '@deepseek-ai/dsh-tool-present',
+  ]
   for (const polymerPreset of [
     'polymer-scientist',
     'polymer-physicist',
@@ -287,6 +316,35 @@ try {
   ]) {
     if (!presetIds.includes(polymerPreset)) {
       throw new Error(`assembled desktop profile is missing the ${polymerPreset} expert preset`)
+    }
+    const composition = presetCompositions.find(entry => entry.id === polymerPreset)
+    if (composition === undefined || composition.broken !== undefined) {
+      throw new Error(`assembled desktop profile cannot compose ${polymerPreset}: ${composition?.broken ?? 'missing'}`)
+    }
+    const enabledModules = new Set(composition.rows
+      .filter(row => row.enabled !== false)
+      .map(row => row.moduleName))
+    for (const requiredPlugin of requiredPresetPlugins) {
+      if (!enabledModules.has(requiredPlugin)) {
+        throw new Error(`${polymerPreset} is missing the enabled plugin ${requiredPlugin}`)
+      }
+    }
+    if (!enabledModules.has(process.platform === 'win32'
+      ? '@deepseek-ai/dsh-tool-pwsh'
+      : '@deepseek-ai/dsh-tool-bash')) {
+      throw new Error(`${polymerPreset} exposes no shell plugin on ${process.platform}`)
+    }
+    const scope = await agentPresets.acquireScope(polymerPreset)
+    try {
+      const toolNames = new Set(toolsService.schemas(scope.key).map(tool => tool.name))
+      // The standard preset is the capability baseline: every polymer expert
+      // must expose the same tool calls, not a curated subset.
+      const missing = [...standardTools].filter(name => !toolNames.has(name)).sort()
+      if (missing.length > 0) {
+        throw new Error(`${polymerPreset} is missing standard tools: ${missing.join(', ')}`)
+      }
+    } finally {
+      await scope[Symbol.asyncDispose]()
     }
   }
   // Polymer methodology skills register asynchronously through pm-research.
