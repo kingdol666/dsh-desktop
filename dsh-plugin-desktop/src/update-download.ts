@@ -6,11 +6,15 @@ import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import {
   compareSemVerVersions,
+  desktopVersionRequestHeaders,
   DESKTOP_RELEASE_CHANNEL_HEADER,
-  parseSemVer,
-  parseCanonicalChannelVersion,
+  DESKTOP_VERSION_ENDPOINT,
   parseCanonicalUpdateVersion,
+  parseDesktopReleasesList,
+  parseCanonicalChannelVersion,
+  parseSemVer,
   type DesktopReleaseChannel,
+  type DesktopReleaseAsset,
 } from './update-checker.ts'
 
 /** Desktop platforms with a fixed installer download endpoint. */
@@ -31,6 +35,7 @@ export const MAX_UPDATE_DOWNLOAD_BYTES = 1024 * 1024 * 1024
 /** Failure categories exposed to the update coordinator. */
 export type UpdateDownloadErrorCode =
   | 'aborted'
+  | 'asset-not-found'
   | 'empty-body'
   | 'http-status'
   | 'invalid-artifact'
@@ -64,6 +69,12 @@ export interface DownloadDesktopUpdateOptions {
   readonly channel?: DesktopReleaseChannel
   /** Absolute installer path selected by the user. */
   readonly destinationPath: string
+  /**
+   * HTTPS installer URL to fetch (normally the GitHub release asset resolved
+   * by {@link resolveDesktopInstallerUrl}). Omitted callers fall back to the
+   * legacy fixed endpoint for their platform.
+   */
+  readonly downloadUrl?: string
   /** Redirect-following request adapter, normally backed by Electron `net.request`. */
   readonly request: UpdateArtifactRequest
   /** Optional cancellation signal owned by the update coordinator. */
@@ -138,6 +149,7 @@ export async function downloadDesktopUpdate(options: DownloadDesktopUpdateOption
   const platform = validatedPlatform(options.platform)
   const channel = options.channel ?? 'stable'
   validatedVersion(options.version, channel)
+  if (options.downloadUrl !== undefined) assertSecureDownloadUrl(options.downloadUrl)
   const destinationPath = validatedArtifactPath(options.destinationPath, platform)
   const expectedSha256 = normalizedExpectedDigest(options.expectedSha256)
   const paths = await prepareDownloadPaths(destinationPath)
@@ -146,7 +158,8 @@ export async function downloadDesktopUpdate(options: DownloadDesktopUpdateOption
   let response: Response
   let finalUrl: string
   try {
-    const settled = await options.request(DESKTOP_DOWNLOAD_URLS[platform], {
+    const requestUrl = options.downloadUrl ?? DESKTOP_DOWNLOAD_URLS[platform]
+    const settled = await options.request(requestUrl, {
       method: 'GET',
       headers: {
         [DESKTOP_RELEASE_CHANNEL_HEADER]: channel,
@@ -222,6 +235,91 @@ export function desktopUpdateFilename(
   const platformName = platform === 'darwin' ? 'mac' : 'windows'
   const product = parseCanonicalChannelVersion(version, 'next') !== null ? 'DSH-NEXT' : channel === 'beta' ? 'PolyMechanism-Studio-Beta' : 'PolyMechanism-Studio'
   return `${product}-${version}-${platformName}.${extension}`
+}
+
+/** Maximum accepted releases-list body when resolving one installer asset. */
+const MAX_RELEASES_LIST_BYTES = 1024 * 1024
+
+/**
+ * Resolve the GitHub release asset for one platform and version before download.
+ * @param options - platform, channel-canonical version, artifact transport, and cancellation.
+ * @returns the installer asset (browser URL and optional published SHA-256 digest).
+ * @throws {UpdateDownloadError} For transport failures, non-200 responses, malformed payloads, and missing releases or assets.
+ */
+export async function resolveDesktopInstallerUrl(options: {
+  readonly platform: DesktopDownloadPlatform
+  readonly version: string
+  readonly channel?: DesktopReleaseChannel
+  readonly request: UpdateArtifactRequest
+  readonly signal?: AbortSignal
+}): Promise<DesktopReleaseAsset> {
+  const platform = validatedPlatform(options.platform)
+  const channel = options.channel ?? 'stable'
+  const version = validatedVersion(options.version, channel)
+  throwIfAborted(options.signal)
+  let response: Response
+  try {
+    const settled = await options.request(DESKTOP_VERSION_ENDPOINT, {
+      method: 'GET',
+      headers: desktopVersionRequestHeaders(undefined, version, channel),
+      cache: 'no-store',
+      redirect: 'error',
+      ...(options.signal === undefined ? {} : { signal: options.signal }),
+    })
+    response = settled.response
+  } catch (cause) {
+    if (options.signal?.aborted === true || isAbortFailure(cause)) throw aborted(cause)
+    throw new UpdateDownloadError('network', 'The update release list could not be loaded.', { cause })
+  }
+  if (response.status !== 200) {
+    await discardResponseBody(response)
+    throw new UpdateDownloadError(
+      'http-status',
+      `The update release list returned HTTP ${String(response.status)}.`,
+      { status: response.status },
+    )
+  }
+  let payload: unknown
+  try {
+    payload = JSON.parse(await readBoundedText(response))
+  } catch (cause) {
+    await discardResponseBody(response).catch(() => undefined)
+    throw new UpdateDownloadError('invalid-artifact', 'The update release list was not valid JSON.', { cause })
+  }
+  const release = parseDesktopReleasesList(payload).find(entry => entry.version === version)
+  if (release === undefined) {
+    throw new UpdateDownloadError('asset-not-found', `No published release matches version ${version}.`)
+  }
+  const asset = release.assets[platform]
+  if (asset === undefined) {
+    throw new UpdateDownloadError('asset-not-found', `Release ${version} publishes no ${platform} installer asset.`)
+  }
+  assertSecureDownloadUrl(asset.url)
+  return asset
+}
+
+/** Read a bounded UTF-8 body from one artifact-transport response. */
+async function readBoundedText(response: Response): Promise<string> {
+  if (response.body === null) return ''
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder('utf-8', { fatal: true })
+  let bytesRead = 0
+  let body = ''
+  try {
+    while (true) {
+      const chunk = await reader.read()
+      if (chunk.done) break
+      bytesRead += chunk.value.byteLength
+      if (bytesRead > MAX_RELEASES_LIST_BYTES) {
+        await reader.cancel().catch(() => undefined)
+        throw new UpdateDownloadError('response-too-large', 'The update release list is too large.')
+      }
+      body += decoder.decode(chunk.value, { stream: true })
+    }
+    return body + decoder.decode()
+  } finally {
+    reader.releaseLock()
+  }
 }
 
 /** Remember a downloaded installer until an upgraded application resolves its retention. */

@@ -1,4 +1,4 @@
-/** Headless version checks against the public PolyMechanism Studio release service. */
+/** Headless version checks against the public GitHub Releases of the fork. */
 
 import {
   assertDesktopInstallationId,
@@ -7,12 +7,18 @@ import {
 } from './desktop-installation-id.ts'
 
 /**
- * Public endpoint returning the latest PolyMechanism Studio version for a
- * requested channel. The fork must host its own release service before
- * shipping auto-updates; until that service exists, checks fail gracefully
- * and the in-app updater stays inert.
+ * GitHub Releases list for this fork. The newest non-draft release whose tag
+ * parses as the channel's canonical SemVer is the latest version; its assets
+ * are the installer artifacts the download path consumes.
  */
-export const DESKTOP_VERSION_ENDPOINT = 'https://updates.polymechanism.dev/api/desktop/version'
+export const DESKTOP_GITHUB_OWNER = 'kingdol666'
+export const DESKTOP_GITHUB_REPO = 'dsh-desktop'
+export const DESKTOP_VERSION_ENDPOINT =
+  `https://api.github.com/repos/${DESKTOP_GITHUB_OWNER}/${DESKTOP_GITHUB_REPO}/releases?per_page=15`
+
+/** Headers GitHub's REST API expects on every release-list request. */
+export const DESKTOP_GITHUB_ACCEPT = 'application/vnd.github+json'
+export const DESKTOP_GITHUB_API_VERSION = '2022-11-28'
 
 /** Header carrying the installed Desktop version to the fixed version endpoint. */
 export const DESKTOP_CURRENT_VERSION_HEADER = 'X-DSH-Desktop-Version'
@@ -23,8 +29,39 @@ export const DESKTOP_RELEASE_CHANNEL_HEADER = 'X-DSH-Desktop-Channel'
 /** Release streams supported by the Desktop service. */
 export type DesktopReleaseChannel = 'stable' | 'beta' | 'next'
 
-/** Maximum response body bytes accepted from the version service. */
-export const MAX_VERSION_RESPONSE_BYTES = 4 * 1024
+/** Maximum response body bytes accepted from the releases-list endpoint. */
+export const MAX_VERSION_RESPONSE_BYTES = 1024 * 1024
+
+/** One downloadable installer artifact published on a GitHub release. */
+export interface DesktopReleaseAsset {
+  /** Asset file name as published (e.g. `PolyMechanism-Studio-2.2.0-x64-Setup.exe`). */
+  readonly name: string
+  /** Browser download URL (HTTPS, redirects to the release-assets CDN). */
+  readonly url: string
+  /** Declared asset size in bytes, when the API reports one. */
+  readonly size?: number
+  /** Hex SHA-256 when the API publishes an asset `digest` of the form `sha256:<hex>`. */
+  readonly sha256?: string
+}
+
+/** Per-platform installer assets resolved from one release. */
+export type DesktopInstallerAssets = Readonly<Partial<Record<'win32' | 'darwin', DesktopReleaseAsset>>>
+
+/** One parsed GitHub release entry relevant to Desktop update flows. */
+export interface DesktopRelease {
+  /** Canonical SemVer parsed from the release tag (leading `v` stripped). */
+  readonly version: string
+  /** Parsed tag components, reused for precedence comparisons. */
+  readonly parsed: ParsedSemVer
+  /** Whether the release is marked draft (never selectable). */
+  readonly draft: boolean
+  /** Whether the release is marked prerelease on GitHub. */
+  readonly prerelease: boolean
+  /** Release page URL (`html_url`), when GitHub reports an HTTPS page. */
+  readonly releaseUrl?: string
+  /** Installer assets for the Desktop download platforms. */
+  readonly assets: DesktopInstallerAssets
+}
 
 /** Strictly parsed SemVer components. Numeric components remain strings to avoid overflow. */
 export interface ParsedSemVer {
@@ -71,11 +108,17 @@ export type UpdateCheckResult = {
   readonly currentVersion: string
   /** Canonical latest stable version returned by the service. */
   readonly latestVersion: string
+  /** Release page URL for the selected release, when the API reports one. */
+  readonly releaseUrl?: string
+  /**
+   * Per-platform installer assets published on the selected release. The
+   * download path consumes the matching platform's `url` directly.
+   */
+  readonly installerAssets?: DesktopInstallerAssets
   /**
    * Optional per-platform hex SHA-256 digests of the published installers.
-   * Whenever the service publishes them, the download path enforces them as
-   * a hard integrity gate before execution; they are optional only because
-   * the version endpoint does not publish digests yet.
+   * Whenever the API publishes asset digests, the download path enforces them
+   * as a hard integrity gate before execution.
    */
   readonly installerSha256?: Readonly<Partial<Record<'win32' | 'darwin', string>>>
 }
@@ -120,7 +163,7 @@ export function compareSemVerVersions(left: string, right: string): number | nul
 }
 
 /**
- * Check the fixed PolyMechanism Studio version endpoint for a release in one channel.
+ * Check the fork's GitHub Releases for the latest release in one channel.
  * @param options - installed version, caller-owned signal, and optional request adapter.
  * @returns a successful comparison, or null when any request or validation step fails.
  */
@@ -164,23 +207,26 @@ export async function checkForDesktopUpdate(
     return null
   }
 
-  let digestInput: unknown
+  let payload: unknown
   try {
-    digestInput = JSON.parse(body)
+    payload = JSON.parse(body)
   } catch {
-    digestInput = undefined
+    return null
   }
-  const latest = parseVersionResponse(body, options.channel)
-  if (latest === null) return null
-  const comparison = compareParsedSemVer(latest, current)
-  const digests = parseInstallerDigestResponse(digestInput)
+  const releases = parseDesktopReleasesList(payload)
+  const selected = pickDesktopReleaseForChannel(releases, options.channel)
+  if (selected === null) return null
+  const comparison = compareParsedSemVer(selected.parsed, current)
+  const installerSha256 = releaseInstallerDigests(selected.assets)
   return {
     status: comparison > 0 || (options.allowDowngrade === true && comparison !== 0)
       ? 'update-available'
       : 'up-to-date',
     currentVersion: current.version,
-    latestVersion: latest.version,
-    ...(digests === undefined ? {} : { installerSha256: digests }),
+    latestVersion: selected.version,
+    ...(selected.releaseUrl === undefined ? {} : { releaseUrl: selected.releaseUrl }),
+    ...(Object.keys(selected.assets).length === 0 ? {} : { installerAssets: selected.assets }),
+    ...(installerSha256 === undefined ? {} : { installerSha256 }),
   }
 }
 
@@ -191,13 +237,16 @@ export function checkForStableUpdate(
   return checkForDesktopUpdate({ ...options, channel: 'stable' })
 }
 
-/** Build the complete header set for the fixed version-check request only. */
+/** Build the complete header set for the releases-list request only. */
 export function desktopVersionRequestHeaders(
   installationId?: string,
   currentVersion?: string,
   channel?: DesktopReleaseChannel,
 ): Readonly<Record<string, string>> {
-  const headers: Record<string, string> = { Accept: 'application/json' }
+  const headers: Record<string, string> = {
+    Accept: DESKTOP_GITHUB_ACCEPT,
+    'X-GitHub-Api-Version': DESKTOP_GITHUB_API_VERSION,
+  }
   if (channel !== undefined) headers[DESKTOP_RELEASE_CHANNEL_HEADER] = channel
   if (currentVersion !== undefined) {
     const parsed = channel === undefined
@@ -250,17 +299,87 @@ async function readLimitedBody(response: Response): Promise<string> {
   }
 }
 
-function parseVersionResponse(body: string, expectedChannel: DesktopReleaseChannel): ParsedSemVer | null {
-  let value: unknown
-  try {
-    value = JSON.parse(body)
-  } catch {
-    return null
+/**
+ * Parse the GitHub releases-list payload into Desktop-relevant entries.
+ * Draft releases are skipped; the API's newest-first ordering is preserved.
+ * @param payload - parsed JSON body of the releases endpoint.
+ * @returns releases with canonical SemVer tags and Desktop installer assets.
+ */
+export function parseDesktopReleasesList(payload: unknown): readonly DesktopRelease[] {
+  if (!Array.isArray(payload)) return []
+  const releases: DesktopRelease[] = []
+  for (const entry of payload) {
+    if (!isRecord(entry)) continue
+    if (entry.draft === true) continue
+    const parsed = parseSemVer(typeof entry.tag_name === 'string' ? entry.tag_name : '')
+    if (parsed === null) continue
+    const releaseUrl = typeof entry.html_url === 'string' && entry.html_url.startsWith('https://')
+      ? entry.html_url
+      : undefined
+    releases.push({
+      version: parsed.version,
+      parsed,
+      draft: false,
+      prerelease: entry.prerelease === true,
+      ...(releaseUrl === undefined ? {} : { releaseUrl }),
+      assets: parseReleaseAssets(entry.assets),
+    })
   }
-  if (!isRecord(value) || typeof value.version !== 'string') return null
-  if (expectedChannel !== 'stable' && value.channel !== expectedChannel) return null
-  if (value.channel !== undefined && value.channel !== expectedChannel) return null
-  return parseCanonicalUpdateVersion(value.version, expectedChannel)
+  return releases
+}
+
+function parseReleaseAssets(value: unknown): DesktopInstallerAssets {
+  if (!Array.isArray(value)) return {}
+  const assets: { win32?: DesktopReleaseAsset; darwin?: DesktopReleaseAsset } = {}
+  for (const raw of value) {
+    if (!isRecord(raw)) continue
+    const name = typeof raw.name === 'string' ? raw.name : ''
+    const url = typeof raw.browser_download_url === 'string' ? raw.browser_download_url : ''
+    if (name === '' || !url.startsWith('https://')) continue
+    if (name.endsWith('.blockmap') || name.endsWith('.yml')) continue
+    const size = typeof raw.size === 'number' && Number.isFinite(raw.size) && raw.size > 0 ? raw.size : undefined
+    const rawDigest = typeof raw.digest === 'string' && raw.digest.startsWith('sha256:')
+      ? raw.digest.slice('sha256:'.length).trim().toLowerCase()
+      : undefined
+    const digest = rawDigest !== undefined && /^[0-9a-f]{64}$/u.test(rawDigest) ? rawDigest : undefined
+    const asset: DesktopReleaseAsset = {
+      name,
+      url,
+      ...(size === undefined ? {} : { size }),
+      ...(digest === undefined ? {} : { sha256: digest }),
+    }
+    if (name.endsWith('.exe') && assets.win32 === undefined) assets.win32 = asset
+    if (name.endsWith('.dmg') && assets.darwin === undefined) assets.darwin = asset
+  }
+  return assets
+}
+
+/**
+ * Newest release whose tag is canonical SemVer for the channel.
+ * The API returns newest-first, so the first match wins. Stable keeps its
+ * documented promotion of Next installers.
+ * @param releases - parsed releases in API order.
+ * @param channel - release stream to select.
+ * @returns the selected release, or null when none matches.
+ */
+export function pickDesktopReleaseForChannel(
+  releases: readonly DesktopRelease[],
+  channel: DesktopReleaseChannel,
+): DesktopRelease | null {
+  for (const release of releases) {
+    if (parseCanonicalUpdateVersion(release.version, channel) !== null) return release
+  }
+  return null
+}
+
+/** Digests of the platform installers on one release, when GitHub publishes them. */
+export function releaseInstallerDigests(
+  assets: DesktopInstallerAssets,
+): UpdateCheckResult['installerSha256'] | undefined {
+  const digests: Partial<Record<'win32' | 'darwin', string>> = {}
+  if (assets.win32?.sha256 !== undefined) digests.win32 = assets.win32.sha256
+  if (assets.darwin?.sha256 !== undefined) digests.darwin = assets.darwin.sha256
+  return Object.keys(digests).length > 0 ? digests : undefined
 }
 
 /** Stable may promote a Next installer while keeping the stable service stream authoritative. */
@@ -282,27 +401,6 @@ export function parseCanonicalChannelVersion(
     && isNumeric(parsed.prerelease[1]!)
     ? parsed
     : null
-}
-
-/**
- * Extract optional per-platform installer digests from the parsed version
- * response: `{ "version": "2.0.2", "sha256": { "windows": "<hex>", "mac": "<hex>" } }`.
- * Hex digits are case-normalized; absent or malformed fields simply leave the
- * digest gate unset for that platform.
- */
-function parseInstallerDigestResponse(value: unknown): UpdateCheckResult['installerSha256'] | undefined {
-  if (!isRecord(value) || !isRecord(value.sha256)) return undefined
-  const digests: Partial<Record<'win32' | 'darwin', string>> = {}
-  const normalize = (digest: unknown): string | undefined => {
-    if (typeof digest !== 'string') return undefined
-    const normalized = digest.trim().toLowerCase()
-    return /^[0-9a-f]{64}$/u.test(normalized) ? normalized : undefined
-  }
-  const windows = normalize(value.sha256.windows)
-  const mac = normalize(value.sha256.mac)
-  if (windows !== undefined) digests.win32 = windows
-  if (mac !== undefined) digests.darwin = mac
-  return Object.keys(digests).length > 0 ? digests : undefined
 }
 
 function parseCanonicalSupportedVersion(input: string): ParsedSemVer | null {

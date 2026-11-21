@@ -27,8 +27,33 @@ const testConfig: UpdateConfig = {
   requestTimeoutMs: 1000,
 }
 
-function versionResponse(version: unknown): Response {
-  return Response.json({ version })
+function versionResponse(
+  version: unknown,
+  digests: { readonly windows?: string, readonly mac?: string } = {},
+): Response {
+  const assets: Array<Record<string, unknown>> = []
+  if (digests.windows !== undefined) {
+    assets.push({
+      name: 'PolyMechanism-Studio-2.1.0-x64-Setup.exe',
+      browser_download_url: 'https://github.com/kingdol666/dsh-desktop/releases/download/v2.1.0/PolyMechanism-Studio-2.1.0-x64-Setup.exe',
+      size: 1024,
+      digest: `sha256:${digests.windows}`,
+    })
+  }
+  if (digests.mac !== undefined) {
+    assets.push({
+      name: 'PolyMechanism-Studio-2.1.0-mac.dmg',
+      browser_download_url: 'https://github.com/kingdol666/dsh-desktop/releases/download/v2.1.0/PolyMechanism-Studio-2.1.0-mac.dmg',
+      size: 1024,
+      digest: `sha256:${digests.mac}`,
+    })
+  }
+  return Response.json([{
+    tag_name: typeof version === 'string' ? `v${version}` : version,
+    draft: false,
+    prerelease: false,
+    assets,
+  }])
 }
 
 interface Harness {
@@ -154,7 +179,7 @@ describe('desktop update Host plugin', () => {
     vi.useFakeTimers()
     const harness = await createHarness({ currentVersion: '2.0.19', releaseChannel: 'stable',
       state: JSON.stringify({ version: 3, lastNotifiedVersion: '2.0.20-next' }),
-      request: async () => Response.json({ version: '2.0.20-next', channel: 'stable' }) })
+      request: async () => versionResponse('2.0.20-next') })
     try {
       await vi.advanceTimersByTimeAsync(testConfig.initialDelayMs)
       expect(harness.notifications).toEqual([])
@@ -165,7 +190,7 @@ describe('desktop update Host plugin', () => {
   it('rechecks Stable after confirmation and downloads its promoted Next release', async () => {
     const request = vi.fn(async (_url: string, init: RequestInit) => {
       expect(new Headers(init.headers).get(DESKTOP_RELEASE_CHANNEL_HEADER)).toBe('stable')
-      return Response.json({ version: '2.0.20-next', channel: 'stable' })
+      return versionResponse('2.0.20-next')
     })
     const harness = await createHarness({ currentVersion: '2.0.19', releaseChannel: 'stable',
       config: { ...testConfig, enabled: false }, request, confirmDownload: async () => true })
@@ -180,7 +205,7 @@ describe('desktop update Host plugin', () => {
   it('does not download when the promoted Next release changes after confirmation', async () => {
     let version = '2.0.20-next'
     const harness = await createHarness({ currentVersion: '2.0.19', releaseChannel: 'stable',
-      config: { ...testConfig, enabled: false }, request: async () => Response.json({ version, channel: 'stable' }),
+      config: { ...testConfig, enabled: false }, request: async () => versionResponse(version),
       confirmDownload: async () => { version = '2.0.21-next'; return true } })
     try {
       await harness.tray.invoke()
@@ -192,9 +217,7 @@ describe('desktop update Host plugin', () => {
   it('checks Beta automatically and installs an older stable release only through the explicit action', async () => {
     const request = vi.fn(async (_url: string, init: RequestInit) => {
       const channel = new Headers(init.headers).get(DESKTOP_RELEASE_CHANNEL_HEADER)
-      return Response.json(channel === 'beta'
-        ? { version: '2.0.6-beta.1', channel: 'beta' }
-        : { version: '2.0.4', channel: 'stable' })
+      return versionResponse(channel === 'beta' ? '2.0.6-beta.1' : '2.0.4')
     })
     const harness = await createHarness({
       releaseChannel: 'beta',
@@ -390,10 +413,7 @@ describe('desktop update Host plugin', () => {
     vi.useFakeTimers()
     const harness = await createHarness({
       packaged: false,
-      request: async () => Response.json({
-        version: '2.1.0',
-        sha256: { windows: 'c'.repeat(64), mac: 'd'.repeat(64) },
-      }),
+      request: async () => versionResponse('2.1.0', { windows: 'c'.repeat(64), mac: 'd'.repeat(64) }),
       confirmDownload: async () => true,
     })
 
@@ -417,7 +437,7 @@ describe('desktop update Host plugin', () => {
       packaged: false,
       request: async () => {
         call += 1
-        return Response.json({ version: '2.1.0', sha256: { mac: call === 1 ? 'c'.repeat(64) : 'd'.repeat(64) } })
+        return versionResponse('2.1.0', { mac: call === 1 ? 'c'.repeat(64) : 'd'.repeat(64) })
       },
       confirmDownload: async () => true,
     })

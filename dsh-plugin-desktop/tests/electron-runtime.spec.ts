@@ -17,6 +17,10 @@ const updater = vi.hoisted(() => ({
   pending: vi.fn(),
   record: vi.fn(),
   resolve: vi.fn(),
+  resolveInstaller: vi.fn(async () => ({
+    name: 'PolyMechanism-Studio-2.1.0-x64-Setup.exe',
+    url: 'https://github.com/kingdol666/dsh-desktop/releases/download/v2.1.0/PolyMechanism-Studio-2.1.0-x64-Setup.exe',
+  })),
 }))
 const childProcess = vi.hoisted(() => {
   type Listener = (...args: unknown[]) => void
@@ -72,6 +76,7 @@ vi.mock('../src/update-download.ts', () => ({
   downloadDesktopUpdate: updater.download,
   pendingDesktopUpdateArtifact: updater.pending,
   recordDesktopUpdateArtifact: updater.record,
+  resolveDesktopInstallerUrl: updater.resolveInstaller,
   resolveDesktopUpdateArtifact: updater.resolve,
 }))
 
@@ -497,7 +502,7 @@ describe('Electron desktop runtime', () => {
     expect(options).not.toHaveProperty('titleBarOverlay')
     expect(electron.contentViews).toHaveLength(2)
     expect(electron.contentViews[1]?.options).toEqual({ webPreferences: {
-      preload: expect.stringMatching(/\/preload\.cjs$/),
+      preload: expect.stringMatching(/[\\/]preload\.cjs$/),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -2699,6 +2704,7 @@ describe('Electron desktop runtime', () => {
       platform: 'darwin',
       version: '2.1.0',
       destinationPath: '/tmp/Downloads/PolyMechanism-Studio-2.1.0-mac.dmg',
+      downloadUrl: expect.stringMatching(/^https:\/\/github\.com\/kingdol666\/dsh-desktop\/releases\/download\//),
       request: expect.any(Function),
       signal: controller.signal,
     })

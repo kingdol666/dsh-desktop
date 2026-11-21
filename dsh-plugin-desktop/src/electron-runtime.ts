@@ -59,6 +59,7 @@ import {
   downloadDesktopUpdate,
   pendingDesktopUpdateArtifact,
   recordDesktopUpdateArtifact,
+  resolveDesktopInstallerUrl,
   resolveDesktopUpdateArtifact,
   type DesktopUpdateArtifact,
   type UpdateArtifactResponse,
@@ -882,14 +883,24 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
     const destinationPath = await this.chooseUpdateDestination(version, channel)
     if (destinationPath === undefined) return
     signal.throwIfAborted()
+    const asset = await resolveDesktopInstallerUrl({
+      platform,
+      version,
+      ...(channel === 'stable' ? {} : { channel }),
+      request: requestDesktopArtifact,
+      signal,
+    })
     const artifactPath = await downloadDesktopUpdate({
       platform,
       version,
       ...(channel === 'stable' ? {} : { channel }),
       destinationPath,
+      downloadUrl: asset.url,
       request: requestDesktopArtifact,
       signal,
-      ...(installerSha256?.[platform] === undefined ? {} : { expectedSha256: installerSha256[platform] }),
+      ...(installerSha256?.[platform] === undefined && asset.sha256 === undefined
+        ? {}
+        : { expectedSha256: installerSha256?.[platform] ?? asset.sha256 }),
     })
     signal.throwIfAborted()
     const artifact: DesktopUpdateArtifact = { platform, version, path: artifactPath }
