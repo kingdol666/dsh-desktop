@@ -295,6 +295,66 @@ def _md_run(args: dict[str, object]) -> dict[str, object]:
     return run_md(args)
 
 
+def _waxs_pro(args: dict[str, object]) -> dict[str, object]:
+    from pm_science.waxs_pro import air_remove, orientation_hermans, peak_fit_pro
+
+    op = str(args.get("op", ""))
+    if op == "airremove":
+        air = args.get("air")
+        if air is None:
+            raise ValueError("airremove requires an air intensity array")
+        return air_remove(
+            _array(args["twoTheta"]),
+            _array(args["sample"]),
+            _array(air),
+            edge_points=int(args.get("edgePoints", 10)),
+            window=None
+            if args.get("window") is None
+            else (float(args["window"][0]), float(args["window"][1])),
+        )
+    if op == "peakfit":
+        return peak_fit_pro(
+            _array(args["twoTheta"]),
+            _array(args["intensity"]),
+            list(args.get("peaks") or []),
+            wavelength_angstrom=float(args.get("wavelengthAngstrom", 1.5418)),
+            scherrer_constant=float(args.get("scherrerConstant", 0.89)),
+            fit_range=None
+            if args.get("fitRange") is None
+            else (float(args["fitRange"][0]), float(args["fitRange"][1])),
+        )
+    if op == "orientation":
+        air = args.get("air")
+        return orientation_hermans(
+            _array(args["azimuth"]),
+            _array(args["intensity"]),
+            float(args["twoThetaPeak"]),
+            None if air is None else _array(air),
+            k=float(args.get("k", 1.0)),
+            gap_masks=[(float(w[0]), float(w[1])) for w in (args.get("gapMasks") or [])],
+            fit_range=(
+                float(args.get("fitRange", [90.0, 180.0])[0]),
+                float(args.get("fitRange", [90.0, 180.0])[1]),
+            ),
+            wavelength_angstrom=float(args.get("wavelengthAngstrom", 1.5418)),
+            legacy_baseline_square=bool(args.get("legacyBaselineSquare", False)),
+        )
+    raise ValueError(f"unknown waxs_pro op: {op}")
+
+
+def _report(args: dict[str, object]) -> dict[str, object]:
+    from pm_science.report import render_report
+
+    payload = args.get("payload")
+    if not isinstance(payload, dict):
+        raise ValueError("report requires a payload object")
+    return render_report(
+        payload,
+        str(args["outputDir"]),
+        str(args.get("name", "report")),
+    )
+
+
 HANDLERS = {
     "waxs": _waxs,
     "ftir": _ftir,
@@ -314,6 +374,8 @@ HANDLERS = {
     "tg_blend": _tg_blend,
     "diffusion": _diffusion,
     "md_run": _md_run,
+    "waxs_pro": _waxs_pro,
+    "report": _report,
 }
 
 

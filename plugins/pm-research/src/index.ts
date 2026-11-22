@@ -214,5 +214,7 @@ export function registeredTools(): readonly string[] {
     'pm_literature_screen',
     'pm_literature_download',
     'pm_experiment_plan',
+    'pm_waxs_pro',
+    'pm_analysis_report',
   ]
 }

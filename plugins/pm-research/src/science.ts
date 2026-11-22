@@ -12,6 +12,8 @@ export type ScienceTool =
   | 'saxs'
   | 'hermans'
   | 'relax'
+  | 'waxs_pro'
+  | 'report'
   | 'literature_read'
   | 'literature_search'
   | 'literature_download'

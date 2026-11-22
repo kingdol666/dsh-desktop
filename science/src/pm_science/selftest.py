@@ -31,6 +31,8 @@ from pm_science.saxs import saxs_reduce  # noqa: E402
 from pm_science.tg_blend import fox_flory_fit, gordon_taylor  # noqa: E402
 from pm_science.viscoelastic import rouse_spectrum, shift_factors  # noqa: E402
 from pm_science.waxs import waxs_crystallinity  # noqa: E402
+from pm_science.waxs_pro import air_remove, orientation_hermans, peak_fit_pro  # noqa: E402
+from pm_science.report import render_report  # noqa: E402
 
 
 def check(results: dict[str, bool]) -> int:
@@ -61,6 +63,95 @@ def main() -> int:
         and float(waxs["fit"]["r2"]) > 0.95
         and any(abs(center - 22.5) < 0.2 for center in peak_centers)
     )
+
+    # 1b) WAXS pro: air_remove k recovery, bounded peak-fit truth, Hermans fit.
+    xp = np.linspace(4.0, 26.0, 200)
+    air_profile = 100.0 + 5.0 * (xp - 4.0)
+    sample_profile = 1.5 * air_profile + 300.0 * np.exp(-0.5 * ((xp - 19.5) / 1.0) ** 2)
+    removed = air_remove(xp, sample_profile, air_profile)
+    checks["waxs_pro_airremove_k"] = (
+        abs(float(removed["k"]) - 1.5) < 1e-6
+        and len(removed["subtracted"]) == xp.size
+    )
+
+    def gauss_area(xx: np.ndarray, area: float, center: float, width: float) -> np.ndarray:
+        return (area / (width * np.sqrt(np.pi / 2))) * np.exp(-2 * ((xx - center) / width) ** 2)
+
+    truth_peaks = [(500.0, 11.6, 0.5), (2000.0, 19.5, 0.7), (600.0, 22.9, 0.8)]
+    truth_halo = (2600.0, 20.3, 3.5)
+    y_fit = np.zeros_like(xp)
+    for area, center, width in truth_peaks:
+        y_fit += gauss_area(xp, area, center, width)
+    y_fit += gauss_area(xp, *truth_halo) + 30.0
+    fitted = peak_fit_pro(
+        xp,
+        y_fit + rng.normal(0, 2.0, xp.size),
+        [
+            {"center": 11.6, "width": 0.5, "role": "crystalline"},
+            {"center": 19.5, "width": 0.7, "role": "crystalline"},
+            {"center": 22.9, "width": 0.8, "role": "crystalline"},
+            {"center": 20.3, "width": 3.5, "role": "amorphous"},
+        ],
+        fit_range=(9.0, 28.0),
+    )
+    truth_xc = sum(p[0] for p in truth_peaks) / (sum(p[0] for p in truth_peaks) + truth_halo[0])
+    fitted_centers = [float(p["centerDeg"]) for p in fitted["peaks"]]
+    checks["waxs_pro_peakfit_truth"] = (
+        fitted["status"] == "CONVERGED"
+        and abs(float(fitted["crystallinityIndex"]) - truth_xc) < 0.01
+        and float(fitted["fit"]["r2"]) > 0.99
+        and any(abs(center - 19.5) < 0.05 for center in fitted_centers)
+        and all(p["scherrerNm"] is not None for p in fitted["peaks"])
+    )
+
+    phi_axis = np.linspace(90.0, 180.0, 181)
+    lorentz = (
+        (2.0 * 25.0 / np.pi)
+        * (30.0 / (4.0 * (phi_axis - 120.0) ** 2 + 30.0**2))
+        + 0.2
+    )
+    oriented = orientation_hermans(phi_axis, lorentz, two_theta_peak=7.66, fit_range=(90.0, 180.0))
+    checks["waxs_pro_orientation_hermans"] = (
+        oriented["status"] == "CONVERGED"
+        and float(oriented["fit"]["r2"]) > 0.99
+        and isinstance(oriented["hermansFactor"], float)
+        and isinstance(oriented["chainAxisFactor"], float)
+        and -1.0 <= float(oriented["hermansFactor"]) <= 1.0
+    )
+
+    # 1c) report: MD + self-contained HTML with an inline SVG chart.
+    report_payload = {
+        "title": "selftest 报告",
+        "sections": [
+            {
+                "heading": "拟合",
+                "narrative": "truth-recovery 图",
+                "table": {"headers": ["峰", "面积"], "rows": [["A", 1.5]]},
+                "figure": {
+                    "xLabel": "2theta",
+                    "yLabel": "I",
+                    "series": [
+                        {"name": "obs", "points": [[1, 1], [2, 3], [3, 2]]},
+                        {"name": "fit", "points": [[1, 1.2], [2, 2.8], [3, 2.1]], "dash": True},
+                    ],
+                },
+            }
+        ],
+        "conclusions": ["恢复成功"],
+    }
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as report_dir:
+        rendered = render_report(report_payload, report_dir, "selftest")
+        html_text = Path(rendered["htmlPath"]).read_text(encoding="utf-8")
+        md_text = Path(rendered["markdownPath"]).read_text(encoding="utf-8")
+        checks["report_md_html_generated"] = (
+            rendered["status"] == "OK"
+            and "<svg" in html_text
+            and "selftest 报告" in html_text
+            and "# selftest 报告" in md_text
+            and "结论" in html_text
+        )
 
     # 2) FTIR: synth peaks incl. O-H band; expect hbondIndex > carbonylIndex=0.
     w = np.linspace(800.0, 3800.0, 900)

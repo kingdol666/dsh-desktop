@@ -27,3 +27,6 @@ metadata:
 - [ ] r2 与 rmse 已入 payload
 - [ ] 峰位与文献 PVA 晶型（单斜/正交）核对
 - [ ] 方位信息另存（供 Hermans 因子计算）
+
+## 报告输出（必做收尾）
+分析（无论结论是 CONVERGED 还是 NO_FIT）完成后，必须调用 `pm_analysis_report` 生成面向人类的 MD+HTML 双报告（含 KPI、内嵌曲线图、处理过程说明、结论与下一步），并在回复中同时给出两个文件路径。详见 `waxs-pro-processing` 技能。
