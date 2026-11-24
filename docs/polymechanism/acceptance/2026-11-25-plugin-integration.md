@@ -50,6 +50,17 @@
 | 科研技能 | dsh-research-skills | skill(reproducibility-audit) ✗ | 技能已入注册表但**调用失败**：上游插件以 path 注册 skill，与 rc.3 加载器要求 source 字符串不兼容（`source must be a string`）；且 literature-review 与自带技能重名被遮蔽；该插件本身不含工具（docs 明示） |
 | MATLAB | dsh-matlab-workbench | 未测（需本机 MATLAB 在 PATH） | 留待用户环境验证 |
 
+## 全功能实机验证（2026-11-25 第二轮：真实论文机理分析）
+
+- 论文：Lee/Son/Park, Polymers 2025, 17, 3320（DOI 10.3390/polym17243320）。**pm_literature_download 被 MDPI Cloudflare 拦（CLOUDFLARE_CHALLENGE），pm_literature_browser_download（真浏览器 CDP）成功取回 809,716B 真实 PDF**——浏览器兜底链路首次端到端命中。
+- 知识库：kb_stats **16 文档 / 841 块 / 743 向量**在线；dsh-library `library_add`（extracted.txt）→ `library_search` 5 条命中（"nozzle speed crystallinity"）。
+- 记忆：memory_note/recall 工具通，笔记仍入会话草稿（vault 未持久化，如实记录）。
+- 数据复算（智能体 numpy）：Xc 斜率 -0.06375 %/(mm/s)（R²=0.9643），相对降幅 17.708% ≡ 原文 17.7%；溶解增幅 18.657% ≡ 约 19%；F→p 反算 0.021526/0.052284（原文 0.0215/0.052，|Δ|<3e-4）；溶解组 F=4.17<Fcrit=4.256 → 95% 不显著（如实标注）；3 点相关性 df=1 p=0.0588（如实标注）；**智能体自曝并修正了一次 F 分布归一化常数错误（p 偏低 45 倍），错误值留档**。
+- 机理判别（scientist 会话 PR-17-8f82，12 证据/6 候选边）：H1（局部热输入时间主导）→ **supported**（excludedCompetitors 排除 H2，G-EVID+G-COMPETE 通过）；H2（体相温度主导）→ **refuted**（需 refutes 极性证据 EV-11 才放行）；H3（剪切/停留历史→取向/成核）**无数据可判别，明确列为开放项**。
+- 门控实况（全部真实拒绝）：transition proposed→under_test 被状态机拒绝（须经 conditional）；G-COMPETE 要求 `excluded:true` 标记；refuted 要求 refutes 极性证据；ED-2 因方程未显式单位 G-UNIT warn；因 literature_search 429 无法核 DOI，**无一条边标 established（G-DOI 保守）**；pm_mechanism_query 空图（本工作区无 seed）→ 如实报知识缺口。
+- 权限边界（设计内）：characterization 无 pm_literature_read/pm_project_create/pm_hypothesis_transition/pm_mechanism_propose_edge；**scientist 无 pm_evidence_record**（改用 pm_literature_extract 登记 EV-1…EV-12）。
+- 双报告：智能体自产 `mech-nozzle-speed-crystallinity-dissolution.html/.md`（22,193B/12,923B，2 张内嵌 SVG）；监督者另渲染 `mech-report.html/.md`（14,492B/6,079B）。均位于 data-wjh/reports-full-verify/。
+
 ## 有效性诚实评估
 
 - **真正有效**：dsh-library（自有报告可语义检索，含限定语）、dsh-cite-verify（能拦下张冠李戴的引用——本次实测成功拦截了一个 DOI 真实但标题伪造的引用）
