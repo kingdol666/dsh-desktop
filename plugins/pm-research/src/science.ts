@@ -17,6 +17,7 @@ export type ScienceTool =
   | 'literature_read'
   | 'literature_search'
   | 'literature_download'
+  | 'literature_browser_download'
   | 'literature_screen'
   | 'md_run'
   | 'chain_mech'

@@ -209,5 +209,61 @@ export function registerLiteratureTools(ctx: Context, resolvePreset?: PresetReso
         }
       },
     }))
+
+    scope.tools.register(defineTool({
+      name: 'pm_literature_browser_download',
+      description: '真浏览器（Chromium/CDP）取 PDF：下载阶梯的最后一跳，用于 OA 链取不到、但机构订阅能看的文献。做法是起一个真实浏览器直连校园网（--no-proxy-server）、渲染落地页、复用会话取字节；不破解验证 —— Cloudflare/Anubis 这类真浏览器能自然通过的校验会自己通过，遇到人机验证或站点低置信判定则返回 MANUAL_REQUIRED 并附 DOI 直链交给人。状态分类 DOWNLOADED / MANUAL_REQUIRED / CLOUDFLARE_CHALLENGE / BROWSER_UNAVAILABLE；落盘后同样追加 manifest.jsonl 台账',
+      parameters: {
+        doi: { type: 'string' },
+        url: { type: 'string' },
+        targetPath: { type: 'string' },
+        filename: { type: 'string' },
+        port: { type: 'integer' },
+        profileDir: { type: 'string' },
+        chromePath: { type: 'string' },
+        timeoutMs: { type: 'integer' },
+        preset: { type: 'string' },
+        actor: { type: 'string' },
+      },
+      output: { schema: { type: 'object', additionalProperties: true }, render },
+      async execute(args: {
+        doi?: string
+        url?: string
+        targetPath?: string
+        filename?: string
+        port?: number
+        profileDir?: string
+        chromePath?: string
+        timeoutMs?: number
+        preset?: string
+        actor?: string
+      }, exec) {
+        const auth = authorize('pm_literature_browser_download', args, exec, resolvePreset)
+        if (!auth.ok) return toToolJson(auth)
+        if ((args.doi ?? '').trim().length === 0 && (args.url ?? '').trim().length === 0) {
+          return toToolJson({ ok: false, error: { code: 'INVALID_ARGUMENT', message: 'doi or url is required' } })
+        }
+        try {
+          const root = sessionWorkspace(exec.agent)
+          const target = args.targetPath === undefined
+            ? resolveDataPath('literature', root)
+            : resolveDataPath(args.targetPath, root)
+          const result = await runScience('literature_browser_download', {
+            ...(args.doi === undefined ? {} : { doi: args.doi }),
+            ...(args.url === undefined ? {} : { url: args.url }),
+            ...(args.filename === undefined ? {} : { filename: args.filename }),
+            ...(args.port === undefined ? {} : { port: args.port }),
+            ...(args.profileDir === undefined ? {} : { profileDir: args.profileDir }),
+            ...(args.chromePath === undefined ? {} : { chromePath: args.chromePath }),
+            ...(args.timeoutMs === undefined ? {} : { timeoutMs: args.timeoutMs }),
+            targetDir: target,
+          }, { signal: exec.signal })
+          if (result.ok === false && !isStatusOutcome(result)) return toToolJson(dataFailure(result))
+          return toToolJson({ ok: true, data: result })
+        } catch (cause) {
+          return toToolJson(failure(cause))
+        }
+      },
+    }))
   })
 }

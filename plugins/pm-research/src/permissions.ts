@@ -94,6 +94,7 @@ export const TOOL_PERMISSIONS: Readonly<Record<string, readonly string[]>> = Obj
   'pm_literature_search': Object.freeze(['polymer-literature', 'polymer-scientist']),
   'pm_literature_screen': Object.freeze(['polymer-literature', 'polymer-scientist']),
   'pm_literature_download': Object.freeze(['polymer-literature', 'polymer-scientist']),
+  'pm_literature_browser_download': Object.freeze(['polymer-literature', 'polymer-scientist']),
 })
 
 /** All preset identities known to the matrix. */
