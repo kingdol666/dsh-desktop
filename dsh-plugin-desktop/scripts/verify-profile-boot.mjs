@@ -347,12 +347,43 @@ try {
       await scope[Symbol.asyncDispose]()
     }
   }
+  // Shipped research plugins must mount with their tools visible in the
+  // global registry (memory-eternal, dsh-library, dsh-cite-verify,
+  // dsh-matlab-workbench) and their skills in the registry.
+  const globalTools = () => new Set(toolsService.schemas().map(tool => tool.name))
+  const requiredShippedTools = [
+    'memory_recall',
+    'memory_note',
+    'library_search',
+    'library_add',
+    'cite_verify',
+    'dsh_matlab_prepare',
+  ]
+  let toolSet = globalTools()
+  const deadlineShippedTools = Date.now() + 20_000
+  while (Date.now() < deadlineShippedTools
+    && !requiredShippedTools.every(name => toolSet.has(name))) {
+    await delay(200)
+    toolSet = globalTools()
+  }
+  const missingShipped = requiredShippedTools.filter(name => !toolSet.has(name))
+  if (missingShipped.length > 0) {
+    throw new Error(`shipped research plugins are missing tools: ${missingShipped.join(', ')}; visible: ${[...toolSet].sort().slice(0, 60).join(', ')}`)
+  }
   // Polymer methodology skills register asynchronously through pm-research.
   const skills = ctx.get('skills')
   if (skills === undefined) {
     throw new Error('assembled desktop profile is missing the skill registry')
   }
-  const requiredSkills = ['polymer-physics', 'pva-oblique-stretching', 'mechanism-discovery', 'experiment-design']
+  const requiredSkills = [
+    'polymer-physics',
+    'pva-oblique-stretching',
+    'mechanism-discovery',
+    'experiment-design',
+    'citation-audit',
+    'reproducibility-audit',
+    'manuscript-preflight',
+  ]
   const skillsDeadline = Date.now() + 15_000
   let skillNames = []
   while (Date.now() < skillsDeadline) {
@@ -627,5 +658,11 @@ try {
   await ctx?.fiber.dispose()
   releasePackageResolver?.()
   pnpmRuntime?.dispose()
-  rmSync(home, { recursive: true, force: true })
+  try {
+    rmSync(home, { recursive: true, force: true })
+  } catch (cleanupCause) {
+    // A third-party plugin may keep a handle open past disposal; the smoke
+    // result must not be masked by a leftover temp directory.
+    process.stdout.write(`verify-profile-boot: warning: temp home cleanup failed: ${cleanupCause instanceof Error ? cleanupCause.message : String(cleanupCause)}\n`)
+  }
 }

@@ -352,5 +352,11 @@ try {
   await ctx?.fiber.dispose()
   releasePackageResolver?.()
   pnpmRuntime?.dispose()
-  rmSync(home, { recursive: true, force: true })
+  try {
+    rmSync(home, { recursive: true, force: true })
+  } catch (cleanupCause) {
+    // memory-eternal may keep the vault handle open past disposal; never let a
+    // leftover temp directory mask the smoke verdict.
+    process.stdout.write(`verify-literature-plugins: warning: temp home cleanup failed: ${cleanupCause instanceof Error ? cleanupCause.message : String(cleanupCause)}\n`)
+  }
 }

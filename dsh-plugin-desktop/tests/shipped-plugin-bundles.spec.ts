@@ -31,8 +31,17 @@ function bundlesOf(dir: string): string[] {
 }
 
 describe('desktop shipped plugin bundles', () => {
-  it('declares the literature plugins as shipped bundles', () => {
-    expect(DESKTOP_SHIPPED_PLUGIN_BUNDLES).toEqual(['dsh-kb-rag', 'dsh-zotero-skill'])
+  it('declares the literature and research plugins as shipped bundles', () => {
+    expect(DESKTOP_SHIPPED_PLUGIN_BUNDLES).toEqual([
+      'dsh-kb-rag',
+      'dsh-zotero-skill',
+      'memory-eternal',
+      'dsh-library',
+      'dsh-cite-verify',
+      'dsh-research-skills',
+      '@perrylink/dsh-research-core',
+      'dsh-matlab-workbench',
+    ])
   })
 
   it('injects the shipped bundles into a fresh template profile', () => {
@@ -41,6 +50,9 @@ describe('desktop shipped plugin bundles', () => {
     const bundles = bundlesOf(dir)
     expect(bundles).toContain('dsh-kb-rag')
     expect(bundles).toContain('dsh-zotero-skill')
+    expect(bundles).toContain('memory-eternal')
+    expect(bundles).toContain('dsh-library')
+    expect(bundles).toContain('dsh-cite-verify')
     expect(bundles).toContain('@deepseek-ai/dsh-base')
   })
 
@@ -53,13 +65,16 @@ describe('desktop shipped plugin bundles', () => {
       'dsh-zotero-skill',
     ])
     syncDesktopManagedProfileBundles(dir, { market: 'community-market', aaEnabled: false })
-    expect(bundlesOf(dir)).toEqual([
+    const bundles = bundlesOf(dir)
+    expect(bundles.slice(0, 5)).toEqual([
       '@deepseek-ai/dsh-base',
       '@deepseek-ai/dsh-web-app',
       'dsh-community-market',
       'dsh-kb-rag',
       'dsh-zotero-skill',
     ])
+    expect(bundles).toContain('memory-eternal')
+    expect(bundles).toContain('dsh-library')
   })
 
   it('leaves dependency fields untouched', () => {

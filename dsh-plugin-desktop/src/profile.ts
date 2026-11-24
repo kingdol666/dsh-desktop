@@ -769,6 +769,12 @@ const MANAGED_MARKET_BUNDLES = new Set<string>([
 export const DESKTOP_SHIPPED_PLUGIN_BUNDLES: readonly string[] = Object.freeze([
   'dsh-kb-rag',
   'dsh-zotero-skill',
+  'memory-eternal',
+  'dsh-library',
+  'dsh-cite-verify',
+  'dsh-research-skills',
+  '@perrylink/dsh-research-core',
+  'dsh-matlab-workbench',
 ])
 
 /** Read the Market provider and AA toggle state encoded in the Profile manifest's bundle list. */

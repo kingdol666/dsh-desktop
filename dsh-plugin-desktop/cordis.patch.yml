@@ -945,6 +945,18 @@
             name: '@deepseek-ai/dsh-plugin-market/tools'
             disabled: true
 
+# memory-eternal's optional auto-spawned web UI and 7x24 watchdog child process
+# fail to spawn on Windows (Node 24 hardening rejects their launch options) and
+# the watchdog holds the profile dir open. The bundle patch documents profile
+# overrides by id; keep the core capture/recall memory on, disable the extras.
+- id: memory-eternal
+  config:
+    enabled: true
+    autoCapture: true
+    autoRecall: true
+    autoWeb: false
+    watchdogAutoSpawn: false
+
 # A desktop launch has no terminal operator waiting for the Web readiness line.
 - id: web-runtime
   config:
