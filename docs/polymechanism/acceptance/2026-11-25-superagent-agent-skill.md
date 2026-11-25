@@ -177,7 +177,7 @@
 | 大小 | 366,120,562 字节 |
 | SHA-256 | `5214dff1e5aecf2e9e16db1a927927a4ca1dacef90ad87736d240f95fd8dc690` |
 | 构建 | `Windows installer verification passed`；x64 primary runtime verified |
-| 源 | tag `v2.3.0` → `c68575db41`（master） |
+| 源 | tag `v2.3.0` → `d3dceaadcf`（master） |
 | 打包内依赖 | `dsh-agent-skill@0.3.0-pm2`、`@bushizhanghan/dsh-context-budget@0.1.2-pm1`、`app/skills/polymer-chief-route/SKILL.md` |
 
 ## 7. 已知限制
