@@ -61,6 +61,12 @@
   未能取得模型调用 `delegate_agent` 的会话记录；机制、权限、工具链路已用真实
   Host/Agent/工具验证，未用 mock
 
+### 安装包
+
+- `PolyMechanism-Studio-2.3.0-x64-Setup.exe`，366,120,562 字节
+- SHA-256 `5214dff1e5aecf2e9e16db1a927927a4ca1dacef90ad87736d240f95fd8dc690`
+- 构建日志：`Windows installer verification passed`
+
 ### 已知限制
 
 - 总工仍看到约 105 个工具（headless 实测 scientist 会话 105，全局 75）；`ctx_budget_*` 可量化开销，必要时 Phase 2 再缩窄

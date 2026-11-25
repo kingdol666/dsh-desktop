@@ -139,7 +139,18 @@
   characterization 授权，工具数不变）
 - 旧数据：KB 16 篇 / 841 块、cognition 记忆、lit-projects 未迁移、未删除
 
-## 6. 已知限制
+## 6. 发布产物
+
+| 项 | 值 |
+|---|---|
+| 安装包 | `PolyMechanism-Studio-2.3.0-x64-Setup.exe` |
+| 大小 | 366,120,562 字节 |
+| SHA-256 | `5214dff1e5aecf2e9e16db1a927927a4ca1dacef90ad87736d240f95fd8dc690` |
+| 构建 | `Windows installer verification passed`；x64 primary runtime verified |
+| 源 | tag `v2.3.0` → `c68575db41`（master） |
+| 打包内依赖 | `dsh-agent-skill@0.3.0-pm2`、`@bushizhanghan/dsh-context-budget@0.1.2-pm1`、`app/skills/polymer-chief-route/SKILL.md` |
+
+## 7. 已知限制
 
 - 总工仍看到约 105 个工具（headless 实测 scientist 会话 105、全局 75；完整桌面另有 AA/市场行，可能略高）；`ctx_budget_*` 可量化，Phase 2 再决定是否缩窄。
 - 没有任务队列/并行工作台；`delegate_agent` 串行返回 child id，结果由父会话通知。
