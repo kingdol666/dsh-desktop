@@ -203,6 +203,23 @@ try {
   }
   const delegate = tools.get('delegate_agent')
   process.stdout.write(`verify-agent-team: global tools ${tools.schemas().length}\n`)
+  if (process.env.VERIFY_CTX_BUDGET_DIR) {
+    const exec = { agent: { id: 'verify-ctx-budget' }, signal: new AbortController().signal }
+    const budget = await tools.get('ctx_budget').execute({ dir: process.env.VERIFY_CTX_BUDGET_DIR }, exec)
+    const parsedBudget = typeof budget === 'string' ? JSON.parse(budget) : budget
+    if (parsedBudget?.ok !== true || parsedBudget?.composition === undefined) {
+      throw new Error(`ctx_budget did not audit a real session: ${JSON.stringify(parsedBudget).slice(0, 400)}`)
+    }
+    const toolAudit = await tools.get('ctx_budget_tools').execute({ dir: process.env.VERIFY_CTX_BUDGET_DIR }, exec)
+    const parsedTools = typeof toolAudit === 'string' ? JSON.parse(toolAudit) : toolAudit
+    if (parsedTools?.ok !== true || !Array.isArray(parsedTools?.groups)) {
+      throw new Error(`ctx_budget_tools did not report groups: ${JSON.stringify(parsedTools).slice(0, 400)}`)
+    }
+    process.stdout.write(
+      `verify-agent-team: ctx_budget wasteRatio=${String(parsedBudget.wasteRatio)} `
+        + `toolGroups=${parsedTools.groups.length}\n`,
+    )
+  }
   const delegateDescription = String(delegate.description ?? '')
   for (const name of ['physicist', 'characterization', 'modeler', 'literature', 'reviewer']) {
     if (!delegateDescription.includes(name)) {

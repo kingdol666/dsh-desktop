@@ -56,7 +56,13 @@
     reviewer→`pm_hypothesis_transition`、literature→`delegate_agent`
   - 真实链路：`pm_kb_note`→`kb_search`→`pm_waxs_pro`→`pm_hypothesis_propose`
     →`pm_gate_check`→`pm_analysis_report` 每步有真实返回
-- 实机面板：`Agent & Skill` 显示 **5 个专家**，技能 ⚠ 为 **0**（pm2 修复后）
+- 实机面板：`Agent & Skill` 显示 **5 个专家**，技能 ⚠ 为 **0**（pm2 修复后）；
+  打包版在隔离 `DSH_HOME` 首次启动同样写出 5 条定义
+- `ctx_budget` 对真实会话返回 `ok:true`（wasteRatio=0），`ctx_budget_tools` 报告 20 个工具组
+- `typecheck` EXIT=0；update-checker/update-download 97 测试通过
+- **2.2.6 → 2.3.0 应用内更新实测通过**：检查到 2.3.0 → 下载 366,120,562B
+  （SHA-256 与 Release digest 一致）→ 重启安装 → 版本 2.3.0 → 5 专家 / 0 ⚠ /
+  `/pm/health` 36 工具
 - 真实模型驱动的一轮 UI 测试被 DeepSeek 账户 `budget_exceeded`（HTTP 422）阻断，
   未能取得模型调用 `delegate_agent` 的会话记录；机制、权限、工具链路已用真实
   Host/Agent/工具验证，未用 mock

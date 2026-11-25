@@ -79,6 +79,12 @@
 - `~/.pmstudio/agent-skill/agents.json` 5 条，版本 1，rank 5
 - `Agent & Skill` 面板：`子智能体 5 个`；五个专家、工具数、技能全部显示
 - pm2 修复后技能 ⚠ 数为 **0**
+- **打包版首次启动**（隔离 `DSH_HOME` + `APPDATA`）同样在 boot 前写出 5 条：
+  physicist 20 / characterization 16 / modeler 16 / literature 20 / reviewer 8，
+  `maxDepth=1`，`agentPreset` 正确
+- **面板保存保留 preset**：对 `/api/dsh-agent-skill/agents/save` 提交不带
+  `agentPreset` 的完整 agent（模拟面板编辑），返回 200 且写回后
+  `agentPreset` 仍为 `polymer-physicist`，description 已更新
 
 ### 4.2 六 preset 跨派活矩阵（`yarn verify:agent-team`）
 
@@ -129,10 +135,34 @@
 不是插件/权限问题；换有额度的模型后可直接重跑同一会话。其余机制、权限、
 工具链路均已在真实 Host 中验证。
 
+### 4.5 2.2.6 → 2.3.0 应用内更新（真实）
+
+1. 安装版为 2.2.6；先把被 dev 2.3.0 运行污染过的 profile 清单恢复为 2.2.6 基线
+   （备份 `.omc/backup-2.3.0/profile-package.json`），确认 2.2.6 可正常启动。
+2. 应用内检查更新 → 原生对话框：“PolyMechanism Studio 2.3.0 已可用。现在下载此更新？”
+3. 确认下载 → 保存对话框使用默认 `Downloads` → 下载文件
+   `PolyMechanism-Studio-2.3.0-windows.exe`，**366,120,562 字节**，
+   SHA-256 `5214dff1e5aecf2e9e16db1a927927a4ca1dacef90ad87736d240f95fd8dc690`，
+   与 Release asset digest 一致。
+4. “重启并安装” → 安装完成，版本变为 **2.3.0**。
+5. 启动 2.3.0：URL `dsh-desktop-version=2.3.0`；日志
+   `agent team: skipped existing definitions`；`Agent & Skill` 5 个专家、技能 ⚠=0；
+   `/pm/health` 36 工具；profile bundles 已含 `dsh-agent-skill` 与
+   `@bushizhanghan/dsh-context-budget`；安装目录插件版本
+   `0.3.0-pm2` / `0.1.2-pm1`。
+
+> 网络备注：本机到 GitHub 的大文件上传极慢（gh 约 24 KB/s；直连 curl 约 10 KB/s）。
+> 最终用 `curl -x http://127.0.0.1:7890` 以约 280 KB/s 完成 366 MB 上传；
+> GitHub Actions 在该仓库被禁用，无法用 hosted runner 代传。
+
 ## 5. 回归
 
 - `verify:profile` EXIT=0
 - `verify:agent-team` EXIT=0（全局 75 工具；scientist 会话 105 工具）
+- `ctx_budget` 对真实会话日志实测返回 `ok:true`（wasteRatio=0）；`ctx_budget_tools`
+  返回 20 个工具组
+- `corepack yarn typecheck` EXIT=0
+- `update-checker` 45 + `update-download` 52 测试全过
 - `vitest`：`package` 49、`preset-composition` 20、`shipped-plugin-bundles` 6、
   `agent-team-seed` 10，全过
 - `pm-research` health 4 项全过，仍 36 个 PM 工具（`pm_model_fit` 增加
