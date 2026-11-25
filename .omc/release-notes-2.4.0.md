@@ -63,6 +63,10 @@ KB 向量解释器覆盖和专家白名单迁移。
   shipped-plugin-bundles 6、agent-team-seed 12，全过
 - 真实 Electron 启动：客户端 bundle 含 `dsh-preview-stl` / `dsh-progress-nudge`，
   控制台 0 错误；界面仍为 6 位专家（科学家 + 五专家）
+- **2.3.0 → 2.4.0 应用内更新实测通过**：检查到 2.4.0 → 下载 383,011,459B
+  （SHA-256 与 Release 一致）→ 重启安装 → 2.4.0 启动日志
+  `upgraded ... whitelists`；profile 15 个 bundle；五专家工具数 21/22/24/36/14；
+  `/pm/health` 36 工具；客户端插件加载、控制台 0 异常
 
 ### 安装包
 
@@ -81,3 +85,6 @@ KB 向量解释器覆盖和专家白名单迁移。
 - `lit_harvest` 的 Unpaywall DOI 解析需要 `LIT_HARVEST_MAILTO`；未设置时搜索仍可用。
 - 第二意见会创建独立会话并调用模型，按需使用，不自动触发。
 - 仍无总工窄工具 preset、无任务队列、无 GROMACS/COMSOL 适配。
+- 既有 vendor 告警：`cognition-engine` 内部重复注册
+  `/cognition-engine/sources/list`，第一条生效、第二条被拒；功能不受影响，
+  2.4.0 未改该 vendor 内部实现。

@@ -67,6 +67,10 @@
   是解释器选择，不改全局环境。
 - **客户端**：`dsh-preview-stl`、`dsh-progress-nudge` 的 `dsh.client.inject` 模块在
   44.x 内核全部存在；真实 Electron 启动控制台 0 错误。
+- **既有告警（非 2.4.0 引入）**：`cognition-engine` 在 boot 时记录
+  `duplicate exact route "/cognition-engine/sources/list"`。源包在
+  `lib/index.js:3650` 与 `:3873` 各注册了一次同名路由，前者（资料库总览）生效，
+  后者（来源账本）被拒；不影响新插件或记忆功能。2.4.0 未修此 vendor 内部重复。
 
 ## 4. 实机验证
 
@@ -121,7 +125,24 @@ dev 版 `electron lib/main.js --remote-debugging-port=9333`，隔离 `DSH_HOME`/
 - 控制台 exception / error / log error：**0**
 - 首页仍显示 6 位专家（科学家 + 五专家）与“仿真引擎就绪”
 
-### 4.3 回归
+### 4.3 安装版 2.4.0（应用内更新后）
+
+从 2.3.0 走应用内更新：检查到 2.4.0 → 下载到
+`Downloads/PolyMechanism-Studio-2.4.0-windows.exe`（383,011,459 B，SHA-256 与
+Release 一致）→ 重启并安装 → 安装目录 `resources/app/package.json` 为 2.4.0。
+
+启动 2.4.0 实测：
+
+- 日志 `agent team: upgraded physicist, characterization, modeler, literature, reviewer whitelists`
+- profile bundles 15 个，含 7 个新插件
+- `agents.json` 工具数：physicist 21 / characterization 22 / modeler 24 /
+  literature 36 / reviewer 14；literature 有 9 个只读 `zotero_*`；reviewer 有
+  `ask_advisor`；三个新技能 `data-analysis`/`python-env`/`doc-routing` 已加入
+- `/pm/health` 36 工具
+- 页面 URL `dsh-desktop-version=2.4.0`；客户端资源含 `dsh-preview-stl` 与
+  `dsh-progress-nudge`；控制台 0 异常
+
+### 4.4 回归
 
 - `typecheck` EXIT=0
 - `verify:profile` EXIT=0（Creator、plugin manager、两代 Profile HMR）
