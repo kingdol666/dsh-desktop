@@ -220,6 +220,100 @@ try {
         + `toolGroups=${parsedTools.groups.length}\n`,
     )
   }
+  const parseToolResult = (value) => (typeof value === 'string' ? JSON.parse(value) : value)
+  if (process.env.VERIFY_COGNITION === '1') {
+    const exec = { agent: { id: 'verify-cognition' }, signal: new AbortController().signal }
+    const marker = `verify-230-memory-${Date.now().toString(36)}`
+    const stored = parseToolResult(await tools.get('cognition_remember').execute({
+      text: `${marker}：PVA 报告必须给出单位与不确定度。`,
+      subject: marker,
+      tags: ['verify-230', 'pref'],
+      source: 'test',
+      scope: 'global',
+    }, exec))
+    if (typeof stored?.stored?.id !== 'string') {
+      throw new Error(`cognition_remember did not return an id: ${JSON.stringify(stored).slice(0, 400)}`)
+    }
+    const recalled = parseToolResult(await tools.get('cognition_recall').execute({
+      query: `${marker} 单位 不确定度`,
+      tags: ['verify-230'],
+      limit: 5,
+      mode: 'associative',
+    }, exec))
+    if (!Array.isArray(recalled?.hits) || !recalled.hits.some(hit => String(hit.content).includes(marker))) {
+      throw new Error(`cognition_recall missed the test memory: ${JSON.stringify(recalled).slice(0, 400)}`)
+    }
+    const forgot = parseToolResult(await tools.get('cognition_forget').execute({ id: stored.stored.id }, exec))
+    process.stdout.write(
+      `verify-agent-team: cognition remember/recall/forget ok id=${stored.stored.id} `
+        + `hits=${recalled.hits.length} removed=${String(forgot?.removed ?? '?')}\n`,
+    )
+  }
+  if (process.env.VERIFY_ZOTERO_DB) {
+    const zotero = tools.get('kb_zotero')
+    if (zotero === undefined) throw new Error('kb_zotero did not register')
+    const args = {
+      zotero_db: process.env.VERIFY_ZOTERO_DB,
+      ...(process.env.VERIFY_KB_ROOT === undefined ? {} : { kb_root: process.env.VERIFY_KB_ROOT }),
+      limit: Number(process.env.VERIFY_ZOTERO_LIMIT ?? '3'),
+      ...(process.env.VERIFY_ZOTERO_DRY === '1' ? { dry_run: true } : {}),
+    }
+    const result = parseToolResult(await zotero.execute(args, {
+      agent: { id: 'verify-zotero' },
+      signal: new AbortController().signal,
+    }))
+    const summary = {
+      ok: result?.ok,
+      status: result?.status,
+      totals: result?.totals,
+      candidates: result?.candidates,
+      documents: result?.documents?.slice?.(0, 5) ?? result?.documents,
+      files: result?.files?.slice?.(0, 5),
+      errors: result?.errors?.slice?.(0, 3) ?? result?.errors,
+      message: result?.message,
+    }
+    process.stdout.write(`verify-agent-team: kb_zotero ${JSON.stringify(summary).slice(0, 1500)}\n`)
+    if (process.env.VERIFY_ZOTERO_DRY !== '1' && result?.ok === false) {
+      throw new Error(`kb_zotero failed: ${JSON.stringify(result).slice(0, 600)}`)
+    }
+  }
+  if (process.env.VERIFY_KB_ROOT) {
+    const stats = parseToolResult(await tools.get('kb_stats').execute({
+      kb_root: process.env.VERIFY_KB_ROOT,
+    }, { agent: { id: 'verify-kb' }, signal: new AbortController().signal }))
+    process.stdout.write(
+      `verify-agent-team: kb_stats docs=${String(stats?.documents ?? stats?.docs ?? '?')} `
+        + `chunks=${String(stats?.chunks ?? '?')} vectors=${String(stats?.vectors ?? '?')}\n`,
+    )
+  }
+  if (process.env.VERIFY_INGEST_PATHS) {
+    const paths = process.env.VERIFY_INGEST_PATHS.split('|').filter(Boolean)
+    const ingested = parseToolResult(await tools.get('kb_ingest').execute({
+      paths,
+      ...(process.env.VERIFY_KB_ROOT === undefined ? {} : { kb_root: process.env.VERIFY_KB_ROOT }),
+    }, { agent: { id: 'verify-kb' }, signal: new AbortController().signal }))
+    process.stdout.write(
+      `verify-agent-team: kb_ingest status=${String(ingested?.status)} `
+        + `totals=${JSON.stringify(ingested?.totals)} job=${String(ingested?.job_id ?? '')}\n`,
+    )
+    if (ingested?.ok === false) throw new Error(`kb_ingest failed: ${JSON.stringify(ingested).slice(0, 600)}`)
+  }
+  if (process.env.VERIFY_KB_QUERY) {
+    for (const query of process.env.VERIFY_KB_QUERY.split('|').filter(Boolean)) {
+      const searched = parseToolResult(await tools.get('kb_search').execute({
+        query,
+        depth: 'quick',
+        top_k: 3,
+        ...(process.env.VERIFY_KB_ROOT === undefined ? {} : { kb_root: process.env.VERIFY_KB_ROOT }),
+      }, { agent: { id: 'verify-kb' }, signal: new AbortController().signal }))
+      const hits = Array.isArray(searched?.results) ? searched.results : []
+      process.stdout.write(
+        `verify-agent-team: kb_search q=${query} hits=${hits.length} `
+          + `titles=${JSON.stringify(hits.slice(0, 3).map(hit => hit.title ?? hit.file ?? hit.source)).slice(0, 900)}\n`,
+      )
+      if (hits.length === 0) throw new Error(`kb_search returned no hits for ${query}`)
+    }
+  }
   const delegateDescription = String(delegate.description ?? '')
   for (const name of ['physicist', 'characterization', 'modeler', 'literature', 'reviewer']) {
     if (!delegateDescription.includes(name)) {
