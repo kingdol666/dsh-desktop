@@ -1,0 +1,45 @@
+name: Release Windows (dispatch)
+
+# Builds the Windows installer on a GitHub-hosted runner and attaches it to an
+# existing release. Used when the maintainer's uplink cannot upload a ~366 MB
+# asset in a reasonable time; the release notes/tag stay authoritative.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to build and upload (e.g. v2.3.0)
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  DSH_TELEMETRY_DISABLED: '1'
+  CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+jobs:
+  package:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag }}
+          submodules: recursive
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.14.0
+      - run: corepack enable
+      - name: Install the Stable workspaces
+        run: yarn workspaces focus dsh-plugin-desktop dsh-community-market
+      - name: Build the desktop app
+        run: yarn workspace dsh-plugin-desktop build
+      - name: Package the Windows installer
+        run: yarn workspace dsh-plugin-desktop dist:win
+      - name: Upload the installer to the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ls -la dsh-plugin-desktop/dist/*.exe
+          gh release upload "${{ inputs.tag }}" dsh-plugin-desktop/dist/PolyMechanism-Studio-*-Setup.exe --clobber
