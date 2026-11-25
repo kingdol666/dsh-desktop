@@ -35,13 +35,20 @@ describe('desktop shipped plugin bundles', () => {
   it('declares the literature and research plugins as shipped bundles', () => {
     expect(DESKTOP_SHIPPED_PLUGIN_BUNDLES).toEqual([
       'dsh-zotero-skill',
+      'dsh-zotero-local',
       'dsh-kb-rag',
       'dsh-cognition-engine',
       'dsh-lit-library',
+      'dsh-lit-harvest',
       'dsh-cite-verify',
       '@perrylink/dsh-research-core',
       'dsh-agent-skill',
       '@bushizhanghan/dsh-context-budget',
+      'dsh-doc-router',
+      'dsh-python-env',
+      'dsh-second-opinion',
+      'dsh-progress-nudge',
+      'dsh-preview-stl',
     ])
   })
 
@@ -56,6 +63,13 @@ describe('desktop shipped plugin bundles', () => {
     expect(bundles).toContain('dsh-cite-verify')
     expect(bundles).toContain('dsh-agent-skill')
     expect(bundles).toContain('@bushizhanghan/dsh-context-budget')
+    expect(bundles).toContain('dsh-zotero-local')
+    expect(bundles).toContain('dsh-lit-harvest')
+    expect(bundles).toContain('dsh-doc-router')
+    expect(bundles).toContain('dsh-python-env')
+    expect(bundles).toContain('dsh-second-opinion')
+    expect(bundles).toContain('dsh-progress-nudge')
+    expect(bundles).toContain('dsh-preview-stl')
     expect(bundles).toContain('@deepseek-ai/dsh-base')
   })
 

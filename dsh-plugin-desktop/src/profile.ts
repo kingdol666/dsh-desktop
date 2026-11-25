@@ -770,13 +770,20 @@ const MANAGED_MARKET_BUNDLES = new Set<string>([
  */
 export const DESKTOP_SHIPPED_PLUGIN_BUNDLES: readonly string[] = Object.freeze([
   'dsh-zotero-skill',
+  'dsh-zotero-local',
   'dsh-kb-rag',
   'dsh-cognition-engine',
   'dsh-lit-library',
+  'dsh-lit-harvest',
   'dsh-cite-verify',
   '@perrylink/dsh-research-core',
   'dsh-agent-skill',
   '@bushizhanghan/dsh-context-budget',
+  'dsh-doc-router',
+  'dsh-python-env',
+  'dsh-second-opinion',
+  'dsh-progress-nudge',
+  'dsh-preview-stl',
 ])
 
 /**

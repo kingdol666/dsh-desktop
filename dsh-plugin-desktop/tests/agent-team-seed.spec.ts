@@ -62,8 +62,30 @@ const TOOLS = [
   'lit_find',
   'lit_import',
   'lit_check',
+  'lit_search',
+  'lit_resolve_oa',
+  'lit_sufficiency',
+  'lit_harvest_run',
+  'zotero_collections',
+  'zotero_search',
+  'zotero_browse',
+  'zotero_item',
+  'zotero_fulltext',
+  'zotero_annotations',
+  'zotero_notes',
+  'zotero_download',
+  'zotero_export',
+  'doc_route',
+  'pdf_markdown',
+  'pyenv_discover',
+  'pyenv_create',
+  'pyenv_install',
+  'pyenv_uninstall',
+  'pyenv_remove',
+  'ask_advisor',
   'cognition_context',
   'cognition_recall',
+  'cognition_remember',
   'read',
   'write',
   'grep',
@@ -86,6 +108,9 @@ const SKILLS = [
   'lit-library',
   'kb-grounded-answer',
   'scientific-review',
+  'data-analysis',
+  'python-env',
+  'doc-routing',
 ]
 
 function quietLogger(): {
@@ -123,7 +148,7 @@ describe('buildAgentTeam', () => {
       expect(agent.mode).toBe('spawn')
       expect(agent.maxDepth).toBe(1)
       expect(agent.tools.length).toBeGreaterThanOrEqual(3)
-      expect(agent.tools.length).toBeLessThanOrEqual(20)
+      expect(agent.tools.length).toBeLessThanOrEqual(40)
       expect(agent.agentPreset).toMatch(/^polymer-/u)
       expect(agent.systemPrompt).toContain('evidenceIds')
     }
@@ -191,6 +216,47 @@ describe('seedAgentTeam', () => {
     await seedAgentTeam(dir, TOOLS, SKILLS)
     const after = JSON.parse(readFileSync(file, 'utf8'))
     expect(after.agents[0].description).toBe('my edited physicist')
+  })
+
+  it('extends a pristine 2.3.0 store with the 2.4.0 whitelist entries', async () => {
+    const dir = home()
+    await seedAgentTeam(dir, TOOLS, SKILLS)
+    const file = join(dir, 'agent-skill', 'agents.json')
+    const store = JSON.parse(readFileSync(file, 'utf8'))
+    const literature = store.agents.find((agent: { name: string }) => agent.name === 'literature')
+    const addedTools = [
+      'zotero_collections', 'zotero_search', 'zotero_browse', 'zotero_item', 'zotero_fulltext',
+      'zotero_annotations', 'zotero_notes', 'zotero_download', 'zotero_export',
+      'lit_search', 'lit_resolve_oa', 'lit_sufficiency', 'lit_harvest_run', 'doc_route', 'pdf_markdown',
+    ]
+    literature.tools = literature.tools.filter((tool: string) => !addedTools.includes(tool))
+    literature.skills = literature.skills.filter((skill: string) => skill !== 'doc-routing')
+    writeFileSync(file, JSON.stringify(store, null, 2))
+
+    const result = await seedAgentTeam(dir, TOOLS, SKILLS)
+    expect(result.upgraded).toContain('literature')
+    const after = JSON.parse(readFileSync(file, 'utf8'))
+    const upgraded = after.agents.find((agent: { name: string }) => agent.name === 'literature')
+    expect(upgraded.tools).toContain('zotero_search')
+    expect(upgraded.tools).toContain('lit_search')
+    expect(upgraded.tools).toContain('doc_route')
+    expect(upgraded.skills).toContain('doc-routing')
+  })
+
+  it('does not upgrade a customized whitelist', async () => {
+    const dir = home()
+    await seedAgentTeam(dir, TOOLS, SKILLS)
+    const file = join(dir, 'agent-skill', 'agents.json')
+    const store = JSON.parse(readFileSync(file, 'utf8'))
+    const reviewer = store.agents.find((agent: { name: string }) => agent.name === 'reviewer')
+    reviewer.tools.push('my_custom_tool')
+    writeFileSync(file, JSON.stringify(store, null, 2))
+
+    const result = await seedAgentTeam(dir, TOOLS, SKILLS)
+    expect(result.upgraded ?? []).not.toContain('reviewer')
+    const after = JSON.parse(readFileSync(file, 'utf8'))
+    const preserved = after.agents.find((agent: { name: string }) => agent.name === 'reviewer')
+    expect(preserved.tools).toContain('my_custom_tool')
   })
 
   it('backs up and rebuilds a corrupt store', async () => {

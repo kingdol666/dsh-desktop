@@ -1,0 +1,72 @@
+{
+  "name": "dsh-kb-rag",
+  "version": "1.6.8-pm1",
+  "description": "Literature knowledge base for DSH and MCP clients. Index PDFs or a Zotero library into one SQLite file; search and RAG tools return passages with section, page and DOI. Embedding and reranking run locally.",
+  "type": "module",
+  "main": "lib/index.js",
+  "bin": {
+    "dsh-kb-rag-install": "./install.mjs"
+  },
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./client": "./lib/client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/guidance.js",
+    "lib/client.js",
+    "install.mjs",
+    "kb_engine.py",
+    "cordis.patch.yml",
+    "scripts/install.ps1",
+    "scripts/install.sh",
+    "scripts/doi_pdf.mjs",
+    "README.md",
+    "SECURITY.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "rag",
+    "knowledge-base",
+    "literature",
+    "zotero",
+    "sqlite",
+    "embedding",
+    "rerank",
+    "mcp"
+  ],
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Breeze136/dsh-kb-rag.git",
+    "directory": "npm-package"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-primitives"
+      ]
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-tools": ">=0.2.0-rc.2 <0.3.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

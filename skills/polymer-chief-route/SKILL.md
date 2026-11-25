@@ -30,7 +30,7 @@ metadata:
 - Literature → `physicist`（解释文献）、`reviewer`（复核证据链）
 - Reviewer → `characterization`（补证据）、`physicist`（复核机理）
 
-不能派给自己，也不能让专家再派子代理（专家白名单不含 `delegate_agent`，`maxDepth=0`）。
+不能派给自己，也不能让专家再派子代理（专家白名单不含 `delegate_agent`，`maxDepth=1`）。
 
 ## 2. brief 四段（200–800 字，自包含）
 
@@ -74,9 +74,24 @@ metadata:
 - 文献无命中 → `literature` 明确写“库内无证据”；协调者不得用自己的记忆补成文献事实。
 - 任何专家给出 `verdict: revise/reject` → 先改，再重新过 `pm_gate_check`，不得跳过。
 
-## 5. 禁止
+## 5. 共享真相与经验记忆
+
+子代理看不到主会话历史，因此“共享工作记忆”不靠上下文复制，而靠**可回查的账本**：
+
+1. **共享真相**：PM 证据账本（`pm_evidence_*`）、假设/机理图谱（`pm_hypothesis_*`、
+   `pm_mechanism_*`）、知识库（`kb_search`/`kb_rag`）和 Zotero 原文（`zotero_fulltext`）
+   是唯一跨专家事实来源。brief 必须带 `evidenceIds`、DOI、数据文件路径。
+2. **经验记忆**：可复用的方法/准则用 `cognition_remember` 写入，tags 固定带
+   `project:<id>`、`expert:<name>`、`topic:<短主题>`；下次用 `cognition_recall`
+   按同一组 tags 召回。记忆只能帮助**找证据/避免重复踩坑**，不能替代证据 ID。
+3. **写入纪律**：`cognition_remember` 只写“可复用的判断规则/流程经验”，不写一次性
+   数值、不写未经验证的假设；评审专家只 recall，不 remember。
+4. **冲突**：记忆与账本冲突时以账本和原始数据为准，并把冲突交给 `reviewer`。
+
+## 6. 禁止
 
 - 协调者不得把专家结果改写成没有 evidence ID 的“事实”。
 - 协调者不得替专家做其专业细节（例如自己算峰、自己拟合），只做拆解、派活、汇总、报告。
 - 专家不得调用 `delegate_agent`；不得越权调用白名单外的工具。
 - 不得把“文献里大概有”当成 `kb_search` 命中；不得编造 DOI、页码或数值。
+- 不得把 `cognition_recall` 的记忆当成新证据；没有账本/原文支持就写 `gaps`。

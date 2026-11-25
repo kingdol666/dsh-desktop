@@ -304,14 +304,79 @@ try {
         query,
         depth: 'quick',
         top_k: 3,
+        ...(process.env.VERIFY_KB_MODE === undefined ? {} : { mode: process.env.VERIFY_KB_MODE }),
         ...(process.env.VERIFY_KB_ROOT === undefined ? {} : { kb_root: process.env.VERIFY_KB_ROOT }),
       }, { agent: { id: 'verify-kb' }, signal: new AbortController().signal }))
       const hits = Array.isArray(searched?.results) ? searched.results : []
       process.stdout.write(
-        `verify-agent-team: kb_search q=${query} hits=${hits.length} `
+        `verify-agent-team: kb_search q=${query} mode=${process.env.VERIFY_KB_MODE ?? 'default'} hits=${hits.length} `
           + `titles=${JSON.stringify(hits.slice(0, 3).map(hit => hit.title ?? hit.file ?? hit.source)).slice(0, 900)}\n`,
       )
       if (hits.length === 0) throw new Error(`kb_search returned no hits for ${query}`)
+    }
+  }
+  if (process.env.VERIFY_NEW_TOOLS === '1') {
+    const exec = {
+      agent: { id: 'verify-new-tools', session: { header: { cwd: WORKSPACE } } },
+      signal: new AbortController().signal,
+    }
+    const lit = parseToolResult(await tools.get('lit_search').execute({
+      query: 'polyvinyl alcohol crystallinity stretching',
+      sources: ['openalex'],
+      max: 3,
+    }, exec))
+    process.stdout.write(
+      `verify-agent-team: lit_search ok=${String(lit?.ok)} papers=${Array.isArray(lit?.papers) ? lit.papers.length : '?'} `
+        + `errors=${JSON.stringify(lit?.errors ?? []).slice(0, 500)}\n`,
+    )
+    if (lit?.ok !== true) {
+      process.stdout.write('verify-agent-team: warning: lit_search needs network access; registration is verified\\n')
+    }
+    if (process.env.VERIFY_DOC_PDF) {
+      const route = parseToolResult(await tools.get('doc_route').execute({
+        path: process.env.VERIFY_DOC_PDF,
+      }, exec))
+      if (typeof route?.format !== 'string' || route.format === 'unknown') {
+        throw new Error(`doc_route failed: ${JSON.stringify(route).slice(0, 600)}`)
+      }
+      process.stdout.write(
+        `verify-agent-team: doc_route format=${route.format} pages=${String(route.pages ?? '?')} `
+          + `columns=${String(route.column_estimate ?? route.columns ?? '?')}\n`,
+      )
+      const markdown = parseToolResult(await tools.get('pdf_markdown').execute({
+        path: process.env.VERIFY_DOC_PDF,
+        pages: '1',
+      }, exec))
+      if (typeof markdown?.markdown !== 'string' || markdown.markdown.length < 100) {
+        throw new Error(`pdf_markdown returned no usable page: ${JSON.stringify(markdown).slice(0, 600)}`)
+      }
+      process.stdout.write(
+        `verify-agent-team: pdf_markdown chars=${markdown.markdown.length} pagesUsed=${String(markdown.pagesUsed)}\n`,
+      )
+    }
+    if (process.env.VERIFY_ZOTERO_LOCAL === '1') {
+      const search = parseToolResult(await tools.get('zotero_search').execute({
+        query: process.env.VERIFY_ZOTERO_QUERY ?? 'polyvinyl',
+        limit: 3,
+        mode: 'compact',
+      }, exec))
+      const items = Array.isArray(search?.items) ? search.items : []
+      if (items.length === 0) {
+        throw new Error(`zotero_search returned no items: ${JSON.stringify(search).slice(0, 600)}`)
+      }
+      const key = String(items[0].key ?? items[0].itemKey ?? '')
+      if (key === '') throw new Error(`zotero_search rows carry no key: ${JSON.stringify(items[0]).slice(0, 400)}`)
+      const item = parseToolResult(await tools.get('zotero_item').execute({ key }, exec))
+      const title = String(item?.item?.title ?? item?.item?.data?.title ?? '')
+      const fulltext = parseToolResult(await tools.get('zotero_fulltext').execute({ itemKey: key }, exec))
+      process.stdout.write(
+        `verify-agent-team: zotero_search count=${String(search.count ?? items.length)} key=${key} `
+          + `title=${JSON.stringify(title).slice(0, 160)} fulltextChars=${String(fulltext?.text?.length ?? 0)} `
+          + `mode=${String(fulltext?.mode ?? '?')}\n`,
+      )
+      if (typeof fulltext?.text !== 'string' || fulltext.text.length < 100) {
+        throw new Error(`zotero_fulltext returned no text: ${JSON.stringify(fulltext).slice(0, 600)}`)
+      }
     }
   }
   const delegateDescription = String(delegate.description ?? '')
@@ -388,15 +453,15 @@ try {
     }
     return String(outcome.error?.message ?? outcome.error?.code ?? 'denied')
   }
-  requireTool('literature', ['kb_search', 'kb_rag', 'pm_kb_note'])
-  forbidTool('literature', ['pm_sim_flory_huggins', 'pm_sim_md_run', 'delegate_agent', 'write'])
-  requireTool('reviewer', ['pm_gate_check', 'pm_evidence_verify'])
-  forbidTool('reviewer', ['write', 'pm_hypothesis_transition', 'delegate_agent', 'pm_sim_md_run'])
-  requireTool('characterization', ['pm_waxs_pro', 'pm_evidence_record'])
+  requireTool('literature', ['kb_search', 'kb_rag', 'pm_kb_note', 'zotero_search', 'lit_search', 'doc_route'])
+  forbidTool('literature', ['pm_sim_flory_huggins', 'pm_sim_md_run', 'delegate_agent', 'write', 'zotero_note', 'zotero_highlight'])
+  requireTool('reviewer', ['pm_gate_check', 'pm_evidence_verify', 'kb_search', 'ask_advisor'])
+  forbidTool('reviewer', ['write', 'pm_hypothesis_transition', 'delegate_agent', 'pm_sim_md_run', 'zotero_note'])
+  requireTool('characterization', ['pm_waxs_pro', 'pm_evidence_record', 'pyenv_discover', 'cognition_remember'])
   forbidTool('characterization', ['pm_sim_md_run', 'delegate_agent'])
-  requireTool('physicist', ['pm_hypothesis_propose', 'pm_sim_flory_huggins'])
+  requireTool('physicist', ['pm_hypothesis_propose', 'pm_sim_flory_huggins', 'cognition_remember'])
   forbidTool('physicist', ['delegate_agent', 'write'])
-  requireTool('modeler', ['pm_sim_flory_huggins', 'pm_sim_md_run'])
+  requireTool('modeler', ['pm_sim_flory_huggins', 'pm_sim_md_run', 'pyenv_create'])
   forbidTool('modeler', ['delegate_agent'])
   const forbidden = [
     await expectDenied('literature', 'pm_sim_flory_huggins'),
@@ -422,6 +487,15 @@ try {
     question: 'PVA 热定型是否提高结晶度并改变取向',
     domain: 'pva-optical-film',
   })
+  if (process.env.VERIFY_PYENV === '1') {
+    const found = await call(scientist, 'pyenv_discover', {})
+    if (!Array.isArray(found?.venvs) || !Array.isArray(found?.scanned)) {
+      throw new Error(`pyenv_discover returned an unexpected shape: ${JSON.stringify(found).slice(0, 500)}`)
+    }
+    process.stdout.write(
+      `verify-agent-team: pyenv_discover scanned=${found.scanned.length} venvs=${found.venvs.length}\n`,
+    )
+  }
   const projectId = project?.data?.project?.id
   if (typeof projectId !== 'string') throw new Error(`pm_project_create failed: ${JSON.stringify(project)}`)
 

@@ -1001,3 +1001,17 @@
     printUrl: false
     surfaceContext: true
     trustedHosts: []
+
+# 2.4.0 optional plugins. doc-router would otherwise pick the bundled runtime,
+# which has no PyMuPDF; use the interpreter on PATH by default and let a user
+# point DOC_ROUTER_PYTHON at a dedicated environment.
+- id: doc-router
+  config:
+    pythonPath: !!js process.env.DOC_ROUTER_PYTHON || 'python'
+    noteLanguage: zh
+
+# lit-harvest works without mailto for search; Unpaywall DOI resolution needs
+# it. Never bake a personal address into the repo: read it from the environment.
+- id: dsh-lit-harvest
+  config:
+    mailto: !!js process.env.LIT_HARVEST_MAILTO || ''

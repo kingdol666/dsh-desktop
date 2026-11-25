@@ -367,6 +367,14 @@ try {
     'ctx_budget_sweep',
     'ctx_budget_skills',
     'ctx_budget_tools',
+    'zotero_search',
+    'zotero_fulltext',
+    'lit_search',
+    'lit_sufficiency',
+    'pyenv_discover',
+    'doc_route',
+    'pdf_markdown',
+    'ask_advisor',
   ]
   let toolSet = globalTools()
   const deadlineShippedTools = Date.now() + 20_000
@@ -392,6 +400,9 @@ try {
     'lit-library',
     'kb-grounded-answer',
     'polymer-chief-route',
+    'data-analysis',
+    'python-env',
+    'doc-routing',
   ]
   const skillsDeadline = Date.now() + 15_000
   let skillNames = []

@@ -50,7 +50,10 @@ export interface AgentTeamSeedResult {
   readonly path: string
   readonly agents: readonly string[]
   readonly warnings: readonly string[]
-  readonly skipped: 'existing' | 'none' | undefined}
+  readonly skipped: 'existing' | 'none' | undefined
+  /** Experts whose whitelist was extended by the current release's migration. */
+  readonly upgraded?: readonly string[]
+}
 
 /** Best-effort logger seam so the seed never depends on a Cordis context. */
 export interface AgentTeamSeedLogger {
@@ -106,8 +109,9 @@ const BLUEPRINTS: readonly AgentBlueprint[] = Object.freeze([
       'todo_write',
       'cognition_context',
       'cognition_recall',
+      'cognition_remember',
     ],
-    skills: ['polymer-physics', 'mechanism-discovery', 'simulation-workflow'],
+    skills: ['polymer-physics', 'mechanism-discovery', 'simulation-workflow', 'data-analysis'],
     contract: '输出：{"findings":[],"hypotheses":[],"evidenceIds":[],"gaps":[],"nextActions":[]}',
   },
   {
@@ -128,13 +132,19 @@ const BLUEPRINTS: readonly AgentBlueprint[] = Object.freeze([
       'pm_evidence_query',
       'pm_analysis_report',
       'pm_knowledge_propose',
+      'pyenv_discover',
+      'pyenv_create',
+      'pyenv_install',
+      'cognition_context',
+      'cognition_recall',
+      'cognition_remember',
       'read',
       'write',
       'grep',
       'pwsh',
       'todo_write',
     ],
-    skills: ['waxs-analysis', 'ftir-analysis', 'saxs-analysis', 'waxs-pro-processing', 'optics-birefringence'],
+    skills: ['waxs-analysis', 'ftir-analysis', 'saxs-analysis', 'waxs-pro-processing', 'optics-birefringence', 'data-analysis', 'python-env'],
     contract: '输出：{"measurements":[],"conditions":[],"evidenceIds":[],"fitQuality":{},"gaps":[]}',
   },
   {
@@ -156,12 +166,20 @@ const BLUEPRINTS: readonly AgentBlueprint[] = Object.freeze([
       'pm_model_fit',
       'pm_experiment_plan',
       'pm_analysis_report',
+      'pyenv_discover',
+      'pyenv_create',
+      'pyenv_install',
+      'pyenv_uninstall',
+      'pyenv_remove',
+      'cognition_context',
+      'cognition_recall',
+      'cognition_remember',
       'read',
       'write',
       'pwsh',
       'todo_write',
     ],
-    skills: ['simulation-workflow', 'polymer-physics', 'experiment-design'],
+    skills: ['simulation-workflow', 'polymer-physics', 'experiment-design', 'data-analysis', 'python-env'],
     contract: '输出：{"model":"","parameters":{},"goodnessOfFit":{},"predictions":[],"limits":[],"evidenceIds":[]}',
   },
   {
@@ -185,13 +203,29 @@ const BLUEPRINTS: readonly AgentBlueprint[] = Object.freeze([
       'lit_find',
       'lit_import',
       'lit_check',
+      'zotero_collections',
+      'zotero_search',
+      'zotero_browse',
+      'zotero_item',
+      'zotero_fulltext',
+      'zotero_annotations',
+      'zotero_notes',
+      'zotero_download',
+      'zotero_export',
+      'lit_search',
+      'lit_resolve_oa',
+      'lit_sufficiency',
+      'lit_harvest_run',
+      'doc_route',
+      'pdf_markdown',
       'read',
       'write',
       'todo_write',
       'cognition_context',
       'cognition_recall',
+      'cognition_remember',
     ],
-    skills: ['literature-review', 'lit-library', 'kb-grounded-answer'],
+    skills: ['literature-review', 'lit-library', 'kb-grounded-answer', 'doc-routing'],
     contract: '输出：{"papers":[{"doi":"","title":"","year":0,"quartile":""}],"quotes":[{"text":"","page":0,"doi":""}],"evidenceIds":[],"gaps":[]}；库内无命中必须写 gaps，不得编造。',
   },
   {
@@ -206,13 +240,116 @@ const BLUEPRINTS: readonly AgentBlueprint[] = Object.freeze([
       'pm_evidence_query',
       'pm_knowledge_query',
       'pm_knowledge_review',
+      'kb_search',
+      'kb_rag',
+      'zotero_fulltext',
+      'ask_advisor',
+      'cognition_context',
+      'cognition_recall',
       'read',
       'grep',
     ],
-    skills: ['scientific-review', 'mechanism-discovery'],
+    skills: ['scientific-review', 'mechanism-discovery', 'data-analysis'],
     contract: '输出：{"verdict":"pass|revise|reject","violations":[],"missingEvidence":[],"requiredChanges":[]}',
   },
 ])
+
+/** Whitelist entries added by 2.4.0. An existing store is extended only when its
+ * tools/skills are still a subset of the previous release's blueprint; a store
+ * with user-added names is left untouched. */
+const UPGRADE_ADDITIONS: Readonly<Record<string, { tools: readonly string[]; skills: readonly string[] }>> = Object.freeze({
+  physicist: {
+    tools: ['cognition_remember'],
+    skills: ['data-analysis'],
+  },
+  characterization: {
+    tools: ['pyenv_discover', 'pyenv_create', 'pyenv_install', 'cognition_context', 'cognition_recall', 'cognition_remember'],
+    skills: ['data-analysis', 'python-env'],
+  },
+  modeler: {
+    tools: ['pyenv_discover', 'pyenv_create', 'pyenv_install', 'pyenv_uninstall', 'pyenv_remove', 'cognition_context', 'cognition_recall', 'cognition_remember'],
+    skills: ['data-analysis', 'python-env'],
+  },
+  literature: {
+    tools: [
+      'zotero_collections', 'zotero_search', 'zotero_browse', 'zotero_item', 'zotero_fulltext',
+      'zotero_annotations', 'zotero_notes', 'zotero_download', 'zotero_export',
+      'lit_search', 'lit_resolve_oa', 'lit_sufficiency', 'lit_harvest_run',
+      'doc_route', 'pdf_markdown', 'cognition_remember',
+    ],
+    skills: ['doc-routing'],
+  },
+  reviewer: {
+    tools: ['kb_search', 'kb_rag', 'zotero_fulltext', 'ask_advisor', 'cognition_context', 'cognition_recall'],
+    skills: ['data-analysis'],
+  },
+})
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function asStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : []
+}
+
+function isShellTool(name: string): boolean {
+  return name === 'pwsh' || name === 'bash'
+}
+
+/** Extend pristine 2.3.0 expert stores with 2.4.0 whitelist entries.
+ *
+ * Returns the (possibly mutated) agent records and the names it upgraded. User
+ * agents and user-edited expert whitelists are preserved: a whitelist with any
+ * name outside the previous blueprint is considered customized and skipped. */
+function upgradeAgentStore(
+  store: Record<string, unknown>,
+  logger?: AgentTeamSeedLogger,
+): { agents: unknown[]; upgraded: string[] } {
+  const agents = Array.isArray(store.agents) ? store.agents : []
+  const records = agents.filter(isRecord)
+  const upgraded: string[] = []
+  for (const blueprint of BLUEPRINTS) {
+    const additions = UPGRADE_ADDITIONS[blueprint.name]
+    if (additions === undefined) continue
+    const existing = records.find((agent) => agent.id === blueprint.id)
+      ?? records.find((agent) => agent.name === blueprint.name)
+    if (existing === undefined) continue
+    const priorTools = new Set(
+      blueprint.tools.filter((tool) => !additions.tools.includes(tool) && !isShellTool(tool)),
+    )
+    const priorSkills = new Set(blueprint.skills.filter((skill) => !additions.skills.includes(skill)))
+    const existingTools = asStringArray(existing.tools)
+    const existingSkills = asStringArray(existing.skills)
+    const missingTools = additions.tools.filter((tool) => !existingTools.includes(tool))
+    const missingSkills = additions.skills.filter((skill) => !existingSkills.includes(skill))
+    if (missingTools.length === 0 && missingSkills.length === 0) continue
+    const customTools = existingTools.filter(
+      (tool) => !isShellTool(tool) && !priorTools.has(tool) && !additions.tools.includes(tool),
+    )
+    const customSkills = existingSkills.filter(
+      (skill) => !priorSkills.has(skill) && !additions.skills.includes(skill),
+    )
+    if (customTools.length > 0 || customSkills.length > 0) {
+      logger?.info(`agent team: ${blueprint.name} has a customized whitelist; not upgraded`)
+      continue
+    }
+    const nextTools = [...existingTools]
+    for (const tool of additions.tools) {
+      if (!nextTools.includes(tool)) nextTools.push(tool)
+    }
+    const nextSkills = [...existingSkills]
+    for (const skill of additions.skills) {
+      if (!nextSkills.includes(skill)) nextSkills.push(skill)
+    }
+    if (nextTools.length !== existingTools.length || nextSkills.length !== existingSkills.length) {
+      existing.tools = nextTools
+      existing.skills = nextSkills
+      upgraded.push(blueprint.name)
+    }
+  }
+  return { agents, upgraded }
+}
 
 function systemPrompt(blueprint: AgentBlueprint): string {
   return [
@@ -365,16 +502,24 @@ export async function seedAgentTeam(
   const { seed, warnings } = buildAgentTeam(availableTools, availableSkills, logger)
 
   if (existsSync(file)) {
-    let usable = false
+    let parsed: Record<string, unknown> | undefined
     try {
-      const parsed = JSON.parse((await readFile(file, 'utf8')).replace(/^\uFEFF/u, '')) as {
-        agents?: unknown
+      const candidate: unknown = JSON.parse((await readFile(file, 'utf8')).replace(/^\uFEFF/u, ''))
+      if (isRecord(candidate) && Array.isArray(candidate.agents) && candidate.agents.length > 0) {
+        parsed = candidate
       }
-      usable = Array.isArray(parsed.agents) && parsed.agents.length > 0
     } catch {
-      usable = false
+      parsed = undefined
     }
-    if (usable) {
+    if (parsed !== undefined) {
+      const { agents, upgraded } = upgradeAgentStore(parsed, logger)
+      if (upgraded.length > 0) {
+        const temporary = `${file}.${process.pid}.tmp`
+        await writeFile(temporary, `${JSON.stringify({ ...parsed, agents }, null, 2)}\n`, 'utf8')
+        await rename(temporary, file)
+        logger?.info(`agent team: upgraded ${upgraded.join(', ')} whitelists`)
+        return { created: false, path: file, agents: upgraded, warnings, skipped: undefined, upgraded }
+      }
       logger?.info('agent team: skipped existing definitions')
       return { created: false, path: file, agents: [], warnings, skipped: 'existing' }
     }
