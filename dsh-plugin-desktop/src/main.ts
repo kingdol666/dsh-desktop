@@ -901,10 +901,17 @@ async function start(): Promise<void> {
     process.env.DSH_AGENTS_HOME = join(homeDir, 'agents')
     // Seed before the Host boots: dsh-agent-skill reads its store during apply,
     // so a later write would leave the first turn with no callable experts.
-    await seedAgentTeamForBoot(homeDir, {
-      info: message => electronLogger.info(`${BIN_NAME}: ${message}`),
-      warn: message => electronLogger.info(`${BIN_NAME}: warning: ${message}`),
-    })
+    // The seed is an enhancement, never a startup dependency.
+    try {
+      await seedAgentTeamForBoot(homeDir, {
+        info: message => electronLogger.info(`${BIN_NAME}: ${message}`),
+        warn: message => electronLogger.info(`${BIN_NAME}: warning: ${message}`),
+      })
+    } catch (cause) {
+      electronLogger.info(
+        `${BIN_NAME}: warning: agent team seed failed: ${cause instanceof Error ? cause.message : String(cause)}`,
+      )
+    }
     const desktopLaunchEnvironment = withDesktopDshHome(environment, homeDir)
     // Before anything can send a request. `installProxyFromEnvironment` also writes the resolved
     // names back into `process.env` in both casings, which is how `host-process.ts`'s
