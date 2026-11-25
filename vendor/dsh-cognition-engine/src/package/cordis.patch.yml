@@ -1,0 +1,36 @@
+# DSH bundle patch — 把 cognition-engine 作为一行插件插入当前 profile 的条目列表。
+# 行 id 全局唯一；config 会原样传给 src/index.ts 的 apply(ctx, config)。
+- insert:
+    - id: cognition-engine
+      name: 'dsh-cognition-engine'
+      config:
+        # Desktop has no S5 regression workflow; the human accept/reject action in
+        # the 准则 tab remains the gate. Without this, every accepted rule is
+        # rejected into shadow because the regression set is necessarily empty.
+        cpeStrictGate: false
+        decayHalfLifeHours: 168
+        strictThreshold: 0.12
+        assimilateThreshold: 0.55
+        overlapThreshold: 0.42
+        communityThreshold: 0.3
+        maxClusterSize: 8
+        # 是否把跨会话摘要注入系统提示；填 false 则只在调用 cognition_context 时给你
+        # injectMemory: true
+        # 落盘位置：留空则用 ~/.dsh/cognition-engine/ 下的默认文件名（推荐，跨机器/跨工作区可用）
+        # 路径开头的 ~ 会展开到用户主目录；相对路径按进程 cwd 解析，不建议使用
+        # tasksFile: ~/.dsh/cognition-engine/tasks.json
+        # 记忆落盘位置
+        # stateFile: ~/.dsh/cognition-engine/cognition-state.json
+        # 访问口令。默认（不写）不启用保护；显式配一个口令才上锁（同机其他程序就挡在门外）
+        # lockToken: 换成一个你自己的口令
+        # 真模型：不填则跟随当前默认模型
+        # llmProvider: deepseek
+        # llmModel: deepseek-chat
+        heartbeatHours: 6
+        patrolIntervalHours: 3
+        idleThresholdMinutes: 5
+        recordOnly: true
+        # 自动反馈闭环：用宿主真实轮次记录「这轮注入了哪些准则」，
+        # 下一轮再按用户这句话是纠正还是确认回写 appliedBad / appliedGood。
+        # 默认开启；怀疑正则误判在污染准则证据时才填 false。
+        # autoFeedback: true

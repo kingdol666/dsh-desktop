@@ -14,6 +14,7 @@ export default defineConfig([
       'profile-manager': 'src/profile-manager.ts',
       'profile-service': 'src/profile-service.ts',
       'profile-context': 'src/profile-context.ts',
+      'agent-team-seed': 'src/agent-team-seed.ts',
       'desktop-plugins': 'src/desktop-plugins.ts',
       pnpm: 'src/pnpm.ts',
       profiles: 'src/profiles.ts',

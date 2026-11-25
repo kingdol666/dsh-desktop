@@ -708,9 +708,11 @@ export interface SkippedOptionalEntry {
  * @returns base, Web carrier, then every third-party bundle in prior order.
  */
 export function desktopBundleList(current: readonly string[]): string[] {
+  const retired = new Set(DESKTOP_RETIRED_PLUGIN_BUNDLES)
   const thirdParty = current.filter(name => !REQUIRED_BUNDLE_SET.has(name)
     && !DESKTOP_PACKAGE_NAMES.has(name)
-    && !OBSOLETE_DESKTOP_BUNDLE_SET.has(name))
+    && !OBSOLETE_DESKTOP_BUNDLE_SET.has(name)
+    && !retired.has(name))
   return [...REQUIRED_BUNDLES, ...thirdParty]
 }
 
@@ -767,14 +769,29 @@ const MANAGED_MARKET_BUNDLES = new Set<string>([
  * loader entry id and fail the boot.
  */
 export const DESKTOP_SHIPPED_PLUGIN_BUNDLES: readonly string[] = Object.freeze([
-  'dsh-kb-rag',
   'dsh-zotero-skill',
+  'dsh-kb-rag',
+  'dsh-cognition-engine',
+  'dsh-lit-library',
+  'dsh-cite-verify',
+  '@perrylink/dsh-research-core',
+  'dsh-agent-skill',
+  '@bushizhanghan/dsh-context-budget',
+])
+
+/**
+ * Shipped bundles retired by a later Desktop release. Their packages no longer
+ * exist in the install anchor after an in-place upgrade, so any leftover entry
+ * in a profile manifest would make the next boot fail to resolve a bundle.
+ * The synchronizer prunes them; their data directories are intentionally left
+ * on disk (memory vault, workspace .kb index) so nothing is destroyed.
+ */
+export const DESKTOP_RETIRED_PLUGIN_BUNDLES: readonly string[] = Object.freeze([
+  'dsh-knowledge-base',
+  'dsh-matlab-workbench',
   'memory-eternal',
   'dsh-library',
-  'dsh-cite-verify',
   'dsh-research-skills',
-  '@perrylink/dsh-research-core',
-  'dsh-matlab-workbench',
 ])
 
 /** Read the Market provider and AA toggle state encoded in the Profile manifest's bundle list. */
@@ -824,7 +841,9 @@ export function syncDesktopManagedProfileBundles(
     : state.market === 'community-market'
       ? DESKTOP_MARKET_IDENTITIES.community.packageName
       : undefined
+  const retired = new Set(DESKTOP_RETIRED_PLUGIN_BUNDLES)
   const next = current.filter(name => {
+    if (retired.has(name)) return false
     if (MANAGED_MARKET_BUNDLES.has(name)) return name === wantedMarketBundle
     if (name === AA_PACKAGE_NAME) return state.aaEnabled
     return true
@@ -1137,7 +1156,8 @@ function loadRecoveryFilteredProfile(
     && (!Array.isArray(rawBundles) || rawBundles.some(value => typeof value !== 'string'))) {
     throw new Error(`${BIN_NAME}: dsh.profile.bundles must be an array of package names`)
   }
-  const bundles = (rawBundles ?? []) as string[]
+  const retired = new Set(DESKTOP_RETIRED_PLUGIN_BUNDLES)
+  const bundles = ((rawBundles ?? []) as string[]).filter(packageName => !retired.has(packageName))
   const selectedBundles = bundles.filter(packageName =>
     (aaEnabled || packageName !== AA_PACKAGE_NAME) &&
     packageName !== DESKTOP_MARKET_IDENTITIES.community.packageName

@@ -1,0 +1,474 @@
+/**
+ * src/memory.ts — TemporalMemoryStore
+ *
+ * 双时态记忆存储，工程机制对齐 LongMemory（CaviraOSS/LongMemory）的
+ * `src/core/temporal/bitemporal.ts` 与 `docs/temporal.md`：
+ *
+ *   - 两条独立时间轴：
+ *       valid time    → validFrom / validTo     （事实在「世界」里何时为真）
+ *       recorded time → recordedAt / supersededAt（系统在「事务时间」何时知道）
+ *   - `validTo === null`     表示「仍然有效」
+ *   - `supersededAt === null` 表示「仍是当前版本」
+ *   - 闭合区间（写 validTo / supersededAt）不改变内容的 durable identity：
+ *     hash 只由 subject + content + validFrom 计算，被取代的事实保留原 id 与 hash，
+ *     只是从「当前视图」里退场。
+ *   - 严格召回只取 current truth；历史召回保留被取代的真值（point-in-time truth）。
+ *
+ * 情绪联动（本次新增）：
+ *   - `ingest()` 在「本条取代了旧事实」时返回 `onConflictTriggered = true`；
+ *
+ * 存储：纯 TypeScript + Map，无任何外部数据库。
+ */
+import type { AdmissionRules, WriteOrigin } from './admission.ts';
+export type RecallMode = 'strict' | 'historical' | 'belief' | 'associative';
+/** 记忆作用域：全局共享 / 工作区共享 / 会话私有。 */
+export type MemoryScope = 'global' | 'workspace' | 'session';
+/** 一条不可变记忆事实。内容字段创建后不再改写（闭合区间时整体替换为新对象）。 */
+export interface TemporalFact {
+    readonly id: string;
+    /** 冲突检测的归一化主题键。 */
+    readonly subject: string;
+    readonly content: string;
+    /** 内容指纹：subject + content + validFrom。不含 validTo / supersededAt。 */
+    readonly hash: string;
+    readonly validFrom: number;
+    readonly validTo: number | null;
+    readonly recordedAt: number;
+    readonly supersededAt: number | null;
+    readonly supersededBy: string | null;
+    /**
+     * 被取代的理由（人话，一句话）。
+     *
+     * 为什么单独存：只知道「这条什么时候死的」不够审计，还要知道「为什么判它死了」。
+     * 对应 Zep/Graphiti 给旧边打 t_invalid 时记录失效原因的做法（arXiv:2501.13956）。
+     * 不参与 hash——它只是元数据。
+     */
+    readonly supersedeReason?: string;
+    readonly tags: readonly string[];
+    readonly source: string;
+    readonly importance: number;
+    /**
+     * 归属主题（多对多）。空 = 未归类。
+     *
+     * 主题是人定的适用范围键，不是自动聚类的结果——
+     * 调研结论见 docs/topic-research.md。
+     */
+    readonly topicIds: readonly string[];
+    /** 作用域，默认 global。 */
+    readonly scope: MemoryScope;
+    /** scope = workspace 时的归属工作区 id。 */
+    readonly workspaceId: string | null;
+    /** scope = session 时的归属会话 id。 */
+    readonly sessionId: string | null;
+    /** 强化量（每次 recall 命中或被显式 reinforce 时增加），不参与 hash。 */
+    readonly activation: number;
+    /** 是否已归档：不进 strict 召回，但历史与联想仍可查。 */
+    readonly archived: boolean;
+    /** 最近一次手动修正的时间（用户改过内容/状态/录入时间）。 */
+    readonly revisedAt?: number;
+    /** 已被归并到哪条记忆（归并后不进 strict 召回，但历史仍可查）。 */
+    readonly mergedInto?: string;
+    /** 软删除时间：任何召回口径都不再返回，但数据保留可恢复。 */
+    readonly deletedAt?: number;
+    /** 写入通道：agent_tool / ui / import / reflection。 */
+    readonly origin?: WriteOrigin;
+    readonly lastAccessedAt: number;
+}
+/** 兼容旧命名：外部文档里把这条记录叫 MemoryNode。 */
+export type MemoryNode = TemporalFact;
+/** ingest 的返回值：事实本身 + 本次写入是否触发了「取代」。 */
+export interface IngestResult extends TemporalFact {
+    /** 本次写入是否把某条旧事实的 validTo 闭合、并标记了 supersededBy。 */
+    readonly onConflictTriggered: boolean;
+}
+/** ingest 入参。 */
+export interface IngestInput {
+    content: string;
+    subject?: string;
+    tags?: readonly string[];
+    /** 归属主题 id（多对多）；不传 = 未归类。 */
+    topicIds?: readonly string[];
+    source?: string;
+    /** 写入通道；由入口代码决定，agent 不能自填。默认 agent_tool。 */
+    origin?: WriteOrigin;
+    importance?: number;
+    /** 作用域，默认 global。 */
+    scope?: MemoryScope;
+    workspaceId?: string;
+    sessionId?: string;
+    validFrom?: number;
+    validTo?: number | null;
+    recordedAt?: number;
+    /** 显式声明本条取代哪条旧事实（LongMemory 的 supersedeNode）。 */
+    supersedes?: string;
+    /** 取代理由（一句话）。只有带 supersedes 时有意义。 */
+    supersedeReason?: string;
+}
+export interface RecallOptions {
+    mode?: RecallMode;
+    /** historical 模式下「那时」的世界时间。 */
+    validTime?: number;
+    /** belief 模式下「那时」的事务时间。 */
+    recordedTime?: number;
+    limit?: number;
+    minScore?: number;
+    subject?: string;
+    tags?: readonly string[];
+    /**
+     * 作用域过滤。
+     *   'all'（默认）→ 不过滤，保持旧行为
+     *   'global'      → 只要全局记忆
+     *   'workspace'   → 全局 + 指定工作区
+     *   'session'     → 全局 + 指定会话
+     */
+    scope?: MemoryScope | 'all';
+    workspaceId?: string;
+    sessionId?: string;
+}
+export interface RecallHit {
+    fact: TemporalFact;
+    score: number;
+    similarity: number;
+    decay: number;
+}
+/** 召回结果。 */
+export interface RecallMeta {
+    hits: RecallHit[];
+}
+export interface Conflict {
+    subject: string;
+    leftId: string;
+    rightId: string;
+    overlapFrom: number;
+    overlapTo: number | null;
+}
+/**
+ * Inline & Spill 渲染参数。
+ * 机制来源：dsh-superagent-prototype 的上下文装载——正文在额度内直接 inline，
+ * 超限只给 `chars` 与 read pointer（docs/007-architecture.md 第 594 行）。
+ */
+export interface RenderOptions extends RecallOptions {
+    /** 单条 inline 正文上限，超出只保留前缀并标记 truncated。 */
+    inlineChars?: number;
+    /** 多久以内算「近期」，超出则只给 ID 引用。 */
+    inlineMaxAgeMs?: number;
+}
+export interface InlineMemory {
+    id: string;
+    content: string;
+    chars: number;
+    truncated: boolean;
+    validFrom: number;
+}
+export interface SpilledMemory {
+    id: string;
+    chars: number;
+    pointer: string;
+    validFrom: number;
+}
+export interface RenderedMemory {
+    inline: InlineMemory[];
+    spilled: SpilledMemory[];
+    /** 可直接塞进 prompt 的文本。 */
+    text: string;
+    stats: {
+        inline: number;
+        spilled: number;
+        savedChars: number;
+    };
+}
+export interface MemoryStats {
+    total: number;
+    current: number;
+    superseded: number;
+    subjects: number;
+    conflicts: number;
+    /** 已归档的记忆条数。 */
+    archived: number;
+    /** 已软删除（可恢复）的条数。 */
+    deleted: number;
+}
+export interface MemoryOptions {
+    now?: () => number;
+    /** 衰减半衰期，默认 7 天。 */
+    halfLifeMs?: number;
+    idPrefix?: string;
+    /** 审计回调：每次变更触发一次，失败不影响主流程。 */
+    onEvent?: (event: {
+        op: string;
+        id?: string;
+        subject?: string;
+        hash?: string;
+        source?: string;
+        origin?: string;
+        detail?: string;
+    }) => void;
+}
+/** 召回强化：低于这个相似度的命中不加权，避免把噪声记忆越喂越重。 */
+export declare const RECALL_REINFORCE_FLOOR = 0.12;
+/** 单次召回命中给多少激活量。 */
+export declare const RECALL_ACTIVATION_GAIN = 0.1;
+/** importance ≥ 此值视为「核心记忆」（对应需求里的 CORE 级）。 */
+export declare const CORE_IMPORTANCE = 0.8;
+/** 超过这个年龄的核心记忆会触发「怀旧」。 */
+export declare const NOSTALGIA_AGE_MS: number;
+/** 事实在世界时间 t 是否为真（含被取代的历史真值）。 */
+export declare function isValidAt(fact: TemporalFact, validTime: number): boolean;
+/** 系统在事务时间 t 是否已经知道这条事实（含后来被取代的版本）。 */
+export declare function isRecordedAt(fact: TemporalFact, recordedTime: number): boolean;
+/** 是否「此刻的当前真值」：未被取代 + 已知 + 当前有效。 */
+export declare function isCurrent(fact: TemporalFact, now: number): boolean;
+/**
+ * 归一化文本，仅用于**比较**（不要拿它存库）。
+ *
+ * 干掉「同一条被存两遍」的最常见来源：全半角、大小写、空白、
+ * 标点、零宽字符。这一步几乎零成本，收益比换任何相似度算法都直接
+ * （SimHash/MinHash 在几百条规模是过度设计）。
+ */
+export declare function normalizeForCompare(text: string): string;
+/** 英文按词、中文按二元组切分，返回词频表（纯虚词 bigram 不产出）。 */
+export declare function tokenize(text: string): Map<string, number>;
+/**
+ * 最长公共子序列（LCS）相似度，Dice 归一化。
+ *
+ * 为什么需要它：中文二元组余弦抓不住「改写」。
+ * 实测：「发版前要跑完整测试」vs「发布版本之前必须先跑测试」
+ *   bigram 余弦只有 0.107，LCS 有 0.600——因为字序相同、只换了个别字。
+ *
+ * 标定数据（本项目真实准则）：
+ *   真实准则两两 LCS 最高 0.173（不会互相误判）
+ *   改了否定词的冲突对 LCS 0.769 / 0.933 / 0.875（能检出）
+ *
+ * 只用于**短文本两两比较**（准则、记忆条目），不要拿来做全库检索——
+ * 它是 O(n×m)，没有索引。
+ */
+export declare function lcsSimilarity(a: string, b: string): number;
+/**
+ * 两个短文本的综合相似度：二元组余弦与 LCS 取较大者。
+ *
+ * 余弦擅长「用词重合」，LCS 擅长「改写」。两者都高才算像，
+ * 取 max 是因为任一种命中都足够说明问题。
+ */
+export declare function textSimilarity(a: string, b: string): number;
+/**
+ * BM25 语料统计。
+ *
+ * 为什么需要它：我们原来用**纯 TF 余弦**（没有 IDF）。
+ * 在 212 个真实章节上实测，把查询从「原文标题」换成更真实的形态后：
+ *
+ *   前一半标题     余弦 49.7% → BM25 77.0%   (+27.3pp)
+ *   标题 + 怎么处理 余弦 76.4% → BM25 89.2%   (+12.8pp)
+ *   去掉修饰词     余弦 52.3% → BM25 74.1%   (+21.8pp)
+ *
+ * 原因：余弦没有 IDF，「的/是/处理」这类高频词会主导打分，
+ * 长文档也会因为词多而占便宜。BM25 三个机制正好治这三个病：
+ * IDF 压低常见词、长度归一化、TF 饱和。
+ */
+export interface Bm25Stats {
+    /** 每个词出现在多少个文档里。 */
+    df: Map<string, number>;
+    /** 平均文档长度（词数）。 */
+    avgLen: number;
+    /** 文档总数。 */
+    N: number;
+}
+/**
+ * 从一批已分词的文档构建 BM25 统计。
+ *
+ * 参数取值依据：在本项目 212 个真实章节上网格搜索，
+ * k1=1.2 / b=0.5 表现最好（短文本语料，长度差异小，所以 b 取低一些）。
+ */
+export declare function buildBm25Stats(docs: Iterable<Map<string, number>>): Bm25Stats;
+/** 单条查询对单条文档的 BM25 得分。 */
+export declare function bm25Score(query: Map<string, number>, doc: Map<string, number>, stats: Bm25Stats, k1?: number, b?: number): number;
+/** 余弦相似度。 */
+export declare function cosine(a: Map<string, number>, b: Map<string, number>): number;
+/** FNV-1a 32 位内容指纹（纯 TS，不依赖 node:crypto）。 */
+export declare function contentHash(...parts: readonly string[]): string;
+/** 从正文推导主题键：优先取冒号前的短语，否则取前 16 个字符。 */
+export declare function deriveSubject(content: string): string;
+export declare class TemporalMemoryStore {
+    #private;
+    private readonly facts;
+    private readonly bySubject;
+    /** 用户可配置的准入规则。 */
+    private rules;
+    /** 同主题自动取代的相似度阈值。 */
+    private readonly tokens;
+    private readonly clock;
+    private readonly halfLifeMs;
+    private readonly idPrefix;
+    private readonly onEvent;
+    private seq;
+    constructor(options?: MemoryOptions);
+    /** 安全触发审计回调。 */
+    private emit;
+    /** 当前时钟。 */
+    now(): number;
+    get size(): number;
+    /**
+     * 写入一条记忆。内容与时间戳立即冻结；重复内容（同 hash）直接返回既有事实，
+     * 不做覆盖写，这就是「不可变内容」的落地方式。
+     *
+     * 返回 `IngestResult`：事实字段全部保留，另外带 `onConflictTriggered`——
+     * 当本次写入通过 `supersedes` 把某条旧事实的 validTo 闭合时，它为 true。
+     */
+    ingest(input: IngestInput): IngestResult;
+    get(id: string): TemporalFact | undefined;
+    /**
+     * 写入前的「候选冲突」提示：同主题下语义相近的活事实。
+     *
+     * 为什么要有：原本模型要取代一条旧事实，得凭空想起它的 id——记错一个字符就污染，
+     * 想不起来就只能让两条并存。业界做法（Mem0, arXiv:2504.19413）是**先检索候选，
+     * 再让模型在 ADD/UPDATE/DELETE/NOOP 里选**。这里只做「检索候选」，不改任何数据，
+     * 所以即使提示不准也不会污染记忆库。
+     *
+     * 注意：仅按 subject 分桶，跨主题的语义重复抓不到（已知局限，见 README）。
+     */
+    similarLive(content: string, subjectHint?: string, threshold?: number, limit?: number): Array<{
+        id: string;
+        content: string;
+        similarity: number;
+        validFrom: number;
+    }>;
+    all(): readonly TemporalFact[];
+    /** 删除一条事实（连同索引与分词缓存）。用于纠正错误数据、清理测试数据。 */
+    remove(id: string): boolean;
+    /** 按来源批量删除，返回删除条数。 */
+    removeBySource(source: string): number;
+    /** 按主题批量删除，返回删除条数。 */
+    removeBySubject(subject: string): number;
+    /**
+     * 用新事实取代旧事实：给旧事实闭合 validTo 与 supersededAt，并记下 supersededBy。
+     * id / hash 不变——被取代的版本仍然可以被「历史召回」找回。
+     */
+    supersede(oldId: string, newId: string, at?: number, reason?: string): {
+        superseded: TemporalFact;
+        current: TemporalFact;
+    };
+    /**
+     * 衰减系数。
+     *
+     * 对齐 MemoryBank (AAAI 2024) 的 R = exp(-t/S)：强度 S 随召回增长，
+     * 于是常用的记忆衰减更慢。我们用半衰期当 S——activation 每 +1，半衰期翻倍，
+     * 最多放大 1 + MAX_STRENGTH_BOOST（=6）倍，避免高频记忆永不衰减。
+     */
+    /**
+     * 时间衰减（0.2 ~ 1.0）。
+     *
+     * 两个依据：
+     * 1. **幂律优于指数**——Wixted & Ebbesen 1991、Rubin & Wenzel 1996（210 个数据集）
+     *    都显示幂函数拟合更好。两者在短延迟几乎一致，**分歧在长延迟**：
+     *    指数半衰期 7 天时 90 天后只剩 0.0001（等于判死），
+     *    同样参数下幂律还有 0.50。这是「长期记忆」和「短期缓存」的区别。
+     * 2. **衰减不能决定真假**——条数少、使用频率低时，衰减参数根本估不出来。
+     *    它只该影响**排序**，不该影响一条记忆是否还成立，
+     *    更不能拿它触发删除（arXiv 2604.11364：最近没被访问 ≠ 不太真）。
+     *
+     * 公式照 FSRS：R = (1 + 19/81 · t/S)^(-0.5)，t=S 时 R=0.9。
+     * 取了下界 0.2——半年前的笔记仍有基础分，只是排序靠后。
+     */
+    decay(factOrId: TemporalFact | string, now?: number): number;
+    /**
+     * 设置一条记忆的归属主题。
+     *
+     * 主题是人定的适用范围键，所以这里只接受显式 id 列表；
+     * 传空数组表示移回「未归类」。
+     */
+    setTopics(id: string, topicIds: readonly string[]): TemporalFact;
+    /** 显式强化：提升激活量并重置衰减计时。 */
+    reinforce(id: string, amount?: number, now?: number): TemporalFact;
+    /**
+     * 按时间口径召回（保持原签名，返回命中数组）。
+     * 需要情绪聚合时用 `recallWithMeta()`。
+     */
+    recall(query: string, options?: RecallOptions): RecallHit[];
+    /**
+     * 按时间口径召回，并计算本批结果的情绪聚合。
+     *
+       *   isNostalgic  = 是否命中「30 天前 + 核心权重」的记忆
+     */
+    recallWithMeta(query: string, options?: RecallOptions): RecallMeta;
+    /**
+     * Inline & Spill：按需装载。
+     * 近期记忆直接给正文（可截断并标记 chars / truncated），
+     * 久远记忆只给 ID 引用（pointer），由调用方决定要不要再取一次。
+     */
+    render(query: string, options?: RenderOptions): RenderedMemory;
+    /** 同一 subject 的完整时间线（按 validFrom 升序）。 */
+    history(subject: string): TemporalFact[];
+    /**
+     * 冲突检测：同一 subject 下，两条内容不同的事实其有效区间发生重叠，
+     * 说明系统同时持有两个互斥的「当前真值」。
+     *
+     * **只统计还活着的事实**：已删除 / 已被取代的不算冲突。
+     * 早期版本没过滤，删掉的测试条目会一直挂在 conflicts 里（实测 3 条冲突中 2 条是已删条目），
+     * 让 `cognition_state` 报出一个永远降不下来的数字。
+     */
+    conflicts(): Conflict[];
+    stats(): MemoryStats;
+    /**
+     * 手动修正一条记忆：内容、主题、录入时间、有效状态。
+     *
+     * 注意 recordedAt 是双时态的事务时间轴，改动会让 belief 口径的答案偏移，
+     * 所以这里会打上 revisedAt 标记，表示「这条被人工改过」。
+     */
+    updateFact(id: string, patch: {
+        content?: string;
+        subject?: string;
+        recordedAt?: number;
+        superseded?: boolean;
+    }): TemporalFact | undefined;
+    /** 归档 / 取消归档一条记忆（不删数据，只影响 strict 召回）。 */
+    setArchived(id: string, archived: boolean): boolean;
+    /**
+     * 自动归档：长期没被访问、且从未被强化的记忆标记为 archived。
+     * 不做合并、不删数据——只是让它们退出 strict 召回。
+     */
+    autoArchive(options?: {
+        idleDays?: number;
+        maxActivation?: number;
+        now?: number;
+    }): string[];
+    /**
+     * 记忆归并：同一主题下，内容高度相似且极性一致的条目收敛成一条，
+     * 其余标记 mergedInto（不删除，历史仍可查）。
+     *
+     * 纯规则实现，不调用 LLM：相似度用词频余弦，保留重要度最高的一条作为主条目。
+     */
+    consolidate(options?: {
+        subject?: string;
+        threshold?: number;
+    }): Array<{
+        kept: string[];
+        merged: string[];
+    }>;
+    /** 软删除：任何召回口径都不再返回，数据保留，可恢复。 */
+    softDelete(id: string): boolean;
+    /** 恢复一条软删除的记忆。 */
+    restoreDeleted(id: string): boolean;
+    /**
+     * 体检：找出「取代者已经不存在，但自己还被标成已取代」的事实。
+     *
+     * 这是历史数据里的常见坏味道（删掉新版本后旧版永久失效）。
+     * 返回 id 供页面提示，`repairOrphans()` 才是修。
+     */
+    orphans(): Array<{
+        id: string;
+        subject: string;
+        missingBy: string;
+    }>;
+    /** 修掉所有孤儿取代关系（把被取代者放回 current）。返回修了几条。 */
+    repairOrphans(): number;
+    /** 设置准入规则（页面上的开关）。 */
+    setRules(rules: Partial<AdmissionRules>): AdmissionRules;
+    /** 当前准入规则。 */
+    getRules(): AdmissionRules;
+    /** 导出为纯 JSON（可自行落盘到 .json 文件，仍然不依赖数据库）。 */
+    serialize(): TemporalFact[];
+    /** 从 serialize() 的结果恢复；缺失字段按默认值补齐。 */
+    restore(facts: readonly TemporalFact[]): void;
+    private visibleByScope;
+    private visible;
+    private findByHash;
+}

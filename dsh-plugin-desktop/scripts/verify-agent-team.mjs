@@ -1,0 +1,406 @@
+/** Real Host acceptance for the polymer Superagent layer.
+ *
+ * Boots the same desktop profile composition the app loads, seeds the five
+ * expert definitions before the Agent & Skill plugin applies, then proves:
+ *   - `delegate_agent` and the four context-budget tools are registered;
+ *   - `polymer-chief-route` is in the skill registry;
+ *   - six caller presets can each delegate to a different expert;
+ *   - every child session runs under the target expert's own polymer preset;
+ *   - the child tool surface is the expert whitelist, not the caller's surface;
+ *   - the five experts can execute their real tools (KB search, WAXS pro,
+ *     hypothesis, gate, report) in one chain.
+ *
+ * Model calls are not required: the delegation tool is executed exactly as the
+ * model would call it, and the child's scoped context executes its own tools.
+ */
+
+import { randomUUID } from 'node:crypto'
+import { syncBuiltinESMExports } from 'node:module'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import os, { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { setTimeout as delay } from 'node:timers/promises'
+import { boot } from '@deepseek-ai/dsh-app-boot'
+import { provideCmdline } from '@deepseek-ai/dsh-cmdline'
+import {
+  createLaunchEnvironmentSnapshot,
+  DSH_LAUNCH_ENVIRONMENT_KEY,
+} from '@deepseek-ai/dsh-launch-environment'
+import { installDesktopPnpmRuntime } from '../lib/desktop-runtime-environment.js'
+import { installProfilePackageResolver } from '../lib/module-resolution.js'
+import { DesktopPluginPackages } from '../lib/plugin-packages.js'
+import { prepareDesktopProfile, syncDesktopManagedProfileBundles } from '../lib/profile.js'
+import { DesktopProfileService } from '../lib/profile-service.js'
+import { createDesktopProfileBoot } from '../lib/profile-context.js'
+import { seedAgentTeamForBoot } from '../lib/agent-team-seed.js'
+
+const BIN_NAME = 'dsh-plugin-desktop-agent-team-smoke'
+const HOME = mkdtempSync(join(tmpdir(), 'dsh-desktop-agent-team-'))
+process.env.DSH_HOME = HOME
+const WORKSPACE = join(HOME, 'agent-team-workspace')
+mkdirSync(WORKSPACE, { recursive: true })
+process.chdir(WORKSPACE)
+const realUserInfo = os.userInfo.bind(os)
+os.userInfo = options => ({ ...realUserInfo(options), homedir: HOME })
+os.homedir = () => HOME
+syncBuiltinESMExports()
+
+let ordinaryBrowserEnabled = false
+const BROWSER_ACCESS = Object.freeze({
+  get ordinaryBrowserEnabled() { return ordinaryBrowserEnabled },
+  rendererHeader: Object.freeze({
+    name: 'x-dsh-desktop-renderer',
+    value: Buffer.alloc(32, 2).toString('base64url'),
+  }),
+  setOrdinaryBrowserEnabled(enabled) { ordinaryBrowserEnabled = enabled },
+})
+const LAN_HTTPS_SNAPSHOT = Object.freeze({
+  state: 'inactive',
+  actualPort: null,
+  addresses: Object.freeze([]),
+  caFingerprint: null,
+  errorCode: null,
+})
+const LAN_HTTPS = Object.freeze({
+  caCertificate: null,
+  attach() {},
+  snapshot() { return LAN_HTTPS_SNAPSHOT },
+  async setEnabled() { return LAN_HTTPS_SNAPSHOT },
+  async stop() { return LAN_HTTPS_SNAPSHOT },
+})
+
+const MATRIX = [
+  { caller: 'polymer-scientist', target: 'literature', childPreset: 'polymer-literature' },
+  { caller: 'polymer-physicist', target: 'characterization', childPreset: 'polymer-characterization' },
+  { caller: 'polymer-characterization', target: 'modeler', childPreset: 'polymer-modeler' },
+  { caller: 'polymer-modeler', target: 'physicist', childPreset: 'polymer-physicist' },
+  { caller: 'polymer-literature', target: 'reviewer', childPreset: 'polymer-reviewer' },
+  { caller: 'polymer-reviewer', target: 'characterization', childPreset: 'polymer-characterization' },
+]
+
+let ctx
+let releasePackageResolver
+let pnpmRuntime
+
+try {
+  const initial = prepareDesktopProfile('1', HOME, process.platform)
+  syncDesktopManagedProfileBundles(initial.profile.dir, {
+    market: initial.market.effective,
+    aaEnabled: initial.aaEnabled,
+  })
+  const prepared = prepareDesktopProfile('1', HOME, process.platform)
+  for (const bundle of ['dsh-agent-skill', '@bushizhanghan/dsh-context-budget']) {
+    if (!prepared.profile.layers.some(layer => layer.packageName === bundle)) {
+      throw new Error(`composed desktop profile does not carry ${bundle}; layers: ${prepared.profile.layers.map(layer => layer.packageName).join(', ')}`)
+    }
+  }
+
+  // Seed before boot: the plugin reads its store during apply.
+  const seeded = await seedAgentTeamForBoot(HOME)
+  if (!seeded.created) throw new Error(`agent team seed did not create the store: ${JSON.stringify(seeded)}`)
+  const stored = JSON.parse(readFileSync(seeded.path, 'utf8'))
+  if (stored.agents.length !== 5) throw new Error(`seed wrote ${stored.agents.length} agents, expected 5`)
+
+  const packageRoot = new URL('../', import.meta.url)
+  const pnpmBinPath = fileURLToPath(new URL('node_modules/pnpm/bin/pnpm.mjs', packageRoot))
+  const electronVersion = JSON.parse(
+    readFileSync(new URL('node_modules/electron/package.json', packageRoot), 'utf8'),
+  ).version
+  pnpmRuntime = installDesktopPnpmRuntime({
+    platform: process.platform,
+    appExecutable: process.execPath,
+    pnpmBinPath,
+    electronVersion,
+    stateDir: join(HOME, 'runtime-commands'),
+    environment: process.env,
+  })
+  releasePackageResolver = installProfilePackageResolver(prepared.bareModuleBaseUrl)
+  const runtime = {
+    platform: 'win32',
+    locale: 'en',
+    updates: {
+      isPackaged: false,
+      canDownload: true,
+      currentVersion: '2.0.0',
+      statePath: join(HOME, 'update-state.json'),
+      request: async () => { throw new Error('agent-team smoke must not perform update requests') },
+      confirmDownload: async () => false,
+      showManualCheckResult: async () => {},
+      downloadAndOpen: async () => {},
+      notify: () => {},
+    },
+    schedule() { return async () => {} },
+    async mountScheduled() {},
+    show() {},
+    registerTrayItem() { return { refresh() {}, dispose() {} } },
+    openTerminal() {},
+    setLocalePreference() {},
+    setThemeSource() {},
+    async requestRestart() {},
+    prepareToQuit() {},
+  }
+  const pnpmBootstrap = {
+    activeProfileName: 'desktop',
+    activeProfileDir: prepared.profile.dir,
+    homeDir: prepared.homeDir,
+    appExecutable: process.execPath,
+    pnpmBinPath,
+    electronVersion,
+    nodeBinDir: pnpmRuntime.nodeBinDir,
+    nodeShimPath: pnpmRuntime.nodeShimPath,
+    clearEnvironmentPath: pnpmRuntime.clearEnvironmentPath,
+    dshBootstrapPath: fileURLToPath(new URL('../lib/desktop-cli.js', import.meta.url)),
+  }
+  const profileBoot = createDesktopProfileBoot(prepared, pnpmBootstrap)
+  ctx = await boot(
+    BIN_NAME,
+    prepared.rootConfig,
+    [...prepared.patches],
+    async (host) => {
+      profileBoot.prepare(host)
+      host.loader.internal = undefined
+      await host.plugin(DesktopPluginPackages)
+      host.provide(DSH_LAUNCH_ENVIRONMENT_KEY, createLaunchEnvironmentSnapshot([]))
+      host.provide('desktopBrowserAccess', BROWSER_ACCESS)
+      host.provide('desktopLanHttps', LAN_HTTPS)
+      host.provide('desktopRuntime', runtime)
+      host.provide('desktopPnpmBootstrap', pnpmBootstrap)
+      await host.plugin(DesktopProfileService, {
+        current: { name: 'desktop', dir: prepared.profile.dir },
+        list: () => [{
+          name: 'desktop',
+          dir: prepared.profile.dir,
+          exists: true,
+          bundles: prepared.profile.layers.map(layer => layer.packageName),
+          webCapable: true,
+        }],
+        persistSelection: () => {},
+        requestRestart: () => {},
+      })
+      provideCmdline(host, { args: ['--host', '127.0.0.1', '--port', '0'], exit: () => {} })
+    },
+    prepared.bareModuleBaseUrl,
+  )
+  profileBoot.markReady()
+
+  const tools = ctx.get('tools')
+  if (tools === undefined) throw new Error('assembled desktop profile is missing the tool registry')
+  for (const name of ['delegate_agent', 'ctx_budget', 'ctx_budget_sweep', 'ctx_budget_skills', 'ctx_budget_tools']) {
+    if (tools.get(name) === undefined) throw new Error(`tool ${name} did not register`)
+  }
+  const skills = ctx.get('skills')
+  let skillNames = []
+  const skillDeadline = Date.now() + 20_000
+  while (Date.now() < skillDeadline) {
+    const skillSnapshot = skills.snapshot !== undefined ? await skills.snapshot() : await skills.list()
+    skillNames = (Array.isArray(skillSnapshot) ? skillSnapshot : skillSnapshot.skills).map(skill => skill.name)
+    if (skillNames.includes('polymer-chief-route') && skillNames.includes('polymer-physics')) break
+    await delay(200)
+  }
+  if (!skillNames.includes('polymer-chief-route')) {
+    throw new Error(`polymer-chief-route skill missing; got ${skillNames.join(', ')}`)
+  }
+  const delegate = tools.get('delegate_agent')
+  process.stdout.write(`verify-agent-team: global tools ${tools.schemas().length}\n`)
+  const delegateDescription = String(delegate.description ?? '')
+  for (const name of ['physicist', 'characterization', 'modeler', 'literature', 'reviewer']) {
+    if (!delegateDescription.includes(name)) {
+      throw new Error(`delegate_agent catalog does not list ${name}: ${delegateDescription.slice(0, 500)}`)
+    }
+  }
+
+  const agents = ctx.get('agents')
+  const sessions = ctx.get('sessionController')
+  if (agents === undefined || sessions === undefined) throw new Error('agent services missing')
+  const children = new Map()
+
+  for (const row of MATRIX) {
+    const created = await sessions.create({ cwd: WORKSPACE, agentPreset: row.caller })
+    if (created.agentPreset !== row.caller) {
+      throw new Error(`caller preset for ${row.caller} resolved to ${String(created.agentPreset)}`)
+    }
+    const caller = agents.get(created.sessionId)
+    if (caller === undefined) throw new Error(`no live caller agent for ${row.caller}`)
+    const childId = await delegate.execute(
+      { agent: row.target, prompt: 'Smoke child: reply with exactly READY and call no tools.' },
+      { agent: caller, signal: new AbortController().signal },
+    )
+    let child
+    const deadline = Date.now() + 10_000
+    while (child === undefined && Date.now() < deadline) {
+      child = agents.get(childId)
+      if (child === undefined) await delay(50)
+    }
+    if (child === undefined) throw new Error(`child ${childId} for ${row.target} never appeared`)
+    const header = child.session.header
+    if (header.agentPreset !== row.childPreset) {
+      throw new Error(
+        `${row.caller} -> ${row.target}: child preset ${String(header.agentPreset)} != ${row.childPreset}`,
+      )
+    }
+    const childTools = (tools.schemas(child) ?? []).map(tool => tool.name)
+    if (childTools.length === 0) throw new Error(`${row.target} child exposed no tools`)
+    children.set(row.target, { child, tools: new Set(childTools) })
+    process.stdout.write(
+      `verify-agent-team: ${row.caller} -> ${row.target} preset=${header.agentPreset} tools=${childTools.length}\n`,
+    )
+    child.cancel({ kind: 'user' })
+  }
+
+  const requireTool = (target, names) => {
+    const entry = children.get(target)
+    if (entry === undefined) throw new Error(`no ${target} child surfaced`)
+    for (const name of names) {
+      if (!entry.tools.has(name)) throw new Error(`${target} is missing whitelisted tool ${name}`)
+    }
+  }
+  const forbidTool = (target, names) => {
+    const entry = children.get(target)
+    if (entry === undefined) throw new Error(`no ${target} child surfaced`)
+    for (const name of names) {
+      if (entry.tools.has(name)) throw new Error(`${target} unexpectedly advertises ${name}`)
+    }
+  }
+  const expectDenied = async (target, name) => {
+    const entry = children.get(target)
+    if (entry === undefined) throw new Error(`no ${target} child surfaced`)
+    const outcome = await tools.execute({
+      callId: randomUUID(),
+      name,
+      arguments: {},
+      agent: entry.child,
+      signal: new AbortController().signal,
+    })
+    if (!outcome.isError) {
+      throw new Error(`${target} executed forbidden tool ${name}`)
+    }
+    return String(outcome.error?.message ?? outcome.error?.code ?? 'denied')
+  }
+  requireTool('literature', ['kb_search', 'kb_rag', 'pm_kb_note'])
+  forbidTool('literature', ['pm_sim_flory_huggins', 'pm_sim_md_run', 'delegate_agent', 'write'])
+  requireTool('reviewer', ['pm_gate_check', 'pm_evidence_verify'])
+  forbidTool('reviewer', ['write', 'pm_hypothesis_transition', 'delegate_agent', 'pm_sim_md_run'])
+  requireTool('characterization', ['pm_waxs_pro', 'pm_evidence_record'])
+  forbidTool('characterization', ['pm_sim_md_run', 'delegate_agent'])
+  requireTool('physicist', ['pm_hypothesis_propose', 'pm_sim_flory_huggins'])
+  forbidTool('physicist', ['delegate_agent', 'write'])
+  requireTool('modeler', ['pm_sim_flory_huggins', 'pm_sim_md_run'])
+  forbidTool('modeler', ['delegate_agent'])
+  const forbidden = [
+    await expectDenied('literature', 'pm_sim_flory_huggins'),
+    await expectDenied('reviewer', 'pm_hypothesis_transition'),
+    await expectDenied('literature', 'delegate_agent'),
+  ]
+  process.stdout.write(`verify-agent-team: forbidden calls denied (${forbidden.length})\n`)
+
+  // --- one real chain: project -> note/KB -> WAXS -> hypothesis -> gate -> report
+  const scientistSession = await sessions.create({ cwd: WORKSPACE, agentPreset: 'polymer-scientist' })
+  const scientist = agents.get(scientistSession.sessionId)
+  if (scientist === undefined) throw new Error('no live scientist agent')
+  process.stdout.write(`verify-agent-team: scientist session tools ${tools.schemas(scientist).length}\n`)
+  const call = async (agent, name, args) => {
+    const tool = agent.ctx.tools.get(name)
+    if (tool === undefined) throw new Error(`${name} is not visible to the acting expert`)
+    const raw = await tool.execute(args, { agent, signal: new AbortController().signal })
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
+    return parsed
+  }
+  const project = await call(scientist, 'pm_project_create', {
+    title: 'Agent team 验收',
+    question: 'PVA 热定型是否提高结晶度并改变取向',
+    domain: 'pva-optical-film',
+  })
+  const projectId = project?.data?.project?.id
+  if (typeof projectId !== 'string') throw new Error(`pm_project_create failed: ${JSON.stringify(project)}`)
+
+  const literature = children.get('literature')?.child
+  const characterization = children.get('characterization')?.child
+  const physicist = children.get('physicist')?.child
+  const reviewer = children.get('reviewer')?.child
+  if (!literature || !characterization || !physicist || !reviewer) throw new Error('missing chain child')
+
+  const note = await call(literature, 'pm_kb_note', {
+    text: 'CHAINMARKER 热定型 120 C、30 min 的 PVA 薄膜结晶度约 28.8%，由 WAXS 峰面积比得到。',
+    title: 'agent-team chain note',
+    tags: ['agent-team'],
+  })
+  if (note?.data?.kbIngest?.ok !== true) throw new Error(`pm_kb_note ingest failed: ${JSON.stringify(note)}`)
+  const hits = await call(literature, 'kb_search', { query: 'CHAINMARKER PVA crystallinity', top_k: 3 })
+  if (!JSON.stringify(hits).includes('CHAINMARKER')) throw new Error(`kb_search missed the chain note: ${JSON.stringify(hits)}`)
+
+  const lines = ['twotheta_deg,intensity']
+  for (let i = 0; i < 200; i += 1) {
+    const x = 9 + (19 * i) / 199
+    const gauss = (area, center, width) =>
+      (area / (width * Math.sqrt(Math.PI / 2))) * Math.exp(-2 * ((x - center) / width) ** 2)
+    const value = gauss(500, 11.6, 0.5) + gauss(2000, 19.5, 0.7) + gauss(600, 22.9, 0.8) + gauss(2600, 20.3, 3.5) + 30
+    lines.push(`${x.toFixed(4)},${value.toFixed(4)}`)
+  }
+  writeFileSync(join(WORKSPACE, 'pva_fit.csv'), `${lines.join('\n')}\n`)
+  const waxs = await call(characterization, 'pm_waxs_pro', {
+    projectId,
+    op: 'peakfit',
+    dataPath: 'pva_fit.csv',
+    peaks: [
+      { center: 11.6, width: 0.5, role: 'crystalline' },
+      { center: 19.5, width: 0.7, role: 'crystalline' },
+      { center: 22.9, width: 0.8, role: 'crystalline' },
+      { center: 20.3, width: 3.5, role: 'amorphous' },
+    ],
+    fitRange: [9, 28],
+    claimSupport: '热定型提高 PVA 结晶度',
+    strength: 'moderate',
+  })
+  if (waxs?.ok !== true) throw new Error(`pm_waxs_pro failed: ${JSON.stringify(waxs)}`)
+  const evidenceId = waxs.data?.evidence?.id
+  if (typeof evidenceId !== 'string') throw new Error(`pm_waxs_pro returned no evidence id: ${JSON.stringify(waxs)}`)
+
+  const hypothesis = await call(physicist, 'pm_hypothesis_propose', {
+    projectId,
+    statement: '热定型通过增加晶区体积分数提高 PVA 薄膜结晶度',
+    competitors: ['热定型只改变取向而不改变结晶度'],
+    evidenceIds: [evidenceId],
+  })
+  if (hypothesis?.ok !== true) throw new Error(`pm_hypothesis_propose failed: ${JSON.stringify(hypothesis)}`)
+
+  const gate = await call(reviewer, 'pm_gate_check', {
+    projectId,
+    kind: 'claim',
+    claim: '热定型提高 PVA 结晶度',
+    evidenceIds: [evidenceId],
+  })
+  if (gate?.ok !== true) throw new Error(`pm_gate_check failed: ${JSON.stringify(gate)}`)
+
+  const report = await call(scientist, 'pm_analysis_report', {
+    payload: {
+      title: 'Agent team 链路验收',
+      subtitle: 'KB -> WAXS -> hypothesis -> gate',
+      kpis: [{ label: '结晶度', value: String(waxs.data.analysis.crystallinityIndex), unit: '', note: 'WAXS peakfit' }],
+      sections: [{ heading: '证据', narrative: `evidence ${evidenceId}; gate ${gate.data?.verdict ?? 'unknown'}` }],
+      conclusions: ['链路每步均返回真实工具结果。'],
+    },
+    outputDir: 'reports',
+    name: 'agent-team-chain',
+  })
+  if (report?.ok !== true) throw new Error(`pm_analysis_report failed: ${JSON.stringify(report)}`)
+
+  process.stdout.write(
+    'verify-agent-team: six-preset delegation matrix, expert tool isolation and real chain passed\n',
+  )
+} catch (cause) {
+  process.stderr.write(`verify-agent-team: FAILED: ${cause instanceof Error ? cause.stack ?? cause.message : String(cause)}\n`)
+  process.exitCode = 1
+} finally {
+  await Promise.race([
+    ctx?.fiber.dispose(),
+    delay(10_000).then(() => process.stdout.write('verify-agent-team: warning: host dispose timed out\n')),
+  ])
+  releasePackageResolver?.()
+  pnpmRuntime?.dispose()
+  try {
+    rmSync(HOME, { recursive: true, force: true })
+  } catch (cleanupCause) {
+    process.stdout.write(`verify-agent-team: warning: temp home cleanup failed: ${cleanupCause instanceof Error ? cleanupCause.message : String(cleanupCause)}\n`)
+  }
+}

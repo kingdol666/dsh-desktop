@@ -103,6 +103,7 @@ import {
 } from './profile-manager.ts'
 import { DesktopProfileService } from './profile-service.ts'
 import { createDesktopProfileBoot } from './profile-context.ts'
+import { auditAgentTeam, seedAgentTeamForBoot } from './agent-team-seed.ts'
 import { logInactiveStartupEntries } from './startup-audit.ts'
 import { DesktopActionsService } from './desktop-actions.ts'
 import { clearDesktopProfilePluginState, DesktopPluginsService } from './desktop-plugins.ts'
@@ -250,15 +251,82 @@ function withDesktopDshHome(
   environment: LaunchEnvironmentSnapshot,
   homeDir: string,
 ): LaunchEnvironmentSnapshot {
-  const entry = Object.freeze({ value: homeDir, source: 'process' as const })
+  const dshHome = Object.freeze({ value: homeDir, source: 'process' as const })
+  // The shared ~/.agents/skills tree belongs to every agent tool on the machine.
+  // Scanning it would inject hundreds of unrelated skills into every expert
+  // prompt (a 69 KB catalog in the field). Desktop keeps its skill roots under
+  // the harness home: the bundled polymer skills plus $DSH_HOME/skills.
+  const agentsHome = Object.freeze({ value: join(homeDir, 'agents'), source: 'process' as const })
   return Object.freeze({
-    get: (name: string) => name.toUpperCase() === 'DSH_HOME' ? entry : environment.get(name),
+    get: (name: string) => {
+      const key = name.toUpperCase()
+      if (key === 'DSH_HOME') return dshHome
+      if (key === 'DSH_AGENTS_HOME') return agentsHome
+      return environment.get(name)
+    },
     getFrom: (name: string, sources: Parameters<LaunchEnvironmentSnapshot['getFrom']>[1]) => {
-      return name.toUpperCase() === 'DSH_HOME' && sources.includes('process')
-        ? entry
-        : environment.getFrom(name, sources)
+      const key = name.toUpperCase()
+      if (sources.includes('process')) {
+        if (key === 'DSH_HOME') return dshHome
+        if (key === 'DSH_AGENTS_HOME') return agentsHome
+      }
+      return environment.getFrom(name, sources)
     },
   })
+}
+
+/** The Agent & Skill store is written before the Host boots (the plugin reads
+ * it during `apply`). This post-boot pass only reports whitelisted names the
+ * installed profile did not register; it never rewrites the store. */
+function scheduleAgentTeamAudit(
+  ctx: { get(name: string): unknown },
+  homeDir: string,
+  logger: DesktopLogger,
+): void {
+  void (async () => {
+    try {
+      const tools = ctx.get('tools') as { schemas(): readonly { readonly name: string }[] } | undefined
+      const skills = ctx.get('skills') as {
+        snapshot?(): Promise<unknown>
+        list?(): Promise<readonly { readonly name: string }[]>
+      } | undefined
+      const readTools = (): string[] => tools?.schemas().map(tool => tool.name) ?? []
+      const readSkills = async (): Promise<string[]> => {
+        if (skills === undefined) return []
+        const snapshot = skills.snapshot !== undefined ? await skills.snapshot() : await skills.list?.()
+        const list = Array.isArray(snapshot)
+          ? snapshot
+          : (snapshot as { skills?: readonly { readonly name: string }[] } | undefined)?.skills ?? []
+        return list.map(skill => skill.name)
+      }
+      const markers = ['pm_kb_note', 'kb_ingest', 'polymer-physics']
+      const ready = (toolNames: readonly string[], skillNames: readonly string[]): boolean =>
+        markers.every(marker => toolNames.includes(marker) || skillNames.includes(marker))
+      let toolNames = readTools()
+      let skillNames = await readSkills()
+      const deadline = Date.now() + 20_000
+      while (!ready(toolNames, skillNames) && Date.now() < deadline) {
+        await new Promise<void>(resolve => setTimeout(resolve, 200))
+        toolNames = readTools()
+        skillNames = await readSkills()
+      }
+      const audit = await auditAgentTeam(homeDir, toolNames, skillNames)
+      if (audit.agents === 0) {
+        logger.info(`${BIN_NAME}: agent team audit: no definitions on disk`)
+        return
+      }
+      logger.info(`${BIN_NAME}: agent team audit: ${audit.agents} agents; `
+        + `${toolNames.length} tools, ${skillNames.length} skills registered`)
+      if (audit.missingTools.length > 0) {
+        logger.info(`${BIN_NAME}: warning: agent tools not registered: ${audit.missingTools.join(', ')}`)
+      }
+      if (audit.missingSkills.length > 0) {
+        logger.info(`${BIN_NAME}: warning: agent skills not registered: ${audit.missingSkills.join(', ')}`)
+      }
+    } catch (cause) {
+      logger.error(`${BIN_NAME}: agent team audit failed: ${cause instanceof Error ? cause.message : String(cause)}`)
+    }
+  })()
 }
 
 /** The proxy resolver reads a fresh configuration lazily; give it a moment before believing DIRECT. */
@@ -830,6 +898,13 @@ async function start(): Promise<void> {
       homeDir = dataDirectoryLocation.homeDir
     }
     process.env.DSH_HOME = homeDir
+    process.env.DSH_AGENTS_HOME = join(homeDir, 'agents')
+    // Seed before the Host boots: dsh-agent-skill reads its store during apply,
+    // so a later write would leave the first turn with no callable experts.
+    await seedAgentTeamForBoot(homeDir, {
+      info: message => electronLogger.info(`${BIN_NAME}: ${message}`),
+      warn: message => electronLogger.info(`${BIN_NAME}: warning: ${message}`),
+    })
     const desktopLaunchEnvironment = withDesktopDshHome(environment, homeDir)
     // Before anything can send a request. `installProxyFromEnvironment` also writes the resolved
     // names back into `process.env` in both casings, which is how `host-process.ts`'s
@@ -1902,6 +1977,7 @@ async function start(): Promise<void> {
       })
       generation.bindHost(ctx)
       profileBoot.markReady()
+      scheduleAgentTeamAudit(ctx, homeDir, electronLogger)
       observeDesktopPreferenceSettings(ctx, fileExporter, enqueueProfilePreferencesWrite)
       void logInactiveStartupEntries(ctx, BIN_NAME)
     }

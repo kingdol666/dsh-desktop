@@ -965,6 +965,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@bushizhanghan/dsh-context-budget@file:../vendor/dsh-context-budget/dsh-context-budget-0.1.2-pm1.tgz::locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop":
+  version: 0.1.2-pm1
+  resolution: "@bushizhanghan/dsh-context-budget@file:../vendor/dsh-context-budget/dsh-context-budget-0.1.2-pm1.tgz#../vendor/dsh-context-budget/dsh-context-budget-0.1.2-pm1.tgz::hash=e858fa&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
+  checksum: 10c0/711b160755c7263999bd8e20874d68a2ea1887e77fe271fcdfd83aa4a4945f7d8258efe604caff4815be696c536c7105de78484be464a385ed6dd7fc8ce293fc
+  languageName: node
+  linkType: hard
+
 "@csstools/color-helpers@npm:^6.1.1":
   version: 6.1.1
   resolution: "@csstools/color-helpers@npm:6.1.1"
@@ -13863,7 +13870,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@deepseek-ai/schemastery@npm:3.19.0, @deepseek-ai/schemastery@npm:^3.18.1, @deepseek-ai/schemastery@npm:^3.19.0, @deepseek-ai/schemastery@npm:~3.19.0":
+"@deepseek-ai/schemastery@npm:3.19.0, @deepseek-ai/schemastery@npm:^3.19.0, @deepseek-ai/schemastery@npm:~3.19.0":
   version: 3.19.0
   resolution: "@deepseek-ai/schemastery@npm:3.19.0"
   dependencies:
@@ -18746,6 +18753,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"dsh-agent-skill@file:../vendor/dsh-agent-skill/dsh-agent-skill-0.3.0-pm2.tgz::locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop":
+  version: 0.3.0-pm2
+  resolution: "dsh-agent-skill@file:../vendor/dsh-agent-skill/dsh-agent-skill-0.3.0-pm2.tgz#../vendor/dsh-agent-skill/dsh-agent-skill-0.3.0-pm2.tgz::hash=4e6d99&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
+  checksum: 10c0/6af0631443c28d399badba3279e0b94815832829c8b38d0200aaea33eb95d35b6bd3f2687fe85ad4603f69c2638602362090320a7a989ff1f90b5da15b6ccd25
+  languageName: node
+  linkType: hard
+
 "dsh-cite-verify@npm:0.2.3":
   version: 0.2.3
   resolution: "dsh-cite-verify@npm:0.2.3"
@@ -18755,6 +18769,13 @@ __metadata:
     "@deepseek-ai/schemastery": ^3.18.5-alpha.1
     "@perrylink/dsh-research-core": ^0.1.0
   checksum: 10c0/3e8fb76b26e5be63149ee128fedbaff367a490628909c637a256729ee80b17cc34e62daa345fefac3db0b68841a959052c7f2aca02f20ee16bb251c9245b6bda
+  languageName: node
+  linkType: hard
+
+"dsh-cognition-engine@file:../vendor/dsh-cognition-engine/dsh-cognition-engine-0.14.0-pm2.tgz::locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop":
+  version: 0.14.0
+  resolution: "dsh-cognition-engine@file:../vendor/dsh-cognition-engine/dsh-cognition-engine-0.14.0-pm2.tgz#../vendor/dsh-cognition-engine/dsh-cognition-engine-0.14.0-pm2.tgz::hash=f74515&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
+  checksum: 10c0/b27895c9cbcd35c4e077568fe9ca1e0f3afde6f793cdc32d024840641639e7871a1746cf74e6f7c92743095ea236846b4c91512cd6fb0240abb961c692858e57
   languageName: node
   linkType: hard
 
@@ -19228,31 +19249,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"dsh-library@npm:0.3.3":
-  version: 0.3.3
-  resolution: "dsh-library@npm:0.3.3"
+"dsh-lit-library@npm:0.2.1":
+  version: 0.2.1
+  resolution: "dsh-lit-library@npm:0.2.1"
   dependencies:
-    zod: "npm:4.6.6"
+    fflate: "npm:^0.8.2"
+    unpdf: "npm:^1.9.1"
   peerDependencies:
-    "@deepseek-ai/cordis": ^4.0.5-alpha.1
-    "@deepseek-ai/dsh-commands": ">=0.1.2-rc.1 <0.2.0 || >=0.1.5-alpha.1 <0.2.0 || >=0.1.6-0 <0.2.0 || >=0.1.7-0 <0.2.0 || >=0.2.0-0 <0.3.0 || >=0.2.1-0 <0.3.0 || >=0.2.2-0 <0.3.0 || >=0.2.3-0 <0.3.0-0"
-    "@deepseek-ai/dsh-fs": ">=0.1.2-rc.1 <0.2.0 || >=0.1.5-alpha.1 <0.2.0 || >=0.1.6-0 <0.2.0 || >=0.1.7-0 <0.2.0 || >=0.2.0-0 <0.3.0 || >=0.2.1-0 <0.3.0 || >=0.2.2-0 <0.3.0 || >=0.2.3-0 <0.3.0-0"
-    "@deepseek-ai/dsh-llm": ">=0.1.2-rc.1 <0.2.0 || >=0.1.5-alpha.1 <0.2.0 || >=0.1.6-0 <0.2.0 || >=0.1.7-0 <0.2.0 || >=0.2.0-0 <0.3.0 || >=0.2.1-0 <0.3.0 || >=0.2.2-0 <0.3.0 || >=0.2.3-0 <0.3.0-0"
-    "@deepseek-ai/dsh-session": ">=0.1.2-rc.1 <0.2.0 || >=0.1.5-alpha.1 <0.2.0 || >=0.1.6-0 <0.2.0 || >=0.1.7-0 <0.2.0 || >=0.2.0-0 <0.3.0 || >=0.2.1-0 <0.3.0 || >=0.2.2-0 <0.3.0 || >=0.2.3-0 <0.3.0-0"
-    "@deepseek-ai/dsh-storage": ">=0.1.2-rc.1 <0.2.0 || >=0.1.5-alpha.1 <0.2.0 || >=0.1.6-0 <0.2.0 || >=0.1.7-0 <0.2.0 || >=0.2.0-0 <0.3.0 || >=0.2.1-0 <0.3.0 || >=0.2.2-0 <0.3.0 || >=0.2.3-0 <0.3.0-0"
-    "@deepseek-ai/dsh-storage-domain": ">=0.1.2-rc.1 <0.2.0 || >=0.1.5-alpha.1 <0.2.0 || >=0.1.6-0 <0.2.0 || >=0.1.7-0 <0.2.0 || >=0.2.0-0 <0.3.0 || >=0.2.1-0 <0.3.0 || >=0.2.2-0 <0.3.0 || >=0.2.3-0 <0.3.0-0"
-    "@deepseek-ai/dsh-storage-json": ">=0.1.2-rc.1 <0.2.0 || >=0.1.5-alpha.1 <0.2.0 || >=0.1.6-0 <0.2.0 || >=0.1.7-0 <0.2.0 || >=0.2.0-0 <0.3.0 || >=0.2.1-0 <0.3.0 || >=0.2.2-0 <0.3.0 || >=0.2.3-0 <0.3.0-0"
-    "@deepseek-ai/dsh-subprocess": ">=0.1.2-rc.1 <0.2.0 || >=0.1.5-alpha.1 <0.2.0 || >=0.1.6-0 <0.2.0 || >=0.1.7-0 <0.2.0 || >=0.2.0-0 <0.3.0 || >=0.2.1-0 <0.3.0 || >=0.2.2-0 <0.3.0 || >=0.2.3-0 <0.3.0-0"
-    "@deepseek-ai/dsh-tools": ">=0.1.2-rc.1 <0.2.0 || >=0.1.5-alpha.1 <0.2.0 || >=0.1.6-0 <0.2.0 || >=0.1.7-0 <0.2.0 || >=0.2.0-0 <0.3.0 || >=0.2.1-0 <0.3.0 || >=0.2.2-0 <0.3.0 || >=0.2.3-0 <0.3.0-0"
-    "@deepseek-ai/schemastery": ^3.18.5
-  checksum: 10c0/50999e9ac225fb50ff13b7618d126728406dddf797ef6c4de3ee4959868d73a0c06f7b9aea101f96a1449d92ed9e1eb039cade074b9495a4572841e91c55e70c
-  languageName: node
-  linkType: hard
-
-"dsh-matlab-workbench@npm:0.1.0-beta.2":
-  version: 0.1.0-beta.2
-  resolution: "dsh-matlab-workbench@npm:0.1.0-beta.2"
-  checksum: 10c0/4e8a0e6fe90df0a6c1ff49bfde35dc59e6c8024834d752048e29fa00dfaef1b333779f59051646138183e234788f183b29c69584f63f642837a9dd6044cd9986
+    "@deepseek-ai/dsh-tools": ">=0.1.0-rc.1 <0.2.0-0 || >=0.2.0-rc.1 <0.2.1-0 || >=0.2.1-rc.1 <0.3.0-0"
+    "@deepseek-ai/schemastery": ~3.18.5
+  checksum: 10c0/91aee642bb9628a6d7fd8cc1aad46cc6a72d7e6c1633d32f8df1230ba327fd77264cc7312763e5fb50fcdca5cabc5148ae05216ea5f55b514af72c5276c3e97a
   languageName: node
   linkType: hard
 
@@ -19520,6 +19526,7 @@ __metadata:
   dependencies:
     "@agents-anywhere/dsh-bridge-next": "file:../vendor/agents-anywhere/agents-anywhere-dsh-bridge-next-2.2.0-desktop.cb364f42d2f3f.r2afb7d8b.tgz"
     "@base-ui/react": "npm:^1.7.0"
+    "@bushizhanghan/dsh-context-budget": "file:../vendor/dsh-context-budget/dsh-context-budget-0.1.2-pm1.tgz"
     "@deepseek-ai/cordis": "npm:4.0.5"
     "@deepseek-ai/cordis-plugin-group": "npm:1.0.5"
     "@deepseek-ai/cordis-plugin-include": "npm:1.0.10"
@@ -19714,12 +19721,12 @@ __metadata:
     builder-util: "npm:26.15.3"
     class-variance-authority: "npm:^0.7.1"
     clsx: "npm:^2.1.1"
+    dsh-agent-skill: "file:../vendor/dsh-agent-skill/dsh-agent-skill-0.3.0-pm2.tgz"
     dsh-cite-verify: "npm:0.2.3"
+    dsh-cognition-engine: "file:../vendor/dsh-cognition-engine/dsh-cognition-engine-0.14.0-pm2.tgz"
     dsh-community-market: "npm:0.1.0-dev.0"
     dsh-kb-rag: "npm:1.6.8"
-    dsh-library: "npm:0.3.3"
-    dsh-matlab-workbench: "npm:0.1.0-beta.2"
-    dsh-research-skills: "npm:0.1.2"
+    dsh-lit-library: "npm:0.2.1"
     dsh-zotero-skill: "npm:0.5.5"
     dshmarket: "npm:1.73.22"
     electron: "npm:44.7.0"
@@ -19731,7 +19738,6 @@ __metadata:
     koffi: "npm:3.1.1"
     lexical: "npm:0.49.0"
     lucide-react: "npm:^1.33.0"
-    memory-eternal: "npm:0.49.11"
     node-addon-require-builtin: "npm:^0.1.9"
     node-gyp: "npm:13.0.1"
     papaparse: "npm:^5.5.0"
@@ -19760,16 +19766,6 @@ __metadata:
     dsh-plugin-desktop: lib/bin.js
   languageName: unknown
   linkType: soft
-
-"dsh-research-skills@npm:0.1.2":
-  version: 0.1.2
-  resolution: "dsh-research-skills@npm:0.1.2"
-  peerDependencies:
-    "@deepseek-ai/cordis": ^4.0.5-alpha.1
-    "@deepseek-ai/schemastery": ^3.18.5-alpha.1
-  checksum: 10c0/522ab0a997ec483f6be023f2497e89d37b824d3ddcce404a8c6e950e33bd6beb9bc1a6a20b98ef7451ba6032195bbc6969f53b975b28a108b38bfd03c5c3de3d
-  languageName: node
-  linkType: hard
 
 "dsh-zotero-skill@npm:0.5.5":
   version: 0.5.5
@@ -22456,23 +22452,6 @@ __metadata:
   version: 1.1.1
   resolution: "media-typer@npm:1.1.1"
   checksum: 10c0/924644de220c3107fc53ec0299b7c1488503470265d32f1492535bd798cc369ba7ceaf9c2a4533361590dcf7208d1cc7b7032dbc1a5918773f5f5d912cab5211
-  languageName: node
-  linkType: hard
-
-"memory-eternal@npm:0.49.11":
-  version: 0.49.11
-  resolution: "memory-eternal@npm:0.49.11"
-  dependencies:
-    "@deepseek-ai/schemastery": "npm:^3.18.1"
-  peerDependencies:
-    "@deepseek-ai/cordis": ^4.0.1
-    "@deepseek-ai/dsh-llm": ">=0.1.0-rc.2 <0.3.0-0"
-    "@deepseek-ai/dsh-tools": ">=0.1.0-rc.2 <0.3.0-0"
-  bin:
-    dsh-memory: bin/dsh-memory.mjs
-    mem: bin/dsh-memory.mjs
-    memory: bin/dsh-memory.mjs
-  checksum: 10c0/d2aa99f4e3f1c3a1ac5c9cc2783c737ff1b2e6d2f038dd0b84e6438366ee1ccf49b2875859c50637a2291107a59a9c4017198c291c5ac504c27313c745d1fc43
   languageName: node
   linkType: hard
 
@@ -26307,6 +26286,18 @@ __metadata:
   version: 2.0.1
   resolution: "universalify@npm:2.0.1"
   checksum: 10c0/73e8ee3809041ca8b818efb141801a1004e3fc0002727f1531f4de613ea281b494a40909596dae4a042a4fb6cd385af5d4db2e137b1362e0e91384b828effd3a
+  languageName: node
+  linkType: hard
+
+"unpdf@npm:^1.9.1":
+  version: 1.9.1
+  resolution: "unpdf@npm:1.9.1"
+  peerDependencies:
+    "@napi-rs/canvas": ^0.1.69 || ^1.0.0
+  peerDependenciesMeta:
+    "@napi-rs/canvas":
+      optional: true
+  checksum: 10c0/250adbe66f8beb68f567e2a5a0eb8115f518bb0daf6c3a88157bc7c4292c9757395a52d6d07cc7900afd3fc730fa045862766318f47e724dd347b7f748e66a3c
   languageName: node
   linkType: hard
 

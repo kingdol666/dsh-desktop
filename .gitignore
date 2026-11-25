@@ -10,6 +10,14 @@ node_modules/
 *.tsbuildinfo
 .build/
 
+# Local release/verification artifacts
+.omc/*.log
+.omc/backup-*/
+.omc/vendor-work/
+dsh-plugin-desktop/.cite-verify/
+dsh-plugin-desktop/.research-rep/
+deepseek-harness/
+
 dsh-plugin-desktop/dist/
 dsh-plugin-desktop/lib/
 plugins/*/lib/

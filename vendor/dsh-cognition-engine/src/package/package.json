@@ -1,0 +1,85 @@
+{
+  "name": "dsh-cognition-engine",
+  "version": "0.14.0",
+  "type": "module",
+  "description": "DSH cognition engine: bitemporal memory, constructivist schema graph, mood state machine, dialectical reflection, long-horizon tasks",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/1720198650/dsh-cognition-engine.git"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "agent-memory",
+    "bitemporal",
+    "rag",
+    "reflection",
+    "mood"
+  ],
+  "engines": {
+    "node": ">=22",
+    "dsh": ">=0.2.1-rc.2 <0.3.0-0"
+  },
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/*.js",
+    "!lib/test.js",
+    "!lib/eval.js",
+    "lib/types/**/*.d.ts",
+    "!lib/types/test.d.ts",
+    "!lib/types/eval.d.ts",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "scripts/redact-export.mjs",
+    "dsh-package.json"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ]
+    }
+  },
+  "scripts": {
+    "build": "node scripts/clean-lib.mjs && tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "tsx src/test.ts",
+    "test:node": "node src/test.ts",
+    "eval": "tsx src/eval.ts",
+    "eval:node": "node src/eval.ts",
+    "prepublishOnly": "npm run build",
+    "check:injection": "node scripts/check-injection.mjs",
+    "l2:selftest": "node scripts/l2-selftest.mjs",
+    "brief": "node scripts/task-brief.mjs",
+    "ab:brief": "node scripts/ab-brief.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "js-tiktoken": "^1.0.21",
+    "tsx": "^4.19.0",
+    "typescript": "^5.9.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

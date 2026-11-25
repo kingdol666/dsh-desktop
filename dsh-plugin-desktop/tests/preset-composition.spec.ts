@@ -83,6 +83,18 @@ describe('polymer expert preset composition', () => {
     expect(prefix).toContain('standard DSH tool surface')
   })
 
+  it.each(POLYMER_PRESETS)('%s can delegate to the polymer expert team', (presetId) => {
+    const preset = polymerPresetRows().get(presetId)
+    const persona = presetPlugins(preset!).find(plugin => plugin.name === '@deepseek-ai/dsh-persona')
+    const prefix = (persona?.config as { prefix?: string } | undefined)?.prefix ?? ''
+    expect(prefix).toContain('Delegation protocol (all polymer experts)')
+    expect(prefix).toContain('delegate_agent')
+    expect(prefix).toContain('polymer-chief-route')
+    for (const expert of ['physicist', 'characterization', 'modeler', 'literature', 'reviewer']) {
+      expect(prefix).toContain(expert)
+    }
+  })
+
   it('keeps the platform-specific shell tools and the standard capability groups', () => {
     const names = flattenPluginNames(presetPlugins(polymerPresetRows().get('polymer-scientist')!))
     for (const required of [

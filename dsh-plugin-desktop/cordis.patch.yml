@@ -37,11 +37,12 @@
       name: dsh-plugin-desktop/updates
     - id: pm-research
       name: dsh-plugin-desktop/pm
-    # Literature plugins (dsh-kb-rag, dsh-zotero-skill) ship as production
-    # dependencies and are injected into the ACTIVE profile's bundle list by
-    # syncDesktopManagedProfileBundles — the same desktop-managed pattern as the
-    # market bundles. They must NOT be inserted here: a profile-side copy
-    # (dsh plugin add) would duplicate the loader entry id and fail the boot.
+    # Research bundles (Zotero, cognition-engine memory, partitioned knowledge
+    # base, literature library) ship as production dependencies and are injected
+    # into the ACTIVE profile's bundle list by syncDesktopManagedProfileBundles —
+    # the same desktop-managed pattern as the market bundles. They must NOT be
+    # inserted here: a profile-side copy (dsh plugin add) would duplicate the
+    # loader entry id and fail the boot.
     # Six prebuilt polymer experts: selectable at new-session via the preset
     # registry; polymer skills register programmatically through pm-research.
     - id: preset-pm-scientist
@@ -93,6 +94,14 @@
                 (7) When asked to design an experiment, call pm_experiment_plan
                 for a structured factorial matrix, power and n per cell; a plan is
                 not data.
+
+                Delegation protocol (all polymer experts): when a task belongs to
+                another polymer specialty, call delegate_agent with the matching
+                expert name (physicist / characterization / modeler / literature /
+                reviewer) and a self-contained brief; use the polymer-chief-route
+                skill for routing and the JSON output contract. The child runs
+                under that expert's own polymer preset. Do not do another
+                expert's specialty work yourself.
           - id: agent-instructions
             name: '@deepseek-ai/dsh-agent-instructions'
             config:
@@ -243,6 +252,14 @@
                 before they become claims. Distinguish thermodynamic from kinetic
                 arguments. Cite evidence IDs for any empirical claim. Simulation
                 output is a prediction, never measurement evidence.
+
+                Delegation protocol (all polymer experts): when a task belongs to
+                another polymer specialty, call delegate_agent with the matching
+                expert name (physicist / characterization / modeler / literature /
+                reviewer) and a self-contained brief; use the polymer-chief-route
+                skill for routing and the JSON output contract. The child runs
+                under that expert's own polymer preset. Do not do another
+                expert's specialty work yourself.
           - id: agent-instructions
             name: '@deepseek-ai/dsh-agent-instructions'
             config:
@@ -389,6 +406,14 @@
                 and never extrapolate beyond the measured window. If a fit fails or
                 is degenerate, report NO_FIT and the failing diagnostic instead of
                 forcing a number.
+
+                Delegation protocol (all polymer experts): when a task belongs to
+                another polymer specialty, call delegate_agent with the matching
+                expert name (physicist / characterization / modeler / literature /
+                reviewer) and a self-contained brief; use the polymer-chief-route
+                skill for routing and the JSON output contract. The child runs
+                under that expert's own polymer preset. Do not do another
+                expert's specialty work yourself.
           - id: agent-instructions
             name: '@deepseek-ai/dsh-agent-instructions'
             config:
@@ -538,6 +563,14 @@
                 sim-vs-measurement gate decide. Turn a chosen design into a runnable
                 matrix with pm_experiment_plan (power and n per cell); a plan is not
                 data.
+
+                Delegation protocol (all polymer experts): when a task belongs to
+                another polymer specialty, call delegate_agent with the matching
+                expert name (physicist / characterization / modeler / literature /
+                reviewer) and a self-contained brief; use the polymer-chief-route
+                skill for routing and the JSON output contract. The child runs
+                under that expert's own polymer preset. Do not do another
+                expert's specialty work yourself.
           - id: agent-instructions
             name: '@deepseek-ai/dsh-agent-instructions'
             config:
@@ -685,6 +718,14 @@
                 the DOI link to the user). Never cite a paper you did not read in
                 this session. If a PDF cannot be parsed, say so instead of quoting
                 from memory.
+
+                Delegation protocol (all polymer experts): when a task belongs to
+                another polymer specialty, call delegate_agent with the matching
+                expert name (physicist / characterization / modeler / literature /
+                reviewer) and a self-contained brief; use the polymer-chief-route
+                skill for routing and the JSON output contract. The child runs
+                under that expert's own polymer preset. Do not do another
+                expert's specialty work yourself.
           - id: agent-instructions
             name: '@deepseek-ai/dsh-agent-instructions'
             config:
@@ -830,6 +871,14 @@
                 consistent with the measurement context; is at least one competing
                 hypothesis explicitly excluded? Approve only what survives
                 scrutiny and reject with concrete, reproducible reasons.
+
+                Delegation protocol (all polymer experts): when a task belongs to
+                another polymer specialty, call delegate_agent with the matching
+                expert name (physicist / characterization / modeler / literature /
+                reviewer) and a self-contained brief; use the polymer-chief-route
+                skill for routing and the JSON output contract. The child runs
+                under that expert's own polymer preset. Do not do another
+                expert's specialty work yourself.
           - id: agent-instructions
             name: '@deepseek-ai/dsh-agent-instructions'
             config:
@@ -944,18 +993,6 @@
           - id: tool-plugin-market
             name: '@deepseek-ai/dsh-plugin-market/tools'
             disabled: true
-
-# memory-eternal's optional auto-spawned web UI and 7x24 watchdog child process
-# fail to spawn on Windows (Node 24 hardening rejects their launch options) and
-# the watchdog holds the profile dir open. The bundle patch documents profile
-# overrides by id; keep the core capture/recall memory on, disable the extras.
-- id: memory-eternal
-  config:
-    enabled: true
-    autoCapture: true
-    autoRecall: true
-    autoWeb: false
-    watchdogAutoSpawn: false
 
 # A desktop launch has no terminal operator waiting for the Web readiness line.
 - id: web-runtime

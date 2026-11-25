@@ -10,7 +10,7 @@ metadata:
 # 文献工作流
 
 ## 流程
-1. **在线检索**：`pm_literature_search`（OpenAlex/Crossref + 高分子预筛，结果自带 rubric 分与理由）；本地库检索用 `kb_search`/`kb_rag`（dsh-kb-rag 未装时明确声明不可用）。
+1. **在线检索**：`pm_literature_search`（OpenAlex/Crossref + 高分子预筛，结果自带 rubric 分与理由）；本地库检索用 `kb_search`（quick/deep，英文库用英文术语串）、综合回答用 `kb_rag`（按证据带标题/年份/DOI 引用）、文献索引再用 `lit_find` 交叉核对。论文下载成功后 `pm_literature_download` 会返回 `data.kbIngest`；若 `kbIngest.ok` 不是 true，用 `kb_ingest` 对下载路径补入库，并用 `kb_stats` 核对。
 2. **两阶段筛选**：
    - 第一级（工具）：`pm_literature_search`/`pm_literature_screen` 的 rubric 分（core≥70 / important≥45 / reference）只做**预筛排序**，不等于采纳。
    - 第二级（你）：对 core/important 候选逐条读摘要做**终审**，输出 `accept / review / reject` + 一句理由。判断依据：

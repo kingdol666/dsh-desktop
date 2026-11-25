@@ -348,16 +348,25 @@ try {
     }
   }
   // Shipped research plugins must mount with their tools visible in the
-  // global registry (memory-eternal, dsh-library, dsh-cite-verify,
-  // dsh-matlab-workbench) and their skills in the registry.
+  // global registry (cognition-engine memory, partitioned knowledge base,
+  // literature library, cite-verify) and their skills in the registry.
   const globalTools = () => new Set(toolsService.schemas().map(tool => tool.name))
   const requiredShippedTools = [
-    'memory_recall',
-    'memory_note',
-    'library_search',
-    'library_add',
+    'cognition_context',
+    'cognition_remember',
+    'cognition_recall',
+    'kb_ingest',
+    'kb_search',
+    'kb_rag',
+    'pm_kb_note',
+    'lit_import',
+    'lit_find',
     'cite_verify',
-    'dsh_matlab_prepare',
+    'delegate_agent',
+    'ctx_budget',
+    'ctx_budget_sweep',
+    'ctx_budget_skills',
+    'ctx_budget_tools',
   ]
   let toolSet = globalTools()
   const deadlineShippedTools = Date.now() + 20_000
@@ -380,9 +389,9 @@ try {
     'pva-oblique-stretching',
     'mechanism-discovery',
     'experiment-design',
-    'citation-audit',
-    'reproducibility-audit',
-    'manuscript-preflight',
+    'lit-library',
+    'kb-grounded-answer',
+    'polymer-chief-route',
   ]
   const skillsDeadline = Date.now() + 15_000
   let skillNames = []

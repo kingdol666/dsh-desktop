@@ -127,6 +127,12 @@ def _literature_download(args: dict[str, object]) -> dict[str, object]:
     return download_doi(dict(args))
 
 
+def _literature_browser_download(args: dict[str, object]) -> dict[str, object]:
+    from pm_science.litbrowser import download_via_browser
+
+    return download_via_browser(dict(args))
+
+
 def _literature_screen(args: dict[str, object]) -> dict[str, object]:
     from pm_science.litsearch import screen_candidates
 
@@ -364,6 +370,7 @@ HANDLERS = {
     "literature_read": _literature_read,
     "literature_search": _literature_search,
     "literature_download": _literature_download,
+    "literature_browser_download": _literature_browser_download,
     "literature_screen": _literature_screen,
     "chain_mech": _chain_mech,
     "rubber": _rubber,

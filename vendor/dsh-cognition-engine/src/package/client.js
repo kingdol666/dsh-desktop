@@ -1,0 +1,4598 @@
+/**
+ * client.js — 页面可视化（Client 半区）
+ *
+ * 两个入口：左侧栏图标打开整页面板；输入框上方横条展开为透明浮层。
+ * 页签：任务 / 记忆 / 主题 / 设置。
+ * 计数每 2 秒轮询 /cognition-engine/state；明细只在展开时拉 /cognition-engine/detail。
+ * 设置页可以清空数据、开关真模型、上锁并填口令。全部走 HTTP，不进模型上下文。
+ */
+window.__ModuleLoader__.load({
+  id: 'dsh-cognition-engine',
+  factory(require) {
+    const React = require('react');
+    const h = React.createElement;
+
+    const DICT = {
+      zh: {
+        name: '认知引擎',
+        energy: '能量',
+        favor: '好感',
+        memory: '记忆',
+        schema: '主题',
+        todo: '任务',
+        state: '状态',
+        settings: '设置',
+        connecting: '连接中…',
+        offline: '无数据',
+        tasks: '任务',
+        memories: '记忆',
+        schemas: '主题',
+        refresh: '刷新',
+        close: '收起',
+        empty: '暂无内容',
+        current: '当前',
+        superseded: '已取代',
+        members: '成员',
+        links: '邻接',
+        clues: '线索',
+        updated: '更新于',
+        overdue: '超时',
+        loading: '加载中…',
+        noDetail: '明细加载失败',
+        testData: '测试',
+        why: '为什么',
+        means: '说明',
+        label: '状态标签',
+        noTime: '本进程内时间没有推进过：这两个数只会被事件改变，不会自己变。',
+        storage: '数据文件',
+        clear: '数据操作',
+        clearMemory: '清空记忆',
+        clearAll: '清空全部',
+        rulesTitle: '记忆准入规则',
+        ruleTransient: '忽略寒暄（ok / 谢谢 / 收到）',
+        ruleSensitive: '拦截密钥与密码',
+        ruleInjection: '拦截「忽略之前的指令」',
+        ruleAuthority: '低权威不得覆盖高权威',
+        consolidate: '合并同类记忆',
+        backupTitle: '备份与审计',
+        restoreLatest: '恢复最近快照',
+        viewAudit: '查看最近审计',
+        exportData: '导出',
+        importData: '导入',
+        realModel: '反思引擎',
+        engineOff: '已关闭',
+        engineLocal: '本地引擎',
+        engineReal: '真实模型',
+        autoReflectLabel: '巡逻时自动复盘',
+        autoReflectOn: '开启（每次约 3100 tokens）',
+        autoReflectOff: '关闭（只记录提示，不烧 token）',
+        autoReflectHint: '巡视每 3 小时看一次逾期任务。开启后会自动跑一次三段式复盘（3 次模型调用，约 3100 tokens）；关闭后只把「已超期 N 小时」写进任务线索，不调用模型。手动调用 cognition_reflect 不受此开关影响。',
+        effortLabel: '推理档位',
+        effortAuto: '自动（最低档）',
+        effortHint: '反思与蒸馏只需要按格式输出结果，不需要长链推理。当前模型会先吐很长的推理过程，而推理 token 和正文共用同一个输出预算——档位越高越容易把正文挤没，也就越贵。留「自动」时会选模型声明的最低档。',
+        engineOffHint: '默认关闭：反思引擎会产生额外 token 消耗，需要时再开。',
+        engineLocalHint: '本地引擎不调用模型，输出是固定模板，仅供参考。',
+        engineRealHint: '真实模型会调用你当前配置的 AI 做三段式反思，消耗 token。',
+        realMode: '真实模型',
+        localMode: '本地模拟',
+        realModelHint: '默认本地模拟；切到真实模型会调用宿主配置的模型服务。',
+        lockHint: '开启后，读取记忆正文的接口需要口令；计数接口不受影响。',
+        on: '开',
+        off: '关',
+        unavailable: '不可用（未找到模型）',
+        lock: '记忆读取锁',
+        lockOn: '开启访问锁',
+        locked: '已开启',
+        unlocked: '已关闭',
+        unlock: '关闭访问锁',
+        token: '访问口令',
+        applyToken: '保存口令',
+        cleared: '已清空',
+        playbookTab: '准则',
+        inboxTab: '收件',
+        inboxHint: '外部材料先落这里，你点头才进记忆。没采用的不会影响她，也不会进检索。',
+        inboxEmpty: '收件箱是空的。',
+        inboxAddPlaceholder: '粘贴一段内容（链接、摘录、说明书片段都行）',
+        inboxAddBtn: '放进收件箱',
+        inboxAccept: '采用',
+        inboxReject: '丢弃',
+        inboxSubject: '主题（可空）',
+        sedimentTab: '沉积',
+        sedimentHint: '这里只显示事件日志：哪一次翻案让她的方向偏了一点。不显示参数值，也不提供任何修改入口。',
+        sedimentEmpty: '还没有事件。只有真的推翻旧结论（不是补充细节）时才会记一条。',
+        perspTitle: '她眼中的世界',
+        perspHint: '给一个主题，看她此刻会先注意到什么、会忽略什么。只读，不改任何东西。',
+        perspPlaceholder: '例如：部署区域',
+        perspButton: '看看',
+        perspNoticed: '会先看到',
+        perspSuppressed: '会忽略',
+        perspStance: '开口姿态',
+        perspStanceDirect: '直接给方案',
+        perspStanceAsk: '先确认一句',
+        perspStanceWait: '再等等，先要更多信息',
+        perspNone: '和中性一样——这件事还没在她身上留下痕迹。',
+        selfCheckButton: '自检',
+        selfCheckEmpty: '结论：还没有任何翻案事件——四维仍是中性。',
+        selfCheckNeutral: '结论：有事件，但四维仍是中性。',
+        selfCheckDrifted: '结论：已经偏移（{dims}）。方向来自 {n} 次翻案，不是设定。',
+        selfCheckBroken: '结论：哈希链断在 seq={n}，数据被改过。',
+        dimRetention: '旧结论的分量',
+        dimCaution: '下判断的谨慎',
+        dimOpenness: '对新证据的开放',
+        dimAttachment: '对具体人的看重',
+        sedimentEnough: '已积累 {n} 条，够做观察了。',
+        sedimentNotEnough: '目前 {n} 条，还没到 20 条；不到 20 条不做结论。',
+        sedimentVerifyOk: '哈希链校验通过（{n} 条，未被改动）。',
+        sedimentVerifyBad: '哈希链在 seq={n} 处断开——文件被改动过。',
+        personaTab: '人格',
+        learnTab: '学习',
+        superagentTab: '超级代理',
+        playbookPending: '待审',
+        playbookActive: '已生效',
+        playbookRetired: '已停用',
+        playbookExpired: '已过期',
+        playbookExtend: '延长',
+        playbookConflict: '疑似冲突',
+        playbookDelete: '删除',
+        topicsHint: '主题 = 人定的适用范围键。记忆回答「发生过什么」，准则回答「应该怎么做」，主题回答「适用于哪类任务」。它不自动聚类——自动发现的主题不稳定，业界可编辑的主题几乎都是人定的容器。',
+        topicAdd: '＋ 新建主题',
+        topicName: '名称（如：发布流程）',
+        topicDesc: '说明（这个主题管什么，用于匹配）',
+        topicAliases: '别名（逗号分隔，如：发版,release）',
+        topicSave: '保存',
+        topicArchive: '停用',
+        topicUnclassified: '未归类',
+        topicUnclassifiedHint: '还没挂主题的记忆与准则。挂上主题后，注入时会按当前任务分组呈现。',
+        topicEmpty: '还没有主题。点「新建主题」开始，或从记忆/准则上挂主题时自动提示。',
+        topicAssign: '挂主题',
+        subjectPick: '挂主题',
+        subjectPickSave: '保存',
+        subjectPickNone: '（还没有主题，先去主题页签新建）',
+        taskAdd: '＋ 待办',
+        taskPlaceholder: '这个主题下要做什么事？',
+        taskSave: '保存',
+        taskStart: '开始',
+        taskDone: '完成',
+        taskReopen: '重开',
+        taskDelete: '删除',
+        taskEmpty: '还没有待办',
+        taskPENDING: '待办',
+        taskIN_PROGRESS: '进行中',
+        taskCOMPLETED: '已完成',
+        topicAssignPrompt: '输入主题 id，逗号分隔（留空 = 移回未归类）。\n可用：',
+        topicNone: '未挂主题',
+        pbGuard: '自查',
+        pbEnforce: '拦截',
+        pbAudit: '审计',
+        pbRules: '规则',
+        pbOriginHuman: '用户确认',
+        pbOriginAgent: 'AI 记录',
+        pbWhen: '何时适用（一句话，如「发布版本时」）',
+        pbTrigger: '触发条件（正则，匹配「工具名 + 参数 JSON」）',
+        pbRequired: '必须满足（正则，空 = 触发即违反）',
+        pbSaveRules: '保存规则',
+        pbViolations: '违反',
+        pbGuardHint: '自查：动手前要求模型先点名适用的准则',
+        pbEnforceHint: '拦截：工具调用前校验，违反则直接拒绝',
+        pbAuditHint: '审计：只记录违反，不拦截',
+        playbookDistill: '重新蒸馏',
+        playbookAccept: '接受',
+        playbookReject: '拒绝',
+        playbookRetire: '停用',
+        playbookRevive: '恢复',
+        playbookHint: '准则本 = 从记忆里蒸馏出的一页工作准则，常驻在每个会话的上下文里。它不存事实（那属于记忆），只存能改变下一步动作的约定、坑和当前状态。条目带 helpful/harmful 计数，长期没被用到的会自动退场。页签上的数字是「已生效条数」。',
+        playbookAdd: '＋ 手动新增',
+        playbookAddTitle: '新增准则',
+        playbookBoundary: '适用边界（必填）：什么情况下不适用，如「仅限本地 profile」',
+        playbookContent: '内容（12–80 字，祈使句，写只有这个项目才知道的事）',
+        playbookSection: '分节',
+        playbookSave: '保存',
+        playbookEmpty: '还没有准则。点「重新蒸馏」从记忆里提炼，或手动新增。',
+        playbookNoModel: '需要先切到「真实模型」才能蒸馏',
+        tasksHint: '任务：让 AI 跨会话记住「要接着做、还没做完」的事。它是给你俩共用的进度台账——你交代的事、或多轮才做得完的活记在这里，重启后还在；太久没动会被提醒，但不会打断你。它记的是「事」，不是聊天记录。',
+        memoriesHint: '记忆：AI 跨会话能记住的事实。你说过的决定、约定、偏好都会存在这里，新会话自动带上摘要。改过的旧版本不删除，按时间能查到当时是怎么说的。',
+        schemasHint: '主题：系统自动把内容相近的记忆归成一组，再给组分层。记忆多了以后，点开一个主题能看到所有相关的事；回忆时也会顺着主题把关联记忆一起带出来。记忆少于 10 条时这一页通常是空的。',
+        needToken: '需要访问口令：打开插件目录下的 cognition-token.txt，把内容粘贴到下面',
+      },
+      en: {
+        name: 'Cognition',
+        energy: 'Energy',
+        favor: 'Favor',
+        memory: 'Memory',
+        schema: 'Topics',
+        todo: 'Tasks',
+        state: 'State',
+        settings: 'Settings',
+        connecting: 'Connecting…',
+        offline: 'No data',
+        tasks: 'Tasks',
+        memories: 'Memories',
+        schemas: 'Topics',
+        playbookTab: 'Rules',
+        sedimentTab: 'Sediment',
+        sedimentHint: 'Event log only: which reversal nudged her direction. No parameter values, no editing here.',
+        sedimentEmpty: 'No events yet. A record appears only when an old conclusion is overturned (not when details are added).',
+        perspTitle: 'The world in her eyes',
+        perspHint: 'Name one topic; see what she would notice first and what she would skip. Read-only.',
+        perspPlaceholder: 'e.g. deployment region',
+        perspButton: 'Look',
+        perspNoticed: 'Would notice first',
+        perspSuppressed: 'Would skip',
+        perspStance: 'Opening stance',
+        perspStanceDirect: 'Answer directly',
+        perspStanceAsk: 'Ask one question first',
+        perspStanceWait: 'Wait for more information',
+        perspNone: 'Same as neutral — this topic has not left a mark on her yet.',
+        selfCheckButton: 'Self-check',
+        selfCheckEmpty: 'Verdict: no reversals yet — all four dimensions are still neutral.',
+        selfCheckNeutral: 'Verdict: events exist, but all four dimensions are still neutral.',
+        selfCheckDrifted: 'Verdict: shifted ({dims}). Driven by {n} reversals, not by configuration.',
+        selfCheckBroken: 'Verdict: hash chain broken at seq={n} — the file was modified.',
+        dimRetention: 'weight of old conclusions',
+        dimCaution: 'caution before judging',
+        dimOpenness: 'openness to new evidence',
+        dimAttachment: 'weight of specific people',
+        sedimentEnough: '{n} events so far — enough to look at.',
+        sedimentNotEnough: '{n} events — below 20; no conclusion yet.',
+        sedimentVerifyOk: 'Hash chain verified ({n} events, untouched).',
+        sedimentVerifyBad: 'Hash chain broken at seq={n} — the file was modified.',
+        personaTab: 'Persona',
+        learnTab: 'Learning',
+        superagentTab: 'Super-agent',
+        refresh: 'Refresh',
+        close: 'Close',
+        empty: 'Nothing here',
+        current: 'current',
+        superseded: 'superseded',
+        members: 'members',
+        links: 'links',
+        clues: 'clues',
+        updated: 'updated',
+        overdue: 'overdue',
+        loading: 'Loading…',
+        noDetail: 'Detail unavailable',
+        testData: 'test',
+        why: 'Why',
+        means: 'Meaning',
+        label: 'Label',
+        noTime: 'Time never advanced in this process: these values change only on events.',
+        storage: 'Data file',
+        clear: 'Data',
+        clearMemory: 'Memory',
+        clearAll: 'All',
+        rulesTitle: 'Memory rules',
+        ruleTransient: 'Ignore pleasantries',
+        ruleSensitive: 'Block secrets',
+        ruleInjection: 'Block instruction injection',
+        ruleAuthority: 'Low authority cannot override',
+        consolidate: 'Merge similar',
+        exportData: 'Export',
+        importData: 'Import',
+        realModel: 'Reflection engine',
+        realMode: 'Real model',
+        localMode: 'Local simulation',
+        realModelHint: 'Local simulation by default; switching to a real model calls the host-configured model service.',
+        lockHint: 'When on, reading memory content requires a token; the counts endpoint stays public.',
+        on: 'On',
+        off: 'Off',
+        unavailable: 'unavailable (no model)',
+        lock: 'Memory read lock',
+        lockOn: 'Turn lock on',
+        locked: 'On',
+        unlocked: 'Off',
+        unlock: 'Turn lock off',
+        token: 'Access token',
+        applyToken: 'Save token',
+        cleared: 'Cleared',
+        needToken: 'Access token required: open cognition-token.txt in the plugin folder and paste its content below',
+      },
+    };
+
+    function pickDict(ctx) {
+      let id = 'zh';
+      try {
+        const snap = ctx && ctx.locale && typeof ctx.locale.getLocale === 'function' ? ctx.locale.getLocale() : null;
+        id = (snap && (snap.id || snap.locale || snap.language)) || 'zh';
+      } catch {
+        id = 'zh';
+      }
+      return String(id).toLowerCase().startsWith('en') ? DICT.en : DICT.zh;
+    }
+
+    const S = {
+      root: { display: 'flex', flexDirection: 'column', gap: 6 },
+      wideRoot: {
+        position: 'relative',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 6,
+        width: '100%',
+        boxSizing: 'border-box',
+      },
+      widePanel: {
+        position: 'absolute',
+        bottom: '100%',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        marginBottom: 8,
+        width: '66%',
+        minWidth: 420,
+        maxWidth: 900,
+        maxHeight: '60vh',
+        overflowY: 'auto',
+        padding: '14px 18px',
+        borderRadius: 14,
+        border: '1px solid rgba(255,255,255,0.12)',
+        background: 'rgba(28,28,32,0.92)',
+        backdropFilter: 'blur(14px)',
+        WebkitBackdropFilter: 'blur(14px)',
+        boxShadow: '0 12px 40px rgba(0,0,0,0.45)',
+        zIndex: 50,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+      },
+      panelRoot: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 0,
+        // 面板形态用 flex:1 撑满外层（外层是 flex column + height:100%）；
+        // 用 height:100% 在 flex 容器里等于「和父元素一样高」，会把正文区的
+        // flex:1 挤成 0，结果整页不能滚动——这就是记忆页滚不动的原因。
+        flex: '1 1 auto',
+        minHeight: 0,
+        width: '100%',
+        boxSizing: 'border-box',
+        overflow: 'hidden',
+      },
+      row: {
+        display: 'flex',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '4px 12px',
+        fontSize: 11,
+        lineHeight: '16px',
+        color: 'var(--dsw-alias-label-secondary)',
+        userSelect: 'none',
+        cursor: 'pointer',
+        borderRadius: 6,
+        padding: '2px 4px',
+        margin: '-2px -4px',
+      },
+      group: { display: 'inline-flex', alignItems: 'center', gap: 6 },
+      name: { color: 'var(--dsw-alias-label-primary)', fontWeight: 600 },
+      track: {
+        position: 'relative',
+        width: 56,
+        height: 6,
+        borderRadius: 3,
+        background: 'var(--dsw-alias-bg-layer-2)',
+        overflow: 'hidden',
+      },
+      fill: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 3 },
+      value: { color: 'var(--dsw-alias-label-primary)', fontVariantNumeric: 'tabular-nums' },
+      sep: { opacity: 0.45 },
+      caret: { fontSize: 9, opacity: 0.7, marginLeft: 2 },
+      panel: {
+        // 面板形态（侧边栏一级页面）**不设底色、不设外框**：
+        // bg-overlay 比主列底色亮一档，铺满整列就成了那种「整块发亮」的感觉。
+        border: 'none',
+        borderRadius: 0,
+        background: 'transparent',
+        boxShadow: 'none',
+        fontSize: 11,
+        color: 'var(--dsw-alias-label-secondary)',
+        // 它也是纵向 flex：必须自己占满剩余高度并把高度往下传，
+        // 否则里面的正文区拿不到可用高度，滚动条永远不出现。
+        display: 'flex',
+        flexDirection: 'column',
+        flex: '1 1 auto',
+        minHeight: 0,
+        overflow: 'hidden',
+      },
+      tabs: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 2,
+        padding: '10px 16px 0',
+        borderBottom: '1px solid var(--dsw-alias-border-l1)',
+        flexWrap: 'wrap',
+      },
+      tab: {
+        border: 'none',
+        background: 'transparent',
+        color: 'var(--dsw-alias-label-secondary)',
+        fontSize: 13,
+        lineHeight: '20px',
+        padding: '6px 12px',
+        borderRadius: '6px 6px 0 0',
+        cursor: 'pointer',
+        fontFamily: 'inherit',
+        // 未选中页签下面留一条透明边，选中时换成品牌色，避免整体跳动
+        borderBottom: '2px solid transparent',
+        marginBottom: -1,
+        transition: 'color 0.16s ease, border-color 0.16s ease',
+      },
+      tabActive: {
+        background: 'transparent',
+        color: 'var(--dsw-alias-label-primary)',
+        fontWeight: 600,
+        borderBottom: '2px solid var(--dsw-alias-brand-primary)',
+      },
+      action: {
+        marginLeft: 'auto',
+        border: '1px solid var(--dsw-alias-border-l1)',
+        background: 'transparent',
+        color: 'var(--dsw-alias-label-secondary)',
+        fontSize: 12,
+        cursor: 'pointer',
+        padding: '3px 10px',
+        borderRadius: 6,
+        fontFamily: 'inherit',
+      },
+      // 列表与卡片：面板形态下不再限制高度（整列都能滚），浮层形态保持 280 的帽子
+      list: {
+        flex: '1 1 auto',
+        minHeight: 0,
+        overflowY: 'auto',
+        padding: '12px 20px 40px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 0,
+      },
+      item: {
+        // 紧凑密度：间距压到 4px 的倍数（深研 src-58/59/61：紧凑模式靠减小元素间距
+        // 提升数据可见性，但按钮/输入框这类交互件不跟着压，保可读可点）
+        padding: '8px 0',
+        borderBottom: '1px solid var(--dsw-alias-border-l1)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 4,
+      },
+      itemTitle: {
+        color: 'var(--dsw-alias-label-primary)',
+        fontSize: 13,
+        lineHeight: '20px',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        display: '-webkit-box',
+        WebkitLineClamp: 2,
+        WebkitBoxOrient: 'vertical',
+      },
+      meta: {
+        fontSize: 11,
+        color: 'var(--dsw-alias-label-secondary)',
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: 8,
+        alignItems: 'center',
+        fontVariantNumeric: 'tabular-nums',
+      },
+      explain: { fontSize: 12, color: 'var(--dsw-alias-label-secondary)', lineHeight: '18px', whiteSpace: 'normal' },
+      chip: {
+        display: 'inline-block',
+        padding: '0 7px',
+        borderRadius: 999,
+        border: '1px solid var(--dsw-alias-border-l1)',
+        color: 'var(--dsw-alias-label-secondary)',
+        fontSize: 11,
+        lineHeight: '18px',
+        fontVariantNumeric: 'tabular-nums',
+      },
+      clue: {
+        fontSize: 11,
+        color: 'var(--dsw-alias-label-secondary)',
+        paddingLeft: 10,
+        borderLeft: '2px solid var(--dsw-alias-border-l2)',
+        lineHeight: '18px',
+      },
+      empty: { padding: '24px 12px', textAlign: 'center', color: 'var(--dsw-alias-label-secondary)', fontSize: 12 },
+      input: {
+        background: 'transparent',
+        border: '1px solid var(--dsw-alias-border-l2)',
+        color: 'var(--dsw-alias-label-primary)',
+        borderRadius: 6,
+        fontSize: 12,
+        padding: '4px 8px',
+        width: 160,
+        fontFamily: 'inherit',
+      },
+    };
+
+    function ago(ms) {
+      if (!Number.isFinite(ms) || ms < 0) return '';
+      const minute = 60000;
+      if (ms < minute) return '刚刚';
+      if (ms < 60 * minute) return `${Math.round(ms / minute)} 分钟前`;
+      if (ms < 24 * 60 * minute) return `${Math.round(ms / (60 * minute))} 小时前`;
+      return `${Math.round(ms / (24 * 60 * minute))} 天前`;
+    }
+
+    function Bar(props) {
+      const ratio = Math.max(0, Math.min(1, props.ratio));
+      return h(
+        'span',
+        { style: S.track, role: 'img', 'aria-label': `${props.label} ${Math.round(ratio * 100)}%` },
+        h('span', { style: { ...S.fill, width: `${ratio * 100}%`, background: props.color } }),
+      );
+    }
+
+    function createDock(ctx, options) {
+      // 人格页签复用设置页那套组件，只是换成嵌入式排版
+      const PersonaEmbedded = createPersonaPage(ctx);
+      // 学习面板：预算 / shadow / CPE / 提醒 / 检索一屏看完
+      const LearningEmbedded = createLearningPage(ctx);
+      // 超级代理：只读镜像 superagent 的工单与健康（另一个进程，不可达只显示未连接）
+      const SuperagentEmbedded = createSuperagentPane(ctx);
+      return function MoodDock(props) {
+        const opts = { ...(options || {}), ...(props || {}) };
+        const [state, setState] = React.useState(null);
+        const [failure, setFailure] = React.useState(null);
+        const [open, setOpen] = React.useState(opts.defaultOpen === true || opts.variant === 'panel');
+        // 默认停在「记忆」页签：早先默认值是已删除的 'tasks'，导致打开时没有任何页签高亮
+        const [tab, setTab] = React.useState('memories');
+        const [formOpen, setFormOpen] = React.useState(null);
+        const [editingId, setEditingId] = React.useState(null);
+        // 冲突裁决：点「保留 A/B」后不弹原生 prompt（Electron 不支持 window.prompt，会静默失败），
+        // 改成卡片内联输入框。这里只存「当前在哪一对、保谁」。
+        const [conflictPick, setConflictPick] = React.useState(null);
+        const [expandedSchema, setExpandedSchema] = React.useState(null);
+        // 毫秒 → datetime-local 需要的本地时间字符串
+        const toLocalInput = (ms) => {
+          const d = new Date(ms);
+          const pad = (n) => String(n).padStart(2, '0');
+          return (
+            d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
+            'T' + pad(d.getHours()) + ':' + pad(d.getMinutes())
+          );
+        };
+        const [detail, setDetail] = React.useState(null);
+        const [sedimentData, setSedimentData] = React.useState(null);
+        const [perspSubject, setPerspSubject] = React.useState('');
+        const [perspData, setPerspData] = React.useState(null);
+        const [selfCheckData, setSelfCheckData] = React.useState(null);
+        const [playbookData, setPlaybookData] = React.useState(null);
+        const [pbFlagsFor, setPbFlagsFor] = React.useState(null);
+        const [topicsData, setTopicsData] = React.useState(null);
+        const [topicForm, setTopicForm] = React.useState(false);
+        const [taskFormFor, setTaskFormFor] = React.useState(null);
+        /** 当前展开「挂主题」面板的目标：{ targetType, id } */
+        const [topicPick, setTopicPick] = React.useState(null);
+        const [detailError, setDetailError] = React.useState(null);
+        const [tick, setTick] = React.useState(0);
+        const [token, setToken] = React.useState(() => {
+          try {
+            return localStorage.getItem('cognition-token') || '';
+          } catch {
+            return '';
+          }
+        });
+        const [tokenDraft, setTokenDraft] = React.useState('');
+        const [notice, setNotice] = React.useState('');
+        /** 资料检索结果：null=还没查，[]=查了没命中 */
+        const [sourceHits, setSourceHits] = React.useState(null);
+        /** 资料库列表（收件页主体）：{items, stats} */
+        const [sourceList, setSourceList] = React.useState(null);
+        /** 正在二次确认删除的 sourceId（null=没有） */
+        const [deleteConfirm, setDeleteConfirm] = React.useState(null);
+        /** 正在选丢弃理由的候选 id（Zep 的做法：拒绝要带分类理由，不能只留"丢弃"两个字） */
+        const [rejectFor, setRejectFor] = React.useState(null);
+        /** L2 抓取白名单：{hosts, policy} */
+        const [fetchInfo, setFetchInfo] = React.useState(null);
+        /** L3 学习候选：{items, stats} */
+        const [learnInfo, setLearnInfo] = React.useState(null);
+        /** 自动学习开关状态：{autoLearn, autoRevise, webAvailable, recent} */
+        const [autoInfo, setAutoInfo] = React.useState(null);
+        /** 本轮注入占用（Letta 式容量条用）：{chars, ruleCount, activeRuleCount, injectMaxInstances} */
+        const [injInfo, setInjInfo] = React.useState(null);
+        /** 立场层：{items, rendered} */
+        const [stanceInfo, setStanceInfo] = React.useState(null);
+        /** 语感样本：{items, stats, rendered} */
+        const [voiceInfo, setVoiceInfo] = React.useState(null);
+        // 开关类按钮统一成 chip 样子：有边框有内边距，不然看着像一行说明文字
+        const CHIP = {
+          ...S.tab,
+          border: '1px solid var(--dsw-alias-border-l1)',
+          borderRadius: 6,
+          padding: '3px 10px',
+        };
+        const dict = pickDict(ctx);
+
+        const call = (path, init) =>
+          fetch(path, {
+            ...(init || {}),
+            headers: {
+              ...((init && init.headers) || {}),
+              ...(token ? { 'x-cognition-token': token } : {}),
+            },
+          });
+
+        // 长文本一律走分片上传：整段塞进 query string 会超过 Node 的请求行上限，
+        // 服务端回 431（Request Header Fields Too Large），页面只剩一条红条。
+        const uploadText = async (name, text, subject) => {
+          const beginRes = await call('/cognition-engine/inbox/upload/begin?name=' + encodeURIComponent(name), { method: 'POST' });
+          const beginData = await beginRes.json().catch(() => ({}));
+          if (!beginRes.ok || !beginData.id) throw new Error('开始上传失败：' + (beginData.error || beginRes.status));
+          const CHUNK = 400;
+          for (let i = 0; i < text.length; i += CHUNK) {
+            const piece = text.slice(i, i + CHUNK);
+            const res = await call('/cognition-engine/inbox/upload/chunk?id=' + encodeURIComponent(beginData.id) + '&text=' + encodeURIComponent(piece), { method: 'POST' });
+            if (!res.ok) {
+              const d = await res.json().catch(() => ({}));
+              throw new Error('分片上传失败（第 ' + (Math.floor(i / CHUNK) + 1) + ' 片）：' + (d.error || res.status));
+            }
+          }
+          const subjectQuery = subject && subject.length > 0 ? '&subject=' + encodeURIComponent(subject) : '';
+          const commitRes = await call('/cognition-engine/inbox/upload/commit?id=' + encodeURIComponent(beginData.id) + subjectQuery, { method: 'POST' });
+          const commitData = await commitRes.json().catch(() => ({}));
+          if (!commitRes.ok || commitData.error) throw new Error('提交失败：' + (commitData.error || commitRes.status));
+          return commitData;
+        };
+
+        // 学习候选：只在学习页签拉
+        React.useEffect(() => {
+          if (tab !== 'learning') return undefined;
+          let alive = true;
+          (async () => {
+            try {
+              const [listRes, autoRes] = await Promise.all([
+                call('/cognition-engine/learn/list?status=pending', { cache: 'no-store' }),
+                call('/cognition-engine/autolearn/status', { cache: 'no-store' }),
+              ]);
+              const data = await listRes.json();
+              if (alive) setLearnInfo(data);
+              const auto = await autoRes.json().catch(() => null);
+              if (alive) setAutoInfo(auto);
+            } catch {
+              if (alive) setLearnInfo(null);
+            }
+          })();
+          return () => {
+            alive = false;
+          };
+        }, [tab, tick]);
+
+        // 注入占用（设置页容量条）：只在设置页拉，避免不必要的轮询
+        React.useEffect(() => {
+          if (tab !== 'settings') return undefined;
+          let alive = true;
+          (async () => {
+            try {
+              const [res, stanceRes, voiceRes] = await Promise.all([
+                call('/cognition-engine/injected', { cache: 'no-store' }),
+                call('/cognition-engine/stance/list', { cache: 'no-store' }),
+                call('/cognition-engine/voice/list', { cache: 'no-store' }),
+              ]);
+              const data = await res.json();
+              if (alive) setInjInfo(data);
+              const st = await stanceRes.json().catch(() => null);
+              if (alive) setStanceInfo(st);
+              const vi = await voiceRes.json().catch(() => null);
+              if (alive) setVoiceInfo(vi);
+            } catch {
+              if (alive) setInjInfo(null);
+            }
+          })();
+          return () => {
+            alive = false;
+          };
+        }, [tab, tick]);
+
+        // 资料库列表：收件页的主体不是"待审"，而是"已经进来了些什么、学到哪一步"
+        React.useEffect(() => {
+          if (tab !== 'inbox') return undefined;
+          let alive = true;
+          (async () => {
+            try {
+              const [listRes, wlRes] = await Promise.all([
+                call('/cognition-engine/sources/list', { cache: 'no-store' }),
+                call('/cognition-engine/fetch/whitelist', { cache: 'no-store' }),
+              ]);
+              const data = await listRes.json();
+              if (alive) setSourceList(data);
+              const wl = await wlRes.json().catch(() => null);
+              if (alive) setFetchInfo(wl);
+            } catch {
+              if (alive) setSourceList(null);
+            }
+          })();
+          return () => {
+            alive = false;
+          };
+        }, [tab, tick]);
+
+        // 沉积页签数据：放在 call/tick 之后，否则 deps 里引用 tick 会触发 TDZ（实测导致整个面板白屏）
+        React.useEffect(() => {
+          if (tab !== 'sediment') return undefined;
+          let alive = true;
+          (async () => {
+            try {
+              const [logRes, verifyRes] = await Promise.all([
+                call('/cognition-engine/sediment/log?limit=50', { cache: 'no-store' }),
+                call('/cognition-engine/sediment/verify', { cache: 'no-store' }),
+              ]);
+              const log = await logRes.json();
+              const verify = await verifyRes.json();
+              if (alive) setSedimentData({ events: log.events ?? [], verify });
+            } catch {
+              if (alive) setSedimentData({ events: [], verify: null });
+            }
+          })();
+          return () => { alive = false; };
+        }, [tab, tick]);
+
+        const loadPerspective = async () => {
+          const subject = perspSubject.trim();
+          if (subject.length === 0) {
+            setPerspData({ error: dict.perspPlaceholder });
+            return;
+          }
+          try {
+            const response = await call('/cognition-engine/sediment/perspective?subject=' + encodeURIComponent(subject), { cache: 'no-store' });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+            setPerspData(data);
+          } catch (error) {
+            setPerspData({ error: error instanceof Error ? error.message : String(error) });
+          }
+        };
+
+        const runSelfCheck = async () => {
+          try {
+            const response = await call('/cognition-engine/sediment/selfcheck', { cache: 'no-store' });
+            setSelfCheckData(await response.json());
+          } catch {
+            setSelfCheckData(null);
+          }
+        };
+        const dimName = (key) =>
+          ({ retention: dict.dimRetention, caution: dict.dimCaution, openness: dict.dimOpenness, attachment: dict.dimAttachment }[key] || key);
+        const selfCheckText = () => {
+          if (selfCheckData === null) return '';
+          if (selfCheckData.verdict === 'broken') return dict.selfCheckBroken.replace('{n}', String(selfCheckData.brokenAt));
+          if (selfCheckData.verdict === 'empty') return dict.selfCheckEmpty;
+          if (selfCheckData.verdict === 'neutral') return dict.selfCheckNeutral;
+          return dict.selfCheckDrifted
+            .replace('{dims}', (selfCheckData.moved || []).map(dimName).join('、'))
+            .replace('{n}', String(selfCheckData.tensions));
+        };
+
+        const rememberToken = (value) => {
+          setToken(value);
+          try {
+            if (value) localStorage.setItem('cognition-token', value);
+            else localStorage.removeItem('cognition-token');
+          } catch {
+            /* 无痕模式忽略 */
+          }
+        };
+
+        const post = async (path) => {
+          setNotice('');
+          try {
+            const response = await call(path, { method: 'POST' });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+            if (data.token) rememberToken(data.token);
+            if (data.cleared) setNotice(`${dict.cleared}：${data.cleared}`);
+            setTick((value) => value + 1);
+          } catch (error) {
+            setNotice(`✗ ${error instanceof Error ? error.message : String(error)}`);
+          }
+        };
+
+        React.useEffect(() => {
+          let alive = true;
+          const load = async () => {
+            try {
+              const response = await call('/cognition-engine/state', { cache: 'no-store' });
+              if (!response.ok) {
+                if (alive) setFailure(`HTTP ${response.status}`);
+                return;
+              }
+              const next = await response.json();
+              if (alive) {
+                setState(next);
+                setFailure(null);
+              }
+            } catch {
+              if (alive) setFailure('offline');
+            }
+          };
+          load();
+          const timer = setInterval(load, 2000);
+          return () => {
+            alive = false;
+            clearInterval(timer);
+          };
+        }, [token]);
+
+        React.useEffect(() => {
+          if (!open) return undefined;
+          let alive = true;
+          setDetailError(null);
+          (async () => {
+            try {
+              const response = await call('/cognition-engine/detail', { cache: 'no-store' });
+              if (!response.ok) throw new Error(`HTTP ${response.status}`);
+              const next = await response.json();
+              if (alive) setDetail(next);
+            } catch (error) {
+              if (alive) setDetailError(error instanceof Error ? error.message : String(error));
+            }
+          })();
+          return () => {
+            alive = false;
+          };
+        }, [open, tick, token]);
+
+
+        // 准则本单独取数：它和 /detail 是两条接口，只在打开该页签时拉。
+        React.useEffect(() => {
+          if (!open || tab !== 'playbook') return undefined;
+          let alive = true;
+          (async () => {
+            try {
+              const response = await call('/cognition-engine/playbook', { cache: 'no-store' });
+              if (!response.ok) return;
+              const next = await response.json();
+              if (alive) setPlaybookData(next);
+            } catch {
+              /* 拉不到就保持上一次的数据 */
+            }
+          })();
+          return () => {
+            alive = false;
+          };
+        }, [open, tab, tick]);
+
+        // 主题页签单独取数
+        React.useEffect(() => {
+          // 记忆/准则页签的「挂主题」按钮也要用主题列表，所以面板一打开就拉
+          if (!open) return undefined;
+          let alive = true;
+          (async () => {
+            try {
+              const response = await call('/cognition-engine/topics', { cache: 'no-store' });
+              if (!response.ok) return;
+              const next = await response.json();
+              if (alive) setTopicsData(next);
+            } catch {
+              /* 拉不到保持旧数据 */
+            }
+          })();
+          return () => {
+            alive = false;
+          };
+        }, [open, tab, tick]);
+
+        const addTopic = async () => {
+          const name = document.getElementById('topicName').value.trim();
+          const description = document.getElementById('topicDesc').value.trim();
+          const aliases = document.getElementById('topicAliases').value.trim();
+          if (name.length === 0) return;
+          await post(
+            '/cognition-engine/topics/add?name=' +
+              encodeURIComponent(name) +
+              '&description=' +
+              encodeURIComponent(description) +
+              '&aliases=' +
+              encodeURIComponent(aliases),
+          );
+          setTopicForm(false);
+          setTick((value) => value + 1);
+        };
+
+        // 挂主题：给记忆/准则用。先做成 prompt 版——可用优先于好看。
+        // chip 显示主题名而不是裸 id（t_001 对用户没有意义）
+        const topicChips = (ids) => {
+          if (!ids || ids.length === 0) return null;
+          const all = (topicsData && topicsData.list) || [];
+          const names = ids.map((id) => {
+            const hit = all.find((topic) => topic.id === id);
+            return hit ? hit.name : id;
+          });
+          return h(
+            'span',
+            { style: { ...S.chip, color: 'var(--dsw-alias-label-secondary)' } },
+            names.join(' · '),
+          );
+        };
+
+        // 「挂主题」不再用 window.prompt（Web 环境里被拦截，点了没反应），
+        // 改成内联勾选面板。
+        const isPicking = (targetType, id) =>
+          topicPick !== null && topicPick.targetType === targetType && topicPick.id === id;
+
+        const topicAssignButton = (targetType, id) =>
+          h(
+            'button',
+            {
+              type: 'button',
+              style: isPicking(targetType, id) ? { ...S.tab, ...S.tabActive } : S.tab,
+              onClick: () => setTopicPick(isPicking(targetType, id) ? null : { targetType, id }),
+            },
+            dict.subjectPick,
+          );
+
+        /** 勾选面板：列出所有生效主题，勾上的就是归属。 */
+        const topicPicker = (targetType, id, current) => {
+          if (!isPicking(targetType, id)) return null;
+          const all = ((topicsData && topicsData.list) || []).filter((topic) => topic.status === 'active');
+          if (all.length === 0) return h('div', { style: S.explain }, dict.subjectPickNone);
+          const chosen = new Set(current || []);
+          const boxes = all.map((topic) =>
+            h(
+              'label',
+              {
+                key: topic.id,
+                style: { display: 'inline-flex', gap: 4, alignItems: 'center', marginRight: 10 },
+              },
+              h('input', {
+                type: 'checkbox',
+                id: 'pick-' + targetType + '-' + id + '-' + topic.id,
+                defaultChecked: chosen.has(topic.id),
+              }),
+              topic.name,
+            ),
+          );
+          return h(
+            'div',
+            { style: S.item },
+            h('div', { style: S.meta }, ...boxes),
+            h(
+              'button',
+              {
+                type: 'button',
+                style: S.tab,
+                onClick: async () => {
+                  const picked = all
+                    .filter((topic) => {
+                      const box = document.getElementById('pick-' + targetType + '-' + id + '-' + topic.id);
+                      return box !== null && box.checked;
+                    })
+                    .map((topic) => topic.id);
+                  await post(
+                    '/cognition-engine/topics/assign?targetType=' + targetType + '&id=' +
+                      encodeURIComponent(id) + '&topicIds=' + encodeURIComponent(picked.join(',')),
+                  );
+                  setTopicPick(null);
+                  setTick((v) => v + 1);
+                },
+              },
+              dict.subjectPickSave,
+            ),
+          );
+        };
+
+        // 三道约束开关：一次只改一个 flag，其它参数不动
+        const playbookFlag = async (id, name, value) => {
+          await post(
+            '/cognition-engine/playbook/act?action=flags&id=' +
+              encodeURIComponent(id) +
+              '&' + name + '=' + (value ? 'true' : 'false'),
+          );
+          setTick((value2) => value2 + 1);
+        };
+
+        // 准则本操作：接受 / 拒绝 / 停用 / 恢复
+        const playbookAct = async (id, action, extra) => {
+          // 把后端的 ok:false（如"先填边界"）显示出来，否则按钮像"点了没反应"
+          try {
+            const res = await call(
+              `/cognition-engine/playbook/act?id=${encodeURIComponent(id)}&action=${action}` + (extra || ''),
+              { method: 'POST' },
+            );
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || data.ok === false) {
+              setNotice('✗ ' + (data.error || `HTTP ${res.status}`));
+              return;
+            }
+            setNotice('');
+            setTick((value) => value + 1);
+          } catch (error) {
+            setNotice('✗ ' + (error instanceof Error ? error.message : String(error)));
+          }
+        };
+
+        // 新建表单：任务（含时间段）与记忆（内容 + 主题）
+        const formFor = (key) => {
+          if (key === 'tasks') {
+            if (formOpen !== 'tasks') {
+              return h('div', { style: S.meta },
+                h('button', { type: 'button', style: S.tab, onClick: () => setFormOpen('tasks') }, '＋ 新建任务'),
+              );
+            }
+            return h(
+              'div',
+              { style: S.item },
+              h('div', { style: S.itemTitle }, '新建任务'),
+              h('input', { id: 'cogTaskDesc', placeholder: '任务描述', style: S.input }),
+              h('div', { style: S.meta },
+                h('span', null, '开始'), h('input', { id: 'cogTaskStart', type: 'datetime-local', style: S.input }),
+                h('span', null, '顺序'), h('input', { id: 'cogTaskOrder', type: 'number', placeholder: '1', style: { ...S.input, width: 70 } }),
+                h('label', { style: { display: 'inline-flex', gap: 4, alignItems: 'center' } },
+                  h('input', { id: 'cogTaskParallel', type: 'checkbox' }), '与前一项并行'),
+              ),
+              h('button', { type: 'button', style: S.tab, onClick: async () => {
+                const d = document.getElementById('cogTaskDesc').value.trim();
+                if (!d) return;
+                const s = document.getElementById('cogTaskStart').value;
+                const o = document.getElementById('cogTaskOrder').value;
+                const pl = document.getElementById('cogTaskParallel').checked;
+                await post(`/cognition-engine/task/create?description=${encodeURIComponent(d)}${s ? `&startAt=${new Date(s).getTime()}` : ''}${o ? `&order=${o}` : ''}${pl ? '&parallel=true' : ''}`);
+                setTick((v) => v + 1);
+              } }, '创建任务'),
+            );
+          }
+          if (key === 'memories') {
+            if (formOpen !== 'memories') {
+              return h('div', { style: S.meta },
+                h('button', { type: 'button', style: S.tab, onClick: () => setFormOpen('memories') }, '＋ 新建记忆'),
+              );
+            }
+            return h(
+              'div',
+              { style: S.item },
+              h('div', { style: S.itemTitle }, '新建记忆'),
+              h('input', { id: 'cogMemContent', placeholder: '记忆内容', style: S.input }),
+              h('input', { id: 'cogMemSubject', placeholder: '主题（可留空）', style: S.input }),
+              h('button', { type: 'button', style: S.tab, onClick: async () => {
+                const c = document.getElementById('cogMemContent').value.trim();
+                if (!c) return;
+                const s = document.getElementById('cogMemSubject').value.trim();
+                await post(`/cognition-engine/memory/create?content=${encodeURIComponent(c)}${s ? `&subject=${encodeURIComponent(s)}` : ''}`);
+                setTick((v) => v + 1);
+              } }, '写入记忆'),
+              h('button', { type: 'button', style: S.tab, onClick: () => setFormOpen(null) }, '收起'),
+            );
+          }
+          if (key === 'playbook') {
+            if (formOpen !== 'playbook') {
+              return h('div', { style: S.meta },
+                h('button', { type: 'button', style: S.tab, onClick: () => setFormOpen('playbook') }, dict.playbookAdd),
+              );
+            }
+            return h(
+              'div',
+              { style: S.item },
+              h('div', { style: S.itemTitle }, dict.playbookAddTitle),
+              h('input', { id: 'pbContent', placeholder: dict.playbookContent, style: S.input }),
+              h('input', {
+                id: 'pbBoundary',
+                placeholder: dict.playbookBoundary,
+                style: S.input,
+              }),
+              h(
+                'div',
+                { style: S.meta },
+                h('span', null, dict.playbookSection),
+                h(
+                  'select',
+                  { id: 'pbSection', style: S.input },
+                  ['约定', '坑', '状态'].map((name) => h('option', { key: name, value: name }, name)),
+                ),
+              ),
+              h('button', {
+                type: 'button',
+                style: S.tab,
+                onClick: async () => {
+                  const content = document.getElementById('pbContent').value.trim();
+                  const section = document.getElementById('pbSection').value;
+                  const boundaryEl = document.getElementById('pbBoundary');
+                  const boundary = boundaryEl ? boundaryEl.value.trim() : '';
+                  if (content.length === 0) return;
+                  if (boundary.length === 0) {
+                    setNotice('准则必须写明适用边界（什么情况下不适用）');
+                    return;
+                  }
+                  await post(
+                    '/cognition-engine/playbook/add?content=' +
+                      encodeURIComponent(content) +
+                      '&section=' +
+                      encodeURIComponent(section) +
+                      '&boundary=' +
+                      encodeURIComponent(boundary),
+                  );
+                  setFormOpen(null);
+                  setTick((value) => value + 1);
+                },
+              }, dict.playbookSave),
+              h('button', { type: 'button', style: S.tab, onClick: () => setFormOpen(null) }, '收起'),
+            );
+          }
+          return null;
+        };
+
+        const toggle = () => setOpen((value) => !value);
+        // panel = 侧边栏一级页面：整列铺满，自己管滚动，不显示摘要行
+        const rootStyle = opts.variant === 'panel' ? SIDEBAR_PANEL_STYLE : opts.variant === 'wide' ? S.wideRoot : S.root;
+        const isPanel = opts.variant === 'panel';
+
+        if (!state) {
+          if (isPanel) {
+            return h('div', { style: SIDEBAR_PANEL_STYLE }, h('div', { style: S.panelRoot }, h('div', { style: S.explain }, failure || dict.connecting)));
+          }
+          return h(
+            'div',
+            { style: S.row, title: failure || '' },
+            h('span', { style: { ...S.group, ...S.name } }, dict.name),
+            h('span', null, failure ? `${dict.offline} (${failure})` : dict.connecting),
+          );
+        }
+
+        const memoryCount = (state.memory || {}).total || 0;
+        const schemaCount = (state.topics || {}).total || (state.graph || {}).schemas || 0;
+        const taskCount = (state.tasks || {}).pending || 0;
+        const playbookCount = (state.playbook || {}).active || 0;
+        const samples = state.samples || 0;
+
+        let row = null;
+        // 面板形态不需要这一行：它和下面的标题区重复（同样的四个计数），
+        // 而且这行本身是「折叠条」，永远展开的面板用不上它。只在浮层形态保留。
+        if (!isPanel) {
+          row = h(
+            'div',
+            {
+              style: S.row,
+              role: 'button',
+              tabIndex: 0,
+              'aria-expanded': open,
+              title: open ? dict.close : `${dict.tasks} / ${dict.memories} / ${dict.schemas}`,
+              onClick: toggle,
+              onKeyDown: (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  toggle();
+                }
+              },
+            },
+            h('span', { style: { ...S.group, ...S.name } }, dict.name),
+            h('span', { style: S.sep }, '·'),
+            h('span', null, `${dict.memory} ${memoryCount}`),
+            h('span', { style: S.sep }, '·'),
+            h('span', null, `${dict.schema} ${schemaCount}`),
+            h('span', { style: S.sep }, '·'),
+            h('span', null, `${dict.todo} ${taskCount}`),
+            h('span', { style: S.sep }, '·'),
+            h('span', null, `${dict.playbookTab} ${playbookCount}`),
+            samples > 0
+              ? h(
+                  'span',
+                  { style: { color: 'var(--dsw-alias-state-warn-primary)', fontWeight: 600 } },
+                  `⚠ ${dict.testData} ${samples}`,
+                )
+              : null,
+            h('span', { style: S.caret }, open ? '▾' : '▸'),
+          );
+        }
+
+        // 面板形态没有「收起」：永远展开。浮层形态才有折叠成一行摘要的行为。
+        if (!isPanel && !open) return h('div', { style: rootStyle }, row);
+
+        /**
+         * UI v2：九个页签合成五区（记忆 / 规则 / 收件 / 观察 / 设置）。
+         *
+         * 分组的依据是从自己源码里学到的：面板高频轮询只该拉计数，
+         * 明细按需拉，所以每一区先给「这一区现在有几个东西」，点进去才看明细。
+         * 每个区是一组按钮，区里的成员还是原来的页签，行为不变——先合并入口，不动内容。
+         */
+        const GROUPS = [
+          ['记忆', [['memories', dict.memories], ['schemas', dict.schemas]]],
+          ['规则', [['playbook', dict.playbookTab]]],
+          ['收件', [['inbox', dict.inboxTab], ['learning', dict.learnTab]]],
+          ['观察', [['sediment', dict.sedimentTab], ['persona', dict.personaTab], ['superagent', dict.superagentTab]]],
+          ['设置', [['settings', dict.settings]]],
+        ];
+        const tabs = GROUPS.flatMap(([, members]) => members);
+        const groupOf = (key) => GROUPS.find(([, members]) => members.some(([k]) => k === key)) || GROUPS[0];
+
+        /** 统一的「标题 + 一行元信息」块，设置页三行都用它。 */
+        const section = (title, ...meta) =>
+          h(
+            'div',
+            { style: S.item },
+            h('div', { style: S.itemTitle }, title),
+            h('div', { style: S.meta }, ...meta),
+          );
+
+        /** 列表页统一：空态或映射。 */
+        const renderList = (items, render) =>
+          items.length === 0 ? h('div', { style: S.empty }, dict.empty) : items.map(render);
+
+        let body;
+        if (tab === 'settings') {
+          const button = (label, onClick) => h('button', { type: 'button', style: S.tab, onClick }, label);
+          const model = state.model || {};
+          const usage = detail && detail.usage ? detail.usage : null;
+          body = h(
+            'div',
+            null,
+            section(
+              '注入方式',
+              h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } },
+                '当前：' + ((detail && detail.injectMode) === 'off' ? '关闭（不注入，只能手动问）' :
+                  (detail && detail.injectMode) === 'full' ? '全文（约 700 字/轮）' : '索引（只给 id+标题，约 350 字/轮）')),
+              h('div', { style: S.meta },
+                ...[['off', '关闭'], ['index', '索引（省 token）'], ['full', '全文']].map(([mode, label]) =>
+                  h('button', {
+                    type: 'button',
+                    style: S.tab,
+                    onClick: async () => {
+                      await post('/cognition-engine/settings/inject-mode?mode=' + mode);
+                      setTick((v) => v + 1);
+                    },
+                  }, label)),
+              ),
+            ),
+            // 立场层：目标与判据（宪章 2026-11-19 修订：可读可改、不打分）
+            section(
+              '立场（目标与判据）',
+              h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } },
+                '按这个判断，与你的要求冲突时我会先说明分歧。这里不打分、不算总分——只列目标和判据，你能改能删。'),
+              stanceInfo && stanceInfo.items && stanceInfo.items.length > 0
+                ? h('div', { style: { display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6 } },
+                    ...stanceInfo.items.map((item) => h('div', { key: item.id, style: { display: 'flex', gap: 6, alignItems: 'flex-start' } },
+                      h('span', { style: { flex: '0 0 auto', fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } },
+                        item.kind === 'goal' ? '目标' : item.kind === 'prefer' ? '判据' : '禁止'),
+                      h('span', { style: { flex: 1, fontSize: 12 } }, item.text +
+                        (item.deny && item.deny.length > 0 ? '（命中：' + item.deny.join('、') + ' 即拦）' : '')),
+                      h('button', { type: 'button', style: { ...S.tab, fontSize: 11 }, onClick: async () => {
+                        try {
+                          const res = await call('/cognition-engine/stance/remove?id=' + encodeURIComponent(item.id), { method: 'POST' });
+                          if (!res.ok) throw new Error('HTTP ' + res.status);
+                          setTick((v) => v + 1);
+                        } catch (error) {
+                          window.alert('删除失败：' + (error instanceof Error ? error.message : String(error)));
+                        }
+                      } }, '删'),
+                    )))
+                : h('div', { style: S.explain }, '还没有目标和判据。加一条：写清「要什么」或「不许什么」。'),
+              h('div', { style: { display: 'flex', gap: 6, marginTop: 6 } },
+                h('select', { id: 'stKind', style: { ...S.input, flex: '0 0 84px' } },
+                  h('option', { value: 'goal' }, '目标'),
+                  h('option', { value: 'prefer' }, '判据'),
+                  h('option', { value: 'forbid' }, '禁止'),
+                ),
+                h('input', { id: 'stText', placeholder: '例如：可验证 > 好听；或 不许引入外部数据库', style: S.input }),
+                h('button', { type: 'button', style: S.tab, onClick: async () => {
+                  const kindEl = document.getElementById('stKind');
+                  const textEl = document.getElementById('stText');
+                  const kind = kindEl ? kindEl.value : 'prefer';
+                  const text = textEl ? textEl.value.trim() : '';
+                  if (text.length < 4) { window.alert('至少 4 个字'); return; }
+                  try {
+                    const res = await call('/cognition-engine/stance/add?kind=' + kind + '&text=' + encodeURIComponent(text), { method: 'POST' });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || data.error) throw new Error(data.error || 'HTTP ' + res.status);
+                    if (textEl) textEl.value = '';
+                    setTick((v) => v + 1);
+                  } catch (error) {
+                    window.alert('添加失败：' + (error instanceof Error ? error.message : String(error)));
+                  }
+                } }, '加'),
+              ),
+            ),
+            // 语感层：只读公开讨论，学句式不学观点
+            section(
+              '语感（说话像个人）',
+              h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } },
+                '从 B 站公开评论里取样，只学「话怎么说」，不学「观点对不对」。只读、不登录、不互动。' +
+                (voiceInfo && voiceInfo.stats ? ' 现有 ' + voiceInfo.stats.total + ' 条样本。' : '')),
+              voiceInfo && voiceInfo.rendered
+                ? h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)', whiteSpace: 'pre-wrap', marginTop: 4, paddingLeft: 8, borderLeft: '2px solid var(--dsw-alias-border-l2)' } }, voiceInfo.rendered)
+                : null,
+              h('div', { style: { display: 'flex', gap: 6, marginTop: 6 } },
+                h('input', { id: 'vsBvid', placeholder: 'B站视频 BV 号（用公开接口取评论）', style: S.input }),
+                h('button', { type: 'button', style: S.tab, onClick: async () => {
+                  const el = document.getElementById('vsBvid');
+                  const bvid = el ? el.value.trim() : '';
+                  if (!bvid) { window.alert('填一个 BV 号'); return; }
+                  try {
+                    const res = await call('/cognition-engine/voice/fetch?bvid=' + encodeURIComponent(bvid), { method: 'POST' });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || data.error) throw new Error(data.error || 'HTTP ' + res.status);
+                    const why = Object.entries(data.rejected || {}).map(([k, v]) => k + ' ' + v).join('、');
+                    window.alert('取到 ' + data.fetched + ' 条评论，收了 ' + data.added + ' 条。\n' + (why ? '没收的：' + why : ''));
+                    setTick((v) => v + 1);
+                  } catch (error) {
+                    window.alert('取样失败：' + (error instanceof Error ? error.message : String(error)));
+                  }
+                } }, '取样'),
+              ),
+              voiceInfo && voiceInfo.items && voiceInfo.items.length > 0
+                ? h('div', { style: { display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6 } },
+                    ...voiceInfo.items.slice(0, 8).map((item) => h('div', { key: item.id, style: { display: 'flex', gap: 6, alignItems: 'flex-start' } },
+                      h('span', { style: { flex: '0 0 auto', fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } }, '赞' + item.likes),
+                      h('span', { style: { flex: 1, fontSize: 12 } }, item.text),
+                      h('button', { type: 'button', style: { ...S.tab, fontSize: 11 }, onClick: async () => {
+                        try {
+                          const res = await call('/cognition-engine/voice/remove?id=' + encodeURIComponent(item.id), { method: 'POST' });
+                          if (!res.ok) throw new Error('HTTP ' + res.status);
+                          setTick((v) => v + 1);
+                        } catch (error) {
+                          window.alert('删除失败：' + (error instanceof Error ? error.message : String(error)));
+                        }
+                      } }, '删'),
+                    )))
+                : h('div', { style: S.explain }, '还没有语感样本。填一个 BV 号，从公开评论里取样。'),
+            ),
+            // 容量条（Letta memory blocks 的做法：直接显示 当前/上限，一眼看出快满没）
+            (() => {
+              if (injInfo === null) return null;
+              const bar = (label, current, limit, unit, warnAt) => {
+                const pct = limit <= 0 ? 0 : Math.min(100, Math.round((current / limit) * 100));
+                const over = limit > 0 && current >= warnAt * limit;
+                return h('div', { style: { display: 'flex', flexDirection: 'column', gap: 3 } },
+                  h('div', { style: { display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } },
+                    h('span', null, label),
+                    h('span', { style: over ? { color: 'var(--dsw-alias-state-warn-primary)' } : null },
+                      current + ' / ' + limit + ' ' + unit + '（' + pct + '%）')),
+                  h('div', { style: { height: 6, borderRadius: 3, background: 'var(--dsw-alias-border-l1)', overflow: 'hidden' } },
+                    h('div', {
+                      style: {
+                        width: pct + '%',
+                        height: '100%',
+                        background: over ? 'var(--dsw-alias-state-warn-primary)' : 'var(--dsw-alias-state-success-primary)',
+                      },
+                    })),
+                );
+              };
+              return section(
+                '注入占用（每轮）',
+                h('div', { style: { display: 'flex', flexDirection: 'column', gap: 8 } },
+                  bar('注入字符', injInfo.chars || 0, 800, '字', 0.9),
+                  bar('展开准则', injInfo.ruleCount || 0, injInfo.injectMaxInstances || 8, '条', 1),
+                ),
+                h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } },
+                  '字符上限 800 是按索引 350 / 全文 700 实测估的软线；准则到上限会自动折叠成一行 id，需要时再 recall。'),
+              );
+            })(),
+            usage
+              ? section(
+                  '用量（估算）',
+                  h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } },
+                    '累计注入 ' + usage.injection.totalChars + ' 字（' + usage.injection.turns + ' 轮，约 ' +
+                    usage.injection.estTokens + ' tokens）；本月 ' + usage.injection.monthChars + ' 字；今日 ' + usage.injection.todayChars + ' 字'),
+                  h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } },
+                    '模型调用 ' + usage.model.calls + ' 次（本月 ' + usage.model.monthCalls + '）：' +
+                    Object.entries(usage.model.byPurpose || {}).map(([k, v]) => k + '=' + v).join(' / ')),
+                  h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } },
+                    '估算合计 ≈ ' + usage.model.estTokens + ' tokens ≈ ¥' + usage.estCostYuan + '（按 ¥' + usage.pricePerMTokens + '/百万 tokens）'),
+                )
+              : null,
+            section(
+              dict.backupTitle,
+              button(dict.restoreLatest, async () => {
+                try {
+                  const res = await fetch('/cognition-engine/snapshots', { cache: 'no-store' });
+                  const data = await res.json();
+                  const items = Array.isArray(data.items) ? data.items : [];
+                  if (items.length === 0) { setNotice('还没有快照可恢复'); return; }
+                  await post('/cognition-engine/snapshot/restore?name=' + encodeURIComponent(items[0].name));
+                  setNotice('已恢复到最近一份快照');
+                } catch (error) {
+                  setNotice('✗ 恢复失败：' + (error instanceof Error ? error.message : String(error)));
+                }
+              }),
+              button(dict.viewAudit, async () => {
+                try {
+                  const res = await fetch('/cognition-engine/audit?limit=5', { cache: 'no-store' });
+                  const data = await res.json();
+                  const items = Array.isArray(data.items) ? data.items : [];
+                  if (items.length === 0) { setNotice('暂无审计记录'); return; }
+                  setNotice(items.map((e) => [e.op, e.subject || e.id || '', e.origin || ''].filter(Boolean).join(' ')).join(' ｜ '));
+                } catch (error) {
+                  setNotice('✗ 读取审计失败：' + (error instanceof Error ? error.message : String(error)));
+                }
+              }),
+            ),
+            section(
+              dict.rulesTitle,
+              ...[
+                ['transient', dict.ruleTransient],
+                ['sensitive', dict.ruleSensitive],
+                ['injection', dict.ruleInjection],
+                ['authority', dict.ruleAuthority],
+              ].map((pair) =>
+                h(
+                  'label',
+                  { key: pair[0], style: { ...S.tab, cursor: 'pointer', display: 'inline-flex', gap: 4, alignItems: 'center' } },
+                  h('input', {
+                    type: 'checkbox',
+                    checked: (state.rules || {})[pair[0]] !== false,
+                    onChange: (event) => {
+                      post(`/cognition-engine/rules/set?${pair[0]}=${event.target.checked}`).then(() => setTick((v) => v + 1));
+                    },
+                  }),
+                  pair[1],
+                ),
+              ),
+            ),
+            section(
+              `${dict.storage}：${state.storageFile || '-'}`,
+              button(dict.clearMemory, () => post('/cognition-engine/clear?scope=memory')),
+              button(dict.clearAll, () => post('/cognition-engine/clear?scope=all')),
+              button(dict.consolidate, () => post('/cognition-engine/consolidate').then(() => setTick((v) => v + 1))),
+              button(dict.exportData, () => {
+                window.open('/cognition-engine/export', '_blank');
+              }),
+              h(
+                'label',
+                { style: { ...S.tab, cursor: 'pointer' } },
+                dict.importData,
+                h('input', {
+                  type: 'file',
+                  accept: 'application/json,.json',
+                  style: { display: 'none' },
+                  onChange: async (event) => {
+                    const file = event.target.files && event.target.files[0];
+                    if (!file) return;
+                    const text = await file.text();
+                    await post(`/cognition-engine/import?payload=${encodeURIComponent(text)}`);
+                    setTick((value) => value + 1);
+                  },
+                }),
+              ),
+            ),
+            section(
+              dict.realModel,
+              h(
+                'span',
+                {
+                  style: {
+                    color:
+                      state.model?.mode === 'real' ? '#58a6ff'
+                      : state.model?.mode === 'local' ? '#d29922'
+                      : '#f85149',
+                    fontWeight: 600,
+                  },
+                },
+                state.model?.mode === 'real' ? dict.engineReal
+                  : state.model?.mode === 'local' ? dict.engineLocal
+                  : dict.engineOff,
+              ),
+              h(
+                'div',
+                { style: S.meta },
+                ['off', 'local', 'real'].map((mode) =>
+                  h(
+                    'button',
+                    {
+                      key: mode,
+                      type: 'button',
+                      style: state.model?.mode === mode ? { ...S.tab, ...S.tabActive } : S.tab,
+                      onClick: () => post('/cognition-engine/model?mode=' + mode).then(() => setTick((v) => v + 1)),
+                    },
+                    mode === 'off' ? dict.engineOff : mode === 'local' ? dict.engineLocal : dict.engineReal,
+                  ),
+                ),
+              ),
+              h('div', { style: S.explain },
+                state.model?.mode === 'real' ? dict.engineRealHint
+                  : state.model?.mode === 'local' ? dict.engineLocalHint
+                  : dict.engineOffHint),
+              state.model?.mode === 'real' && state.model?.available
+                ? h('span', null, state.model.provider + '/' + state.model.model)
+                : null,
+              h(
+                'div',
+                { style: S.meta },
+                h('span', null, dict.autoReflectLabel + '：'),
+                h(
+                  'button',
+                  {
+                    type: 'button',
+                    style: S.tab,
+                    onClick: async () => {
+                      const next = !(state.model && state.model.autoReflect);
+                      await post('/cognition-engine/model?autoReflect=' + (next ? 'true' : 'false'));
+                      setTick((v) => v + 1);
+                    },
+                  },
+                  state.model && state.model.autoReflect ? dict.autoReflectOn : dict.autoReflectOff,
+                ),
+              ),
+              h('div', { style: S.explain }, dict.autoReflectHint),
+              h(
+                'div',
+                { style: S.meta },
+                h('span', null, dict.effortLabel + '：'),
+                ['', ...((state.model && state.model.efforts) || [])].map((effort) =>
+                  h(
+                    'button',
+                    {
+                      key: effort === '' ? 'auto' : effort,
+                      type: 'button',
+                      style:
+                        ((state.model && state.model.effort) || '') === effort
+                          ? { ...S.tab, ...S.tabActive }
+                          : S.tab,
+                      onClick: async () => {
+                        await post('/cognition-engine/model?effort=' + encodeURIComponent(effort));
+                        setTick((v) => v + 1);
+                      },
+                    },
+                    effort === '' ? dict.effortAuto : effort,
+                  ),
+                ),
+              ),
+              h('div', { style: S.explain }, dict.effortHint),
+            ),
+            section(
+              dict.lock,
+              h(
+                'span',
+                { style: { color: state.locked ? '#3fb950' : '#f85149', fontWeight: 600 } },
+                state.locked ? dict.locked : dict.unlocked,
+              ),
+              button(state.locked ? dict.unlock : dict.lockOn, () =>
+                post(`/cognition-engine/lock?enabled=${state.locked ? 'false' : 'true'}`),
+              ),
+              h('input', {
+                value: tokenDraft,
+                placeholder: dict.token,
+                onChange: (event) => setTokenDraft(event.target.value),
+                style: S.input,
+              }),
+              button(dict.applyToken, () => {
+                rememberToken(tokenDraft.trim());
+                setNotice('');
+                setTick((value) => value + 1);
+              }),
+              h('div', { style: S.explain }, dict.lockHint),
+            ),
+          );
+        } else if (detailError !== null) {
+          // 口令未设置或错误：直接在面板里给输入框，避免「要口令才能开口令入口」的死锁
+          const isAuth = /401|unauthorized|口令/i.test(String(detailError));
+          if (isAuth) {
+            body = h(
+              'div',
+              { style: S.item },
+              h('div', { style: S.itemTitle }, dict.needToken),
+              h('input', {
+                value: tokenDraft,
+                placeholder: dict.token,
+                onChange: (event) => setTokenDraft(event.target.value),
+                style: S.input,
+              }),
+              h(
+                'button',
+                {
+                  type: 'button',
+                  style: S.tab,
+                  onClick: () => {
+                    rememberToken(tokenDraft.trim());
+                    setTick((value) => value + 1);
+                  },
+                },
+                dict.applyToken,
+              ),
+            );
+          } else {
+            body = h('div', { style: S.empty }, `${dict.noDetail} (${detailError})`);
+          }
+        } else if (!detail) {
+          body = h('div', { style: S.empty }, dict.loading);
+        } else if (tab === 'summary') {
+          body = h(
+            'div',
+            null,
+            h('div', { style: S.item }, h('div', { style: S.itemTitle }, `${dict.memory} ${(detail.counts || {}).memories || 0}`)),
+            h('div', { style: S.item }, h('div', { style: S.itemTitle }, `${dict.schema} ${(detail.counts || {}).schemas || 0}`)),
+            h('div', { style: S.item }, h('div', { style: S.itemTitle }, `${dict.tasks} ${(detail.counts || {}).tasks || 0}`)),
+          );
+        } else if (tab === 'persona') {
+          body = h(PersonaEmbedded, { variant: 'embedded' });
+        } else if (tab === 'inbox') {
+          const ib = detail && detail.inbox ? detail.inbox : { stats: { pending: 0 }, pending: [], duplicates: [] };
+          const pending = Array.isArray(ib.pending) ? ib.pending : [];
+          const dups = Array.isArray(ib.duplicates) ? ib.duplicates : [];
+          const libItems = sourceList && Array.isArray(sourceList.items) ? sourceList.items : [];
+          const libStats = (sourceList && sourceList.stats) || ib.library || { blocks: 0, notes: 0, ready: 0, failed: 0, sources: 0 };
+          body = h(
+            'div',
+            { style: { display: 'flex', flexDirection: 'column', gap: 8 } },
+            h('div', { style: S.explain }, '放进来就自动学：原文全量存档 → 切成块 → 提炼摘要与结论。资料层不占每轮注入，用到时才取（cognition_source）。只有「转成记忆事实」需要你点头。'),
+            h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } },
+              '资料库 ' + libStats.sources + ' 篇 / ' + libStats.blocks + ' 块 · 已提炼 ' + libStats.ready + ' 篇' +
+                (libStats.skipped > 0 ? ' · 太短未提炼 ' + libStats.skipped + ' 篇' : '') +
+                (libStats.failed > 0 ? ' · 提炼失败 ' + libStats.failed + ' 篇' : '') +
+                ' · 待转成记忆事实 ' + ib.stats.pending + ' 条' +
+                ' · 来源账本 ' + ((ib.sources && ib.sources.total) || 0) + ' 条' +
+                (ib.sources && ib.sources.chain && ib.sources.chain.ok === false ? '（链断！）' : '')),
+            // 检索验证：放进去的东西到底能不能查到——这是"自动学"唯一可验证的证据
+            h('div', { style: { display: 'flex', flexDirection: 'column', gap: 6 } },
+              h('div', { style: { display: 'flex', gap: 6 } },
+                h('input', { id: 'ibSearch', placeholder: '查资料库：memory organization / 记忆分层', style: S.input }),
+                h('button', { type: 'button', style: S.tab, onClick: async () => {
+                  const el = document.getElementById('ibSearch');
+                  const query = el ? el.value.trim() : '';
+                  if (query.length === 0) { window.alert('先填关键词'); return; }
+                  try {
+                    const res = await call('/cognition-engine/sources/search?q=' + encodeURIComponent(query));
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || data.error) throw new Error(data.error || ('HTTP ' + res.status));
+                    setSourceHits(data.hits || []);
+                  } catch (error) {
+                    window.alert('检索失败：' + (error instanceof Error ? error.message : String(error)));
+                  }
+                } }, '查'),
+              ),
+              sourceHits === null
+                ? null
+                : sourceHits.length === 0
+                  ? h('div', { style: S.explain }, '没有命中：可能没导入过，或换个关键词。')
+                  : h('div', { style: { display: 'flex', flexDirection: 'column', gap: 4 } },
+                      ...sourceHits.map((hit, index) => h('div', { key: 'hit' + index, style: S.item },
+                        h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } },
+                          hit.title + ' · 第 ' + (hit.ord + 1) + ' 块 · 相关度 ' + hit.score.toFixed(2)),
+                        h('div', { style: { fontSize: 11 } }, hit.text.slice(0, 220) + (hit.text.length > 220 ? '…' : '')),
+                      ))),
+            ),
+            // —— 资料库：这是"学成了什么"，放最前面 ——
+            libItems.length === 0
+              ? h('div', { style: S.explain }, '资料库还是空的：下面选个文件或粘一段文字丢进来。')
+              : h('div', { style: { display: 'flex', flexDirection: 'column', gap: 6 } },
+                  ...libItems.slice(0, 12).map((item) => {
+                    const note = item.note;
+                    const statusText = note === null || note === undefined
+                      ? '尚未提炼'
+                      : note.status === 'ready'
+                        ? '已提炼'
+                        : note.status === 'pending'
+                          ? '提炼中…'
+                          : note.status === 'skipped'
+                            ? '未提炼（太短或不是正文）'
+                            : note.status === 'suspicious'
+                              ? '提炼出的结论可疑'
+                              : '提炼失败';
+                    return h('div', { key: item.sourceId, style: S.item },
+                      h('div', { style: { fontSize: 12 } },
+                        item.title + '（' + item.sourceId + ' · ' + Math.round(item.chars / 1000) + 'k 字 · ' + item.blocks + ' 块 · ' + statusText + (note && note.topic ? ' · ' + note.topic : '') + '）'),
+                      note && note.summary ? h('div', { style: { fontSize: 11, marginTop: 2 } }, note.summary) : null,
+                      h('div', { style: S.meta },
+                        item.sourceId && (!note || note.status === 'failed')
+                          ? h('button', { type: 'button', style: S.tab, onClick: async () => {
+                              try {
+                                const res = await call('/cognition-engine/sources/redistill?sourceId=' + encodeURIComponent(item.sourceId), { method: 'POST' });
+                                const data = await res.json().catch(() => ({}));
+                                if (!res.ok || data.error) throw new Error(data.error || ('HTTP ' + res.status));
+                                setTick((v) => v + 1);
+                              } catch (error) {
+                                window.alert('提炼失败：' + (error instanceof Error ? error.message : String(error)));
+                              }
+                            } }, '提炼 / 重新提炼')
+                          : null,
+                        // 删的是块索引和摘要，不动来源账本；两步确认，防手滑
+                        deleteConfirm === item.sourceId
+                          ? h('span', { style: { display: 'inline-flex', gap: 6, alignItems: 'center' } },
+                              h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-state-warn-primary)' } },
+                              // 删除前列影响清单（Coze/Dify 的做法：说清"还会连带删什么"再让你确认）
+                              '将删除 ' + (item.blocks || 0) + ' 块索引' +
+                              (item.note ? ' + 1 份摘要' : '') +
+                              (item.note && item.note.status === 'ready' ? '（已提炼，删后要重新提炼）' : '') +
+                              '；来源账本原文保留'),
+                              h('button', { type: 'button', style: { ...S.tab, color: '#f85149' }, onClick: async () => {
+                                try {
+                                  const res = await call('/cognition-engine/sources/delete?sourceId=' + encodeURIComponent(item.sourceId), { method: 'POST' });
+                                  const data = await res.json().catch(() => ({}));
+                                  if (!res.ok || data.error) throw new Error(data.error || ('HTTP ' + res.status));
+                                  setDeleteConfirm(null);
+                                  setTick((v) => v + 1);
+                                } catch (error) {
+                                  window.alert('删除失败：' + (error instanceof Error ? error.message : String(error)));
+                                }
+                              } }, '确认删'),
+                              h('button', { type: 'button', style: S.tab, onClick: () => setDeleteConfirm(null) }, '取消'),
+                            )
+                          : h('button', { type: 'button', style: S.tab, onClick: () => setDeleteConfirm(item.sourceId) }, '删'),
+                      ),
+                      note && note.status === 'suspicious' && note.flags
+                        ? h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-state-warn-primary)' } },
+                            '摘要里扫出可疑句式（' + note.flags.join('、') + '）：这条结论不参与检索返回，只保留原文块')
+                        : null,
+                      note && note.status === 'failed' && note.error
+                        ? h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-state-warn-primary)' } }, note.error)
+                        : null,
+                    );
+                  })),
+            h('input', { id: 'ibContent', placeholder: dict.inboxAddPlaceholder, style: S.input }),
+            h('input', { id: 'ibSubject', placeholder: dict.inboxSubject, style: S.input }),
+            h('div', { style: S.meta },
+              h('button', { type: 'button', style: S.tab, onClick: async () => {
+                const content = document.getElementById('ibContent').value.trim();
+                const subject = document.getElementById('ibSubject').value.trim();
+                if (content.length === 0) return;
+                // 用户很自然会把"文件路径"粘进来（以为贴路径就会读文件）。
+                // 认出来就走按路径导入，别再存一条 42 字的假资料。
+                const looksLikePath = content.length < 400 && !/[。！？；\n]/.test(content) && /^([a-zA-Z]:[\\/]|\\\\|~[\\/]|\/)/.test(content);
+                if (looksLikePath) {
+                  try {
+                    const res = await call('/cognition-engine/inbox/add-file?path=' + encodeURIComponent(content), { method: 'POST' });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || data.error) { window.alert('这看起来是文件路径，但按文件读取失败：' + (data.error || ('HTTP ' + res.status))); return; }
+                    window.alert('已按文件导入：' + (data.title || data.id));
+                    setTick((v) => v + 1);
+                  } catch (error) {
+                    window.alert('导入失败：' + (error instanceof Error ? error.message : String(error)));
+                  }
+                  return;
+                }
+                if (content.length <= 800) {
+                  await post('/cognition-engine/inbox/add?content=' + encodeURIComponent(content) +
+                    (subject.length === 0 ? '' : '&subject=' + encodeURIComponent(subject)));
+                } else {
+                  // 长文本走分片，避免请求行超限（HTTP 431）
+                  try {
+                    const data = await uploadText('粘贴内容-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '') + '.txt', content, subject);
+                    window.alert('已导入为候选：' + (data.title || data.id) + '（待审里可以看到）');
+                  } catch (error) {
+                    window.alert('导入失败：' + (error instanceof Error ? error.message : String(error)));
+                  }
+                }
+                setTick((v) => v + 1);
+              } }, dict.inboxAddBtn),
+            ),
+            // 首选：浏览器选文件（不用记路径，也不用管大小写/空格）
+            h('div', { style: { display: 'flex', flexDirection: 'column', gap: 6 } },
+              h('div', { style: S.meta },
+                h('button', { type: 'button', style: S.tab, onClick: () => { const el = document.getElementById('ibFileInput'); if (el) el.click(); } }, '选择文件…'),
+                h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } }, '支持 .txt/.md/.html/.json/.csv 等纯文本，最大 4MB'),
+              ),
+              h('input', {
+                id: 'ibFileInput',
+                type: 'file',
+                accept: '.txt,.md,.markdown,.html,.htm,.json,.jsonl,.csv,.log,.js,.mjs,.ts,.py,.yml,.yaml',
+                style: { display: 'none' },
+                onChange: async (event) => {
+                  const file = event.target.files && event.target.files[0];
+                  if (!file) return;
+                  try {
+                    // 浏览器默认按 UTF-8 读；Excel 导出的 CSV 是 GBK，直接读就是乱码。
+                    // 先严格试 UTF-8，失败再按 GBK 解（与 serve 端 decodeTextBuffer 同一口径）。
+                    const buf = await file.arrayBuffer();
+                    let text;
+                    const head = new Uint8Array(buf.slice(0, 2));
+                    if (head[0] === 0xff && head[1] === 0xfe) {
+                      text = new TextDecoder('utf-16le').decode(buf.slice(2));
+                    } else if (head[0] === 0xfe && head[1] === 0xff) {
+                      text = new TextDecoder('utf-16be').decode(buf.slice(2));
+                    } else {
+                      try {
+                        text = new TextDecoder('utf-8', { fatal: true }).decode(buf);
+                      } catch {
+                        text = new TextDecoder('gbk').decode(buf);
+                      }
+                    }
+                    if (text.trim().length === 0) { window.alert('文件是空的'); return; }
+                    const commitData = await uploadText(file.name, text);
+                    window.alert('已导入为候选：' + (commitData.title || commitData.id) + '（待审里可以看到）');
+                    event.target.value = '';
+                    setTick((v) => v + 1);
+                  } catch (error) {
+                    window.alert('导入失败：' + (error instanceof Error ? error.message : String(error)));
+                  }
+                },
+              }),
+            ),
+            // 备用：手填路径（跨设备/跨盘符时用；路径里有多余空格会读不到）
+            h('div', { style: { display: 'flex', flexDirection: 'column', gap: 6 } },
+              h('input', { id: 'ibFilePath', placeholder: '或者填本机文件路径（备用，≤4MB，只读不执行）', style: S.input }),
+              h('div', { style: S.meta },
+                h('button', { type: 'button', style: S.tab, onClick: async () => {
+                  const el = document.getElementById('ibFilePath');
+                  const path = el ? el.value.trim() : '';
+                  if (path.length === 0) { window.alert('先填文件路径'); return; }
+                  try {
+                    const res = await call('/cognition-engine/inbox/add-file?path=' + encodeURIComponent(path), { method: 'POST' });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || data.error) { window.alert('导入失败：' + (data.error || ('HTTP ' + res.status))); return; }
+                    window.alert('已导入为候选：' + (data.title || data.id) + '（待审里可以看到）');
+                    setTick((v) => v + 1);
+                  } catch (error) {
+                    window.alert('导入失败：' + (error instanceof Error ? error.message : String(error)));
+                  }
+                } }, '按路径导入'),
+              ),
+            ),
+            // L2：白名单内的网页可以直接抓进来（默认空白名单＝一律拒绝）
+            h('div', { style: { display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 6, borderTop: '1px solid var(--dsw-alias-border-l1)' } },
+              h('div', { style: { display: 'flex', gap: 6 } },
+                h('input', { id: 'ibUrl', placeholder: '从网址导入：https://…（域名须在白名单）', style: S.input }),
+                h('button', { type: 'button', style: S.tab, onClick: async () => {
+                  const el = document.getElementById('ibUrl');
+                  const target = el ? el.value.trim() : '';
+                  if (target.length === 0) { window.alert('先填网址'); return; }
+                  try {
+                    const res = await call('/cognition-engine/fetch/import?url=' + encodeURIComponent(target), { method: 'POST' });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || data.error) throw new Error(data.error || ('HTTP ' + res.status));
+                    window.alert('已抓取：' + data.chars + ' 字，' + data.sourceId +
+                      (data.flags && data.flags.length > 0 ? '（含标记：' + data.flags.join('、') + '）' : '') +
+                      (data.hint ? '\n\n' + data.hint : ''));
+                    setTick((v) => v + 1);
+                  } catch (error) {
+                    window.alert('抓取失败：' + (error instanceof Error ? error.message : String(error)));
+                  }
+                } }, '抓取'),
+              ),
+              h('div', { style: { display: 'flex', gap: 6 } },
+                h('input', { id: 'ibHost', placeholder: '加白名单：example.com', style: S.input }),
+                h('button', { type: 'button', style: S.tab, onClick: async () => {
+                  const el = document.getElementById('ibHost');
+                  const host = el ? el.value.trim() : '';
+                  if (host.length === 0) { window.alert('先填域名'); return; }
+                  try {
+                    const res = await call('/cognition-engine/fetch/whitelist?action=add&host=' + encodeURIComponent(host), { method: 'GET' });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || data.error) throw new Error(data.error || ('HTTP ' + res.status));
+                    if (el) el.value = '';
+                    setTick((v) => v + 1);
+                  } catch (error) {
+                    window.alert('加白名单失败：' + (error instanceof Error ? error.message : String(error)));
+                  }
+                } }, '加白名单'),
+              ),
+              h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } },
+                fetchInfo === null || !fetchInfo.hosts || fetchInfo.hosts.length === 0
+                  ? '白名单是空的：现在是"完全不联网"状态。填个域名加进来才会抓取，且只抓这个站。'
+                  : '白名单（' + fetchInfo.hosts.length + '）：' + fetchInfo.hosts.join('、'),
+              ),
+              fetchInfo !== null && fetchInfo.hosts && fetchInfo.hosts.length > 0
+                ? h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 6 } },
+                    ...fetchInfo.hosts.map((host) => h('button', {
+                      key: 'wl-' + host,
+                      type: 'button',
+                      style: { ...S.tab, fontSize: 11 },
+                      onClick: async () => {
+                        try {
+                          const res = await call('/cognition-engine/fetch/whitelist?action=remove&host=' + encodeURIComponent(host), { method: 'GET' });
+                          if (!res.ok) throw new Error('HTTP ' + res.status);
+                          setTick((v) => v + 1);
+                        } catch (error) {
+                          window.alert('移除失败：' + (error instanceof Error ? error.message : String(error)));
+                        }
+                      },
+                    }, '移除 ' + host)))
+                : null,
+            ),
+            pending.length === 0
+              ? null
+              : h('div', { style: { display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 6, borderTop: '1px solid var(--dsw-alias-border-l1)' } },
+                  h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } },
+                    '待转成记忆事实（' + pending.length + ' 条）——不转也不影响检索，只是不进每轮注入：'),
+                  pending.map((cand) => {
+                    // 自动学的结果：切了几块 + 摘要/结论。这里显示的才是"学成了什么"，
+                    // 不是"等你审什么"——提炼是自动的，人工只在想把它变成记忆事实时才介入。
+                    const know = cand.knowledge || { blocks: 0, note: null };
+                    const note = know.note;
+                    const statusText = note === null
+                      ? '尚未提炼'
+                      : note.status === 'ready'
+                        ? '已提炼'
+                        : note.status === 'pending'
+                          ? '提炼中…'
+                          : '提炼失败';
+                    return h('div', { key: cand.id, style: S.item },
+                      h('div', { style: { fontSize: 12 } }, cand.title + '（重要度 ' + cand.importance + (cand.sourceId ? ' · 来源 ' + cand.sourceId : '') + '）'),
+                      h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } },
+                        '已切 ' + know.blocks + ' 块供检索 · ' + statusText +
+                        (note && note.topic ? ' · 主题：' + note.topic : '')),
+                      note && note.summary ? h('div', { style: { fontSize: 11, marginTop: 2 } }, note.summary) : null,
+                      note && note.points && note.points.length > 0
+                        ? h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2, marginTop: 2 } },
+                            ...note.points.map((point, index) => h('div', { key: 'p' + index, style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } }, '· ' + point)))
+                        : null,
+                      note && note.status === 'failed' && note.error
+                        ? h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-state-warn-primary)' } }, '提炼没成功：' + note.error)
+                        : null,
+                      cand.sourceId && (!note || note.status === 'failed')
+                        ? h('div', { style: S.meta },
+                            h('button', { type: 'button', style: S.tab, onClick: async () => {
+                              try {
+                                const res = await call('/cognition-engine/sources/redistill?sourceId=' + encodeURIComponent(cand.sourceId), { method: 'POST' });
+                                const data = await res.json().catch(() => ({}));
+                                if (!res.ok || data.error) throw new Error(data.error || ('HTTP ' + res.status));
+                                window.alert('提炼结果：' + (data.note && data.note.status === 'ready' ? (data.note.summary || '已完成') : (data.note && data.note.error) || '见上方'));
+                                setTick((v) => v + 1);
+                              } catch (error) {
+                                window.alert('提炼失败：' + (error instanceof Error ? error.message : String(error)));
+                              }
+                            } }, '重新提炼'))
+                        : null,
+                      cand.note ? h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-state-warn-primary)' } }, cand.note) : null,
+                      h('textarea', { id: 'ibC-' + cand.id, defaultValue: cand.content, style: Object.assign({}, S.input, { minHeight: 56, height: 56 }) }),
+                      h('input', { id: 'ibS-' + cand.id, defaultValue: cand.subject || '', placeholder: '主题（留空则按内容自动匹配）', style: S.input }),
+                      h('div', { style: S.meta },
+                        h('button', { type: 'button', style: S.tab, onClick: async () => {
+                          const c = document.getElementById('ibC-' + cand.id).value.trim();
+                          const sj = document.getElementById('ibS-' + cand.id).value.trim();
+                          // 正文走请求体：两万字塞 query string 会被 Node 直接判 431，业务代码收不到
+                          try {
+                            const res = await call('/cognition-engine/inbox/accept?id=' + encodeURIComponent(cand.id), {
+                              method: 'POST',
+                              headers: { 'content-type': 'application/json' },
+                              body: JSON.stringify({ content: c, subject: sj }),
+                            });
+                            const data = await res.json().catch(() => ({}));
+                            if (!res.ok || data.error) throw new Error(data.error || ('HTTP ' + res.status));
+                            setNotice('');
+                            setTick((v) => v + 1);
+                          } catch (error) {
+                            window.alert('采用失败：' + (error instanceof Error ? error.message : String(error)));
+                          }
+                        } }, '采用为记忆'),
+                        h('button', { type: 'button', style: { ...S.tab, color: '#f85149' }, onClick: async () => {
+                          await post('/cognition-engine/inbox/reject?id=' + encodeURIComponent(cand.id));
+                          setTick((v) => v + 1);
+                        } }, dict.inboxReject),
+                      ),
+                    );
+                  })),
+            dups.length === 0 ? null : h('div', { style: { display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 } },
+              h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } }, '重复已丢（前 8 条）'),
+              ...dups.map((item) => h('div', { key: item.id, style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } },
+                '· ' + item.title + ' —— ' + (item.note || '重复'))),
+            ),
+          );
+        } else if (tab === 'sediment') {
+          const events = sedimentData === null ? [] : sedimentData.events;
+          const verify = sedimentData === null ? null : sedimentData.verify;
+          // 只给方向，不给数值（宪章第十节：参数不外显）
+          const dirPhrase = (d) => {
+            const rows = [
+              ['caution', d.caution || 0, '更谨慎'],
+              ['retention', d.retention || 0, '更不肯改口'],
+              ['openness', -(d.openness || 0), '更少找反例'],
+              ['attachment', d.attachment || 0, '更看重具体的人'],
+            ];
+            rows.sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+            return Math.abs(rows[0][1]) > 0 ? rows[0][2] : '没有位移';
+          };
+          const kindLabel = (k) => (k === 'tension' ? '翻案' : k === 'settle' ? '巩固' : k === 'protentionError' ? '预期落空' : '手工');
+          body = h(
+            'div',
+            { style: { display: 'flex', flexDirection: 'column', gap: 8 } },
+            h('div', { style: S.explain }, dict.sedimentHint),
+            h('div', { style: { display: 'flex', flexDirection: 'column', gap: 6, padding: '8px 0', borderTop: '1px solid var(--dsw-alias-border-l1)' } },
+              h('div', { style: { fontSize: 12, fontWeight: 600 } }, dict.perspTitle),
+              h('div', { style: S.explain }, dict.perspHint),
+              h('div', { style: { display: 'flex', gap: 6 } },
+                h('input', {
+                  id: 'persp-subj',
+                  placeholder: dict.perspPlaceholder,
+                  defaultValue: perspSubject,
+                  onChange: (event) => setPerspSubject(event.target.value),
+                  style: Object.assign({}, PS.ta, { minHeight: 0, height: 26, padding: '2px 8px', fontSize: 12, flex: '1 1 auto' }),
+                  onKeyDown: (event) => { if (event.key === 'Enter') loadPerspective(); },
+                }),
+                h('button', { type: 'button', style: PS.btn, onClick: loadPerspective }, dict.perspButton),
+              ),
+              perspData === null
+                ? null
+                : perspData.error
+                  ? h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-state-error-primary)' } }, String(perspData.error))
+                  : h('div', { style: { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 } },
+                      h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } },
+                        dict.perspStance + '：' + (perspData.stance === 'direct' ? dict.perspStanceDirect : perspData.stance === 'ask-first' ? dict.perspStanceAsk : dict.perspStanceWait)),
+                      perspData.noticed.length === 0 && perspData.suppressed.length === 0
+                        ? h('div', { style: S.explain }, dict.perspNone)
+                        : null,
+                      ...perspData.noticed.map((item) => h('div', { key: 'n-' + item.id }, '↑ ' + item.label)),
+                      ...perspData.suppressed.map((item) => h('div', { key: 's-' + item.id, style: { color: 'var(--dsw-alias-label-secondary)' } }, '↓ ' + item.label)),
+                      h('div', { style: { fontSize: 10, color: 'var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary))' } }, perspData.note || ''),
+                    ),
+            ),
+            h('div', { style: { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' } },
+              h('button', { type: 'button', style: PS.btn, onClick: runSelfCheck }, dict.selfCheckButton),
+              selfCheckData === null
+                ? null
+                : h('span', {
+                    style: {
+                      fontSize: 11,
+                      color: selfCheckData.verdict === 'broken'
+                        ? 'var(--dsw-alias-state-error-primary)'
+                        : 'var(--dsw-alias-label-secondary)',
+                    },
+                  }, selfCheckText()),
+            ),
+            verify === null
+              ? null
+              : h('div', {
+                  style: {
+                    fontSize: 11,
+                    color: verify.ok
+                      ? 'var(--dsw-alias-state-success-primary)'
+                      : 'var(--dsw-alias-state-error-primary)',
+                  },
+                }, verify.ok
+                  ? dict.sedimentVerifyOk.replace('{n}', String(verify.total))
+                  : dict.sedimentVerifyBad.replace('{n}', String(verify.brokenAt))),
+            h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } },
+              (events.length >= 20 ? dict.sedimentEnough : dict.sedimentNotEnough).replace('{n}', String(events.length))),
+            events.length === 0
+              ? h('div', { style: S.explain }, dict.sedimentEmpty)
+              : h('div', { style: { display: 'flex', flexDirection: 'column', gap: 6 } },
+                  events.slice().reverse().map((e) => h('div', { key: e.seq, style: S.item },
+                    h('div', { style: { fontSize: 12 } }, new Date(e.at).toLocaleString() + ' · ' + kindLabel(e.kind) + ' · ' + e.subject),
+                    h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } }, '方向：' + dirPhrase(e.delta)),
+                  ))),
+          );
+        } else if (tab === 'learning') {
+          // L3：资料/经验 → 事实/准则/技能候选，每条必须带外部锚
+          const pendingCands = (learnInfo && Array.isArray(learnInfo.items)) ? learnInfo.items : [];
+          body = h(
+            'div',
+            { style: { display: 'flex', flexDirection: 'column', gap: 8 } },
+            // 自动学习开关：默认关，打开后才会自己检索花钱
+            h('div', { style: { display: 'flex', flexDirection: 'column', gap: 6, paddingBottom: 8, borderBottom: '1px solid var(--dsw-alias-border-l1)' } },
+              h('div', { style: { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' } },
+                // 联网学习三档：关 → 快学 → 深研 → 关，一个按钮循环（原来两个开关并成一个）
+                h('button', { type: 'button', style: CHIP, onClick: async () => {
+                  const level = (autoInfo && autoInfo.learnLevel) || (autoInfo && autoInfo.autoLearn ? 'fast' : 'off');
+                  const next = level === 'off' ? 'fast' : level === 'fast' ? 'deep' : 'off';
+                  if (next === 'deep' && !window.confirm('深研一次约 ¥0.1（多源检索 + 交叉核对），继续？')) return;
+                  try {
+                    const res = await call('/cognition-engine/autolearn/toggle?learnLevel=' + next, { method: 'POST' });
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                    setTick((v) => v + 1);
+                  } catch (error) {
+                    window.alert('切换失败：' + (error instanceof Error ? error.message : String(error)));
+                  }
+                } }, '联网学习：' + ((autoInfo && autoInfo.learnLevel) === 'deep' ? '深研（约 ¥0.1/次）' : (autoInfo && autoInfo.learnLevel) === 'fast' ? '快学' : '关')),
+                h('button', { type: 'button', style: CHIP, onClick: async () => {
+                  const next = !(autoInfo && autoInfo.autoRevise);
+                  try {
+                    const res = await call('/cognition-engine/autolearn/toggle?autoRevise=' + next, { method: 'POST' });
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                    setTick((v) => v + 1);
+                  } catch (error) {
+                    window.alert('切换失败：' + (error instanceof Error ? error.message : String(error)));
+                  }
+                } }, '自动修订：' + (autoInfo && autoInfo.autoRevise ? '开（会标注+留存档）' : '关')),
+                h('button', { type: 'button', style: CHIP, onClick: async () => {
+                  const next = !(autoInfo && autoInfo.autoAccept !== false);
+                  try {
+                    const res = await call('/cognition-engine/autolearn/toggle?autoAccept=' + next, { method: 'POST' });
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                    setTick((v) => v + 1);
+                  } catch (error) {
+                    window.alert('切换失败：' + (error instanceof Error ? error.message : String(error)));
+                  }
+                } }, '自动采用：' + (autoInfo && autoInfo.autoAccept !== false ? '开（不用点）' : '关（要手动点）')),
+
+                h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } },
+                  autoInfo && autoInfo.webAvailable === false ? '宿主没有搜索服务' : '检索走宿主 web 服务（DeepSeek 官方搜索）'),
+              ),
+              h('div', { style: { display: 'flex', gap: 6 } },
+                h('input', { id: 'alText', placeholder: '让它立刻学一次：填要搞清楚的问题', style: S.input }),
+                h('button', { type: 'button', style: S.tab, onClick: async () => {
+                  const el = document.getElementById('alText');
+                  const text = el ? el.value.trim() : '';
+                  if (text.length === 0) { window.alert('先填要学什么'); return; }
+                  try {
+                    const res = await call('/cognition-engine/autolearn/run?text=' + encodeURIComponent(text), { method: 'POST' });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || data.error) throw new Error(data.error || 'HTTP ' + res.status);
+                    window.alert('学到 ' + (data.imported || []).length + ' 篇：\n' + (data.imported || []).map((item) => item.sourceId + ' ' + item.url).join('\n'));
+                    setTick((v) => v + 1);
+                  } catch (error) {
+                    window.alert('学习失败：' + (error instanceof Error ? error.message : String(error)));
+                  }
+                } }, '学一次'),
+              ),
+              h('div', { style: { display: 'flex', gap: 6 } },
+                h('input', { id: 'drText', placeholder: '深研一个问题（多源核对，只留多源印证过的）', style: S.input }),
+                h('button', { type: 'button', style: S.tab, onClick: async () => {
+                  const el = document.getElementById('drText');
+                  const question = el ? el.value.trim() : '';
+                  if (question.length < 4) { window.alert('问题至少 4 个字'); return; }
+                  if (!(autoInfo && autoInfo.deepResearch)) { window.alert('联网学习不在「深研」档：先点上面的「联网学习」按钮切到深研'); return; }
+                  window.alert('深研要跑 30~60 秒、约 ¥0.1，开始了。');
+                  try {
+                    const res = await call('/cognition-engine/research/run?q=' + encodeURIComponent(question), { method: 'POST' });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || data.error) throw new Error(data.error || 'HTTP ' + res.status);
+                    const label = { verified: '已多源印证', divergent: '来源互斥', insufficient_sources: '有效来源不足', no_agreement: '没有一致答案' }[data.status] || data.status;
+                    window.alert('深研完成：' + label + '；读 ' + data.sources.length + ' 篇，结论 ' + (data.claims || []).length + ' 条');
+                    setTick((v) => v + 1);
+                  } catch (error) {
+                    window.alert('深研失败：' + (error instanceof Error ? error.message : String(error)));
+                  }
+                } }, '深研'),
+              ),
+            ),
+            h('div', { style: S.explain },
+              autoInfo && autoInfo.autoAccept !== false
+                ? '学习已自动化：资料一进来就切块、提炼、生成候选并**直接生效**，不用你点。下面只是"最近自动学了什么"，可以撤销。'
+                : '自动采用关着：下面是待你点的候选。'),
+            h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
+              // 「从资料生成候选」按钮已删除：导入即自动生成并采用，按钮是重复动作
+              // （plan-consolidation.md P0-1）
+              h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } },
+                learnInfo ? '待审 ' + learnInfo.stats.pending + ' 条 · 已采用 ' + learnInfo.stats.accepted + ' 条' : ''),
+            ),
+            pendingCands.length === 0
+              ? h('div', { style: S.explain }, '还没有候选。点上面那个按钮，从资料库已提炼的结论里生成。')
+              : h('div', { style: { display: 'flex', flexDirection: 'column', gap: 8 } },
+                  // 密度控制在 7 项以内（深研学到的 dashboard 原则：一次别铺满，
+                  // 数据项以七个左右为限，其余折叠成一行，避免杂乱）
+                  ...pendingCands.slice(0, 7).map((cand) => h('div', {
+                    key: cand.id,
+                    style: {
+                      ...S.item,
+                      border: '1px solid var(--dsw-alias-border-l1)',
+                      borderRadius: 8,
+                      padding: '10px 12px',
+                    },
+                  },
+                    h('div', { style: { display: 'flex', gap: 8, alignItems: 'flex-start' } },
+                      h('span', {
+                        style: {
+                          flex: '0 0 auto',
+                          fontSize: 11,
+                          padding: '1px 6px',
+                          borderRadius: 4,
+                          border: '1px solid var(--dsw-alias-border-l1)',
+                          color: 'var(--dsw-alias-label-secondary)',
+                        },
+                      }, { fact: '事实', rule: '准则', skill: '技能' }[cand.kind] || cand.kind),
+                      h('span', { style: { fontSize: 13, fontWeight: 600, lineHeight: 1.5 } }, cand.content),
+                    ),
+                    h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)', marginTop: 6 } },
+                      '锚：' + cand.anchor.ref + (cand.anchor.block === undefined ? '' : '#' + cand.anchor.block) +
+                      ' · 核对到 ' + (cand.anchorChars || 0) + ' 字' +
+                      (cand.scope === 'world' ? ' · 外部知识（低权重入库）' : ' · 关于你为真') +
+                      (cand.needsQuote ? ' · 引文是转述，建议补原文再采用' : '') +
+                      (cand.anchorFlags && cand.anchorFlags.length > 0 ? ' · 该块带标记（' + cand.anchorFlags.join('、') + '）' : '') +
+                      (cand.subject ? ' · 主题 ' + cand.subject : '')),
+                    h('div', {
+                      style: {
+                        fontSize: 11,
+                        color: 'var(--dsw-alias-label-secondary)',
+                        fontStyle: 'italic',
+                        marginTop: 4,
+                        paddingLeft: 8,
+                        borderLeft: '2px solid var(--dsw-alias-border-l1)',
+                      },
+                    }, (cand.anchor.quote || '').slice(0, 160) + ((cand.anchor.quote || '').length > 160 ? '…' : '')),
+                    cand.kind === 'rule'
+                      ? h('input', { id: 'lb-' + cand.id, placeholder: '适用边界（逗号分隔，准则必填）', style: { ...S.input, marginTop: 6 } })
+                      : null,
+                    h('div', { style: { ...S.meta, marginTop: 8, display: 'flex', gap: 8 } },
+                      h('button', { type: 'button', style: S.tab, onClick: async () => {
+                        const boundaryEl = cand.kind === 'rule' ? document.getElementById('lb-' + cand.id) : null;
+                        const boundary = boundaryEl && boundaryEl.value.trim().length > 0 ? '&boundary=' + encodeURIComponent(boundaryEl.value.trim()) : '';
+                        try {
+                          const res = await call('/cognition-engine/learn/accept?id=' + encodeURIComponent(cand.id) + boundary, { method: 'POST' });
+                          const data = await res.json().catch(() => ({}));
+                          if (!res.ok || data.error) throw new Error(data.error || ('HTTP ' + res.status));
+                          setTick((v) => v + 1);
+                        } catch (error) {
+                          window.alert('采用失败：' + (error instanceof Error ? error.message : String(error)));
+                        }
+                      } }, '采用'),
+                      rejectFor === cand.id
+                        ? h('span', { style: { display: 'inline-flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' } },
+                            h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } }, '丢弃理由：'),
+                            ...['不准确', '不相关', '已经知道了'].map((reason) =>
+                              h('button', {
+                                key: 'rj-' + reason,
+                                type: 'button',
+                                style: { ...S.tab, fontSize: 11, color: '#f85149' },
+                                onClick: async () => {
+                                  try {
+                                    const res = await call('/cognition-engine/learn/reject?id=' + encodeURIComponent(cand.id) + '&reason=' + encodeURIComponent(reason), { method: 'POST' });
+                                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                                    setRejectFor(null);
+                                    setTick((v) => v + 1);
+                                  } catch (error) {
+                                    window.alert('丢弃失败：' + (error instanceof Error ? error.message : String(error)));
+                                  }
+                                },
+                              }, reason)),
+                            h('button', { type: 'button', style: S.tab, onClick: () => setRejectFor(null) }, '取消'),
+                          )
+                        : h('button', { type: 'button', style: { ...S.tab, color: '#f85149' }, onClick: () => setRejectFor(cand.id) }, '丢弃'),
+                    ),
+                  ))),
+                  pendingCands.length > 7
+                    ? h('div', { style: { ...S.explain, fontSize: 11 } },
+                        '还有 ' + (pendingCands.length - 7) + ' 条没显示：先处理上面这几条，或去资料库按来源筛。')
+                    : null,
+            h('div', { style: { paddingTop: 8, borderTop: '1px solid var(--dsw-alias-border-l1)' } },
+              h(LearningEmbedded, { variant: 'embedded' })),
+          );
+        } else if (tab === 'superagent') {
+          body = h(SuperagentEmbedded, { variant: 'embedded' });
+        } else if (tab === 'memories') {
+          const listBody = renderList(detail.memories, (item) => {
+            if (editingId === item.id) {
+              return h(
+                'div',
+                { key: item.id, style: S.item },
+                h('div', { style: S.itemTitle }, '编辑记忆'),
+                h('input', { id: 'ec-' + item.id, defaultValue: item.content, style: S.input }),
+                h('input', { id: 'es-' + item.id, defaultValue: item.subject, style: S.input }),
+                h(
+                  'div',
+                  { style: S.meta },
+                  h('span', null, '录入时间'),
+                  h('input', { id: 'er-' + item.id, type: 'datetime-local', defaultValue: toLocalInput(item.recordedAt), style: S.input }),
+                  h(
+                    'label',
+                    { style: { display: 'inline-flex', gap: 4, alignItems: 'center' } },
+                    h('input', { id: 'ep-' + item.id, type: 'checkbox', defaultChecked: !item.current }),
+                    '标记为已失效',
+                  ),
+                ),
+                h(
+                  'div',
+                  { style: S.meta },
+                  h('button', { type: 'button', style: S.tab, onClick: async () => {
+                    const c = document.getElementById('ec-' + item.id).value.trim();
+                    const sj = document.getElementById('es-' + item.id).value.trim();
+                    const r = document.getElementById('er-' + item.id).value;
+                    const sp = document.getElementById('ep-' + item.id).checked;
+                    await post('/cognition-engine/memory/update?id=' + item.id + '&content=' + encodeURIComponent(c) + '&subject=' + encodeURIComponent(sj) + (r ? '&recordedAt=' + new Date(r).getTime() : '') + '&superseded=' + sp);
+                    setEditingId(null);
+                    setTick((v) => v + 1);
+                  } }, '保存'),
+                  h('button', { type: 'button', style: S.tab, onClick: () => setEditingId(null) }, '取消'),
+                  h('button', { type: 'button', style: { ...S.tab, color: '#f85149' }, onClick: async () => {
+                    if (!window.confirm('删除这条记忆？删除后不再参与回忆，但数据仍保留，可恢复。')) return;
+                    await post('/cognition-engine/memory/delete?id=' + item.id);
+                    setEditingId(null);
+                    setTick((v) => v + 1);
+                  } }, '删除'),
+                ),
+              );
+            }
+            return h(
+              'div',
+              { key: item.id, style: S.item },
+              h('div', { style: S.itemTitle }, item.content),
+              h(
+                'div',
+                { style: S.meta },
+                h('span', { style: { ...S.chip, color: item.current ? 'var(--dsw-alias-state-success-primary)' : 'var(--dsw-alias-label-secondary)' } }, item.current ? dict.current : dict.superseded),
+                item.revisedAt ? h('span', { style: { ...S.chip, color: 'var(--dsw-alias-state-warn-primary)' } }, '已手动修正') : null,
+                item.mergedInto ? h('span', { style: { ...S.chip, color: 'var(--dsw-alias-label-secondary)' } }, '已并入 ' + item.mergedInto) : null,
+                // Mem0 的变更链做法：让人同屏看到"这条替换了谁 / 被谁替换"，不用去猜
+                item.replaces && item.replaces.length > 0
+                  ? h('span', { style: { ...S.chip, color: 'var(--dsw-alias-state-success-primary)' } },
+                      '取代了 ' + item.replaces.length + ' 条旧记录（' + item.replaces.join('、') + '）')
+                  : null,
+                item.supersededBy
+                  ? h('span', { style: { ...S.chip, color: 'var(--dsw-alias-label-secondary)' } }, '已被 ' + item.supersededBy + ' 取代')
+                  : null,
+                item.supersedeReason ? h('span', { style: { ...S.chip, color: 'var(--dsw-alias-label-secondary)' } }, '取代理由：' + item.supersedeReason) : null,
+                h('span', null, item.subject),
+                h('span', null, new Date(item.recordedAt).toLocaleString()),
+                h('span', null, item.id),
+                topicChips(item.topicIds || []),
+                topicAssignButton('memory', item.id),
+                h('button', { type: 'button', style: S.tab, onClick: () => setEditingId(item.id) }, '编辑'),
+              ),
+              topicPicker('memory', item.id, item.topicIds || []),
+            );
+          });
+          // —— 冲突裁决区：同主题同时有效的互斥记忆，让人来定谁对 ——
+          const conflicts = Array.isArray(detail.memoryConflicts) ? detail.memoryConflicts : [];
+          const byId = new Map((detail.memories || []).map((m) => [m.id, m]));
+          const conflictBlock = conflicts.length === 0 ? null : h(
+            'div',
+            { style: S.item },
+            h('div', { style: S.itemTitle }, '检测到 ' + conflicts.length + ' 处冲突（同主题同时有效的互斥记忆）'),
+            h('div', { style: S.meta }, '两条都还活着，说明谁对没说清。选一条保留，另一条会被标为失效并记下理由。'),
+            ...conflicts.map((c) => {
+              const left = byId.get(c.leftId) || { id: c.leftId, content: '（当前列表未包含）' };
+              const right = byId.get(c.rightId) || { id: c.rightId, content: '（当前列表未包含）' };
+              // 只显示前 80 字：真实记忆动辄两三百字，全铺开会把裁决按钮挤到屏幕外。
+              // 完整原文留在 title 里，鼠标悬停可看。
+              const preview = (text) => {
+                const value = (text || '').trim();
+                return value.length > 80 ? value.slice(0, 80) + '…' : value;
+              };
+              const key = c.leftId + '|' + c.rightId;
+              const picking = conflictPick !== null && conflictPick.key === key ? conflictPick : null;
+              return h(
+                'div',
+                { key, style: { ...S.item, borderLeft: '3px solid #f85149', marginTop: 8 } },
+                h('div', { title: left.content }, h('b', null, 'A: '), preview(left.content)),
+                h('div', { title: right.content }, h('b', null, 'B: '), preview(right.content)),
+                picking === null
+                  ? h(
+                      'div',
+                      { style: S.meta },
+                      h('button', { type: 'button', style: S.tab, onClick: () => setConflictPick({ key, winner: left, loser: right }) }, '保留 A'),
+                      h('button', { type: 'button', style: S.tab, onClick: () => setConflictPick({ key, winner: right, loser: left }) }, '保留 B'),
+                      h('span', { style: { color: 'var(--dsw-alias-label-secondary)' } }, '另一条将被标为失效'),
+                      h('span', null, c.subject),
+                    )
+                  : h(
+                      'div',
+                      { style: S.meta },
+                      h('span', null, '保留 ' + (picking.winner.id === left.id ? 'A' : 'B') + '，理由：'),
+                      h('input', { id: 'cr-' + key, defaultValue: '按最新确认的口径', style: { ...S.input, maxWidth: 320 } }),
+                      h('button', { type: 'button', style: S.tab, onClick: async () => {
+                        const el = document.getElementById('cr-' + key);
+                        const typed = el !== null && typeof el.value === 'string' ? el.value.trim() : '';
+                        const reason = typed.length === 0 ? '按最新确认的口径' : typed;
+                        await post('/cognition-engine/memory/supersede?old=' + encodeURIComponent(picking.loser.id) + '&new=' + encodeURIComponent(picking.winner.id) + '&reason=' + encodeURIComponent(reason));
+                        setConflictPick(null);
+                      } }, '确认'),
+                      h('button', { type: 'button', style: S.tab, onClick: () => setConflictPick(null) }, '取消'),
+                    ),
+              );
+            }),
+          );
+          body = conflictBlock === null ? listBody : h('div', null, conflictBlock, listBody);
+        } else if (tab === 'playbook') {
+          const pb = playbookData;
+          if (pb === null) {
+            body = h('div', { style: S.explain }, '加载中…');
+          } else {
+            const groups = [
+              ['pending', dict.playbookPending],
+              ['expired', dict.playbookExpired],
+              ['active', dict.playbookActive],
+              ['retired', dict.playbookRetired],
+            ];
+            const item = (entry) =>
+              h(
+                'div',
+                { key: entry.id, style: S.item },
+                h('div', { style: S.itemTitle }, entry.content),
+                h(
+                  'div',
+                  { style: S.meta },
+                  h('span', { style: { ...S.chip, color: 'var(--dsw-alias-label-secondary)' } }, entry.section),
+                  ...[
+                    ['guard', dict.pbGuard, entry.guard, dict.pbGuardHint],
+                    ['enforce', dict.pbEnforce, entry.enforce, dict.pbEnforceHint],
+                    ['audit', dict.pbAudit, entry.audit, dict.pbAuditHint],
+                  ].map(([name, label, on, hint]) =>
+                    h(
+                      'button',
+                      {
+                        key: name,
+                        type: 'button',
+                        title: hint,
+                        style: on ? { ...S.tab, ...S.tabActive } : S.tab,
+                        onClick: () => playbookFlag(entry.id, name, !on),
+                      },
+                      (on ? '☑ ' : '☐ ') + label,
+                    ),
+                  ),
+                  h(
+                    'button',
+                    {
+                      type: 'button',
+                      style: S.tab,
+                      onClick: () => setPbFlagsFor(pbFlagsFor === entry.id ? null : entry.id),
+                    },
+                    dict.pbRules,
+                  ),
+                  entry.violations > 0
+                    ? h('span', { style: { color: 'var(--dsw-alias-state-warn-primary)' } },
+                        dict.pbViolations + ' ' + entry.violations)
+                    : null,
+                  h('span', null, entry.id),
+                  h(
+                    'span',
+                    { style: { ...S.chip, color: entry.origin === 'human' ? 'var(--dsw-alias-state-success-primary)' : 'var(--dsw-alias-state-warn-primary)' } },
+                    entry.origin === 'human' ? dict.pbOriginHuman : dict.pbOriginAgent,
+                  ),
+                  topicChips(entry.topicIds || []),
+                  topicAssignButton('rule', entry.id),
+                  h(
+                    'span',
+                    { title: 'applied=应用 good=应用且好 bad=应用且差 missed=该用没用 corrected=用户纠正' },
+                    entry.usage
+                      ? `用 ${entry.usage.applied} · 好 ${entry.usage.appliedGood} · 差 ${entry.usage.appliedBad} · 漏 ${entry.usage.missed}`
+                      : `helpful=${entry.helpful} harmful=${entry.harmful}`,
+                  ),
+                  entry.validTo
+                    ? h('span', null, '有效期至 ' + new Date(entry.validTo).toLocaleDateString())
+                    : null,
+                  entry.conflictWith
+                    ? h('span', { style: { color: 'var(--dsw-alias-state-warn-primary)' } }, `${dict.playbookConflict} ${entry.conflictWith}`)
+                    : null,
+                  entry.status === 'pending'
+                    ? h('input', {
+                        id: 'pbEnv-' + entry.id,
+                        placeholder: '适用边界（必填，用 | 分隔多条）',
+                        defaultValue: (entry.boundaryEnvs || []).join(' | '),
+                        style: S.input,
+                      })
+                    : null,
+                  entry.status === 'pending'
+                    ? h('button', {
+                        type: 'button',
+                        style: S.tab,
+                        onClick: () => {
+                          const el = document.getElementById('pbEnv-' + entry.id);
+                          const raw = el ? el.value.trim() : '';
+                          if (raw.length === 0) {
+                            setNotice('✗ 先填适用边界再接受');
+                            return;
+                          }
+                          playbookAct(entry.id, 'accept', '&envs=' + encodeURIComponent(raw));
+                        },
+                      }, dict.playbookAccept)
+                    : null,
+                  entry.status === 'pending'
+                    ? h('button', { type: 'button', style: S.tab, onClick: () => playbookAct(entry.id, 'reject') }, dict.playbookReject)
+                    : null,
+                  entry.status === 'active'
+                    ? h('button', { type: 'button', style: S.tab, onClick: () => playbookAct(entry.id, 'retire') }, dict.playbookRetire)
+                    : null,
+                  entry.status === 'retired'
+                    ? h('button', { type: 'button', style: S.tab, onClick: () => playbookAct(entry.id, 'revive') }, dict.playbookRevive)
+                    : null,
+                  h(
+                    'button',
+                    {
+                      type: 'button',
+                      style: S.tab,
+                      onClick: async () => {
+                        if (!window.confirm('永久删除这条准则？删除后不再注入，快照里还能找回。')) return;
+                        await post(
+                          `/cognition-engine/playbook/act?id=${encodeURIComponent(entry.id)}&action=delete`,
+                        );
+                        setTick((value) => value + 1);
+                      },
+                    },
+                    dict.playbookDelete,
+                  ),
+                  entry.status === 'active' && entry.expired === true
+                    ? h(
+                        'button',
+                        {
+                          type: 'button',
+                          style: S.tab,
+                          onClick: async () => {
+                            const until = Date.now() + 30 * 24 * 3600 * 1000;
+                            await post(
+                              `/cognition-engine/playbook/act?id=${encodeURIComponent(entry.id)}&action=extend&validTo=${until}`,
+                            );
+                            setTick((value) => value + 1);
+                          },
+                        },
+                        `${dict.playbookExtend} 30 天`,
+                      )
+                    : null,
+                ),
+                pbFlagsFor === entry.id
+                  ? h(
+                      'div',
+                      { style: S.item },
+                      h('div', { style: S.meta }, h('span', null, dict.pbWhen)),
+                      h('input', {
+                        id: 'pbWhen-' + entry.id,
+                        defaultValue: entry.when || '',
+                        placeholder: '发布版本时',
+                        style: S.input,
+                      }),
+                      h(
+                        'div',
+                        { style: S.meta },
+                        h('span', null, dict.pbTrigger),
+                      ),
+                      h('input', {
+                        id: 'pbTrigger-' + entry.id,
+                        defaultValue: entry.trigger || '',
+                        placeholder: 'npm\\s+publish',
+                        style: S.input,
+                      }),
+                      h('div', { style: S.meta }, h('span', null, dict.pbRequired)),
+                      h('input', {
+                        id: 'pbRequired-' + entry.id,
+                        defaultValue: entry.required || '',
+                        placeholder: '--registry',
+                        style: S.input,
+                      }),
+                      h(
+                        'button',
+                        {
+                          type: 'button',
+                          style: S.tab,
+                          onClick: async () => {
+                            const when = document.getElementById('pbWhen-' + entry.id).value;
+                            const trigger = document.getElementById('pbTrigger-' + entry.id).value;
+                            const required = document.getElementById('pbRequired-' + entry.id).value;
+                            await post(
+                              '/cognition-engine/playbook/act?action=flags&id=' +
+                                encodeURIComponent(entry.id) +
+                                '&when=' + encodeURIComponent(when) +
+                                '&trigger=' + encodeURIComponent(trigger) +
+                                '&required=' + encodeURIComponent(required),
+                            );
+                            setPbFlagsFor(null);
+                            setTick((value) => value + 1);
+                          },
+                        },
+                        dict.pbSaveRules,
+                      ),
+                    )
+                  : null,
+                topicPicker('rule', entry.id, entry.topicIds || []),
+              );
+
+            const sections = groups
+              .map(([status, label]) => {
+                const list = (pb.entries || []).filter((entry) => entry.status === status);
+                if (list.length === 0) return null;
+                return h(
+                  'div',
+                  { key: status },
+                  h('div', { style: S.explain }, `${label} ${list.length}`),
+                  ...list.map(item),
+                );
+              })
+              .filter(Boolean);
+
+            body = h(
+              'div',
+              null,
+              sections.length === 0 ? h('div', { style: S.explain }, dict.playbookEmpty) : null,
+              ...sections,
+            );
+          }
+        } else {
+          const td = topicsData;
+          const topicList = (td && Array.isArray(td.list) ? td.list : []).filter(
+            (topic) => topic.status === 'active',
+          );
+          const unclassified = (td && td.unclassified) || { memories: 0, rules: 0 };
+          const wikiPages = (detail && Array.isArray(detail.wiki) ? detail.wiki : []);
+          const card = (topic) => {
+            const memoryCount = topic.memoryCount || 0;
+            const ruleCount = topic.ruleCount || 0;
+            const wikiPage = wikiPages.find((page) => page.topicId === topic.id);
+            return h(
+              'div',
+              { key: topic.id, style: S.item },
+              h(
+                'div',
+                { style: S.meta },
+                h('span', { style: S.itemTitle }, topic.name),
+                h('span', null, '记忆 ' + memoryCount + ' 条 · 准则 ' + ruleCount + ' 条'),
+                h(
+                  'button',
+                  {
+                    type: 'button',
+                    style: S.tab,
+                    onClick: async () => {
+                      if (!window.confirm('停用主题「' + topic.name + '」？已经挂上去的记忆和准则都还在，只是不再出现在这个分类里。')) return;
+                      await post('/cognition-engine/topics/archive?id=' + encodeURIComponent(topic.id));
+                      setTick((v) => v + 1);
+                    },
+                  },
+                  dict.topicArchive,
+                ),
+              ),
+              topic.description ? h('div', { style: S.explain }, topic.description) : null,
+              // 主题 wiki（附注）：只读摘录 + 重建。不参与检索，别指望它影响排序。
+              h(
+                'div',
+                { style: { ...S.meta, alignItems: 'flex-start' } },
+                h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } },
+                  wikiPage
+                    ? 'wiki ' + wikiPage.bytes + ' 字 / 来源 ' + wikiPage.sourceBytes + ' 字' + (wikiPage.trimmed ? '（已按 1.0× 裁剪）' : '')
+                    : '还没有 wiki'),
+                h(
+                  'button',
+                  {
+                    type: 'button',
+                    style: S.tab,
+                    onClick: async () => {
+                      await post('/cognition-engine/wiki/rebuild?topic=' + encodeURIComponent(topic.id));
+                      setTick((v) => v + 1);
+                    },
+                  },
+                  '重建 wiki',
+                ),
+              ),
+              wikiPage
+                ? h('pre', {
+                    style: {
+                      margin: 0,
+                      padding: '6px 8px',
+                      background: 'var(--dsw-alias-bg-l2, rgba(127,127,127,0.08))',
+                      borderRadius: 4,
+                      fontSize: 11,
+                      whiteSpace: 'pre-wrap',
+                      maxHeight: 160,
+                      overflow: 'auto',
+                    },
+                  }, wikiPage.excerpt)
+                : null,
+              topic.aliases.length > 0
+                ? h('div', { style: S.explain }, '也叫：' + topic.aliases.join('、'))
+                : null,
+              // 任务不再是独立台账：主题下直接增删改任务
+              h(
+                'div',
+                { style: S.meta },
+                h('span', null, '待办 ' + (topic.tasks || []).length + ' 项'),
+                h(
+                  'button',
+                  {
+                    type: 'button',
+                    style: S.tab,
+                    onClick: () => setTaskFormFor(taskFormFor === topic.id ? null : topic.id),
+                  },
+                  dict.taskAdd,
+                ),
+              ),
+              taskFormFor === topic.id
+                ? h(
+                    'div',
+                    { style: S.meta },
+                    h('input', {
+                      id: 'nt-' + topic.id,
+                      placeholder: dict.taskPlaceholder,
+                      style: S.input,
+                      onKeyDown: (event) => {
+                        if (event.key === 'Enter') document.getElementById('save-task-' + topic.id).click();
+                      },
+                    }),
+                    h(
+                      'button',
+                      {
+                        id: 'save-task-' + topic.id,
+                        type: 'button',
+                        style: S.tab,
+                        onClick: async () => {
+                          const input = document.getElementById('nt-' + topic.id);
+                          const desc = input && input.value ? input.value.trim() : '';
+                          if (desc.length === 0) return;
+                          await post(
+                            '/cognition-engine/task/create?description=' +
+                              encodeURIComponent(desc) +
+                              '&topicIds=' +
+                              encodeURIComponent(topic.id),
+                          );
+                          setTaskFormFor(null);
+                          setTick((v) => v + 1);
+                        },
+                      },
+                      dict.taskSave,
+                    ),
+                  )
+                : null,
+              (topic.tasks || []).length === 0
+                ? null
+                : h(
+                    'div',
+                    { style: S.list },
+                    (topic.tasks || []).map((task) =>
+                      h(
+                        'div',
+                        { key: task.id, style: S.clue },
+                        h(
+                          'div',
+                          { style: S.meta },
+                          h(
+                            'span',
+                            {
+                              style: {
+                                ...S.chip,
+                                color:
+                                  task.status === 'COMPLETED'
+                                    ? 'var(--dsw-alias-state-success-primary)'
+                                    : task.status === 'IN_PROGRESS'
+                                      ? 'var(--dsw-alias-brand-primary)'
+                                      : 'var(--dsw-alias-label-secondary)',
+                              },
+                            },
+                            dict['task' + task.status] || task.status,
+                          ),
+                          h('span', null, task.description),
+                        ),
+                        h(
+                          'div',
+                          { style: S.meta },
+                          task.status === 'PENDING'
+                            ? h(
+                                'button',
+                                {
+                                  type: 'button',
+                                  style: S.tab,
+                                  onClick: async () => {
+                                    await post(
+                                      '/cognition-engine/task/status?id=' +
+                                        encodeURIComponent(task.id) +
+                                        '&status=IN_PROGRESS',
+                                    );
+                                    setTick((v) => v + 1);
+                                  },
+                                },
+                                dict.taskStart,
+                              )
+                            : null,
+                          task.status !== 'COMPLETED'
+                            ? h(
+                                'button',
+                                {
+                                  type: 'button',
+                                  style: S.tab,
+                                  onClick: async () => {
+                                    await post(
+                                      '/cognition-engine/task/status?id=' +
+                                        encodeURIComponent(task.id) +
+                                        '&status=COMPLETED',
+                                    );
+                                    setTick((v) => v + 1);
+                                  },
+                                },
+                                dict.taskDone,
+                              )
+                            : h(
+                                'button',
+                                {
+                                  type: 'button',
+                                  style: S.tab,
+                                  onClick: async () => {
+                                    await post(
+                                      '/cognition-engine/task/status?id=' +
+                                        encodeURIComponent(task.id) +
+                                        '&status=PENDING',
+                                    );
+                                    setTick((v) => v + 1);
+                                  },
+                                },
+                                dict.taskReopen,
+                              ),
+                          h(
+                            'button',
+                            {
+                              type: 'button',
+                              style: { ...S.tab, color: '#f85149' },
+                              onClick: async () => {
+                                if (!window.confirm('删除待办「' + task.description + '」？')) return;
+                                await post(
+                                  '/cognition-engine/task/delete?id=' + encodeURIComponent(task.id),
+                                );
+                                setTick((v) => v + 1);
+                              },
+                            },
+                            dict.taskDelete,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+            );
+          };
+
+          body = h(
+            'div',
+            null,
+            h('div', { style: S.explain }, dict.topicsHint),
+            h(
+              'div',
+              { style: S.meta },
+              h(
+                'button',
+                { type: 'button', style: S.tab, onClick: () => setTopicForm(!topicForm) },
+                dict.topicAdd,
+              ),
+              h('span', null, '共 ' + topicList.length + ' 个主题'),
+            ),
+            topicForm
+              ? h(
+                  'div',
+                  { style: S.item },
+                  h('input', { id: 'topicName', placeholder: dict.topicName, style: S.input }),
+                  h('input', { id: 'topicDesc', placeholder: dict.topicDesc, style: S.input }),
+                  h('input', { id: 'topicAliases', placeholder: dict.topicAliases, style: S.input }),
+                  h(
+                    'button',
+                    { type: 'button', style: S.tab, onClick: addTopic },
+                    dict.topicSave,
+                  ),
+                )
+              : null,
+            topicList.length === 0
+              ? h('div', { style: S.explain }, dict.topicEmpty)
+              : h('div', null, ...topicList.map(card)),
+            h(
+              'div',
+              { style: S.item },
+              h('div', { style: S.itemTitle }, dict.topicUnclassified),
+              h('div', { style: S.explain }, dict.topicUnclassifiedHint),
+              h(
+                'div',
+                { style: S.meta },
+                h('span', null, '记忆 ' + unclassified.memories),
+                h('span', null, '准则 ' + unclassified.rules),
+              ),
+            ),
+          );
+        }
+
+        const panel = h(
+          'div',
+          {
+            style: opts.variant === 'wide' ? S.widePanel : S.panel,
+            ...(opts.variant === 'wide' ? {} : { role: 'dialog', 'aria-label': dict.name }),
+          },
+          // 页签栏上方的标题区：面板形态给一个明确的页面标题，浮层形态不需要。
+          // 计数**只在这里出现一次**——原来折叠条上还有一行同样的数字，两行重复。
+          isPanel
+            ? h(
+                'div',
+                {
+                  style: {
+                    display: 'flex',
+                    alignItems: 'baseline',
+                    gap: 10,
+                    padding: '20px 20px 10px',
+                  },
+                },
+                h('h2', {
+                  style: { margin: 0, fontSize: 17, fontWeight: 600, lineHeight: '24px', color: 'var(--dsw-alias-label-primary)' },
+                }, dict.name),
+                h('span', {
+                  style: { fontSize: 12, color: 'var(--dsw-alias-label-secondary)', fontVariantNumeric: 'tabular-nums' },
+                }, `记忆 ${memoryCount} · 主题 ${schemaCount} · 准则 ${playbookCount} · 任务 ${taskCount}`),
+                samples > 0
+                  ? h('span', {
+                      style: { fontSize: 12, color: 'var(--dsw-alias-state-warn-primary)', fontWeight: 600 },
+                    }, `⚠ ${dict.testData} ${samples}`)
+                  : null,
+              )
+            : null,
+          h(
+            'div',
+            { style: S.tabs },
+            // 主层：只有五个区，视觉权重最高。点区 = 进区内第一个页签。
+            GROUPS.map(([groupLabel, members]) => {
+              const isActiveGroup = groupOf(tab)[0] === groupLabel;
+              return h(
+                'button',
+                {
+                  key: 'grp-' + groupLabel,
+                  type: 'button',
+                  style: isActiveGroup
+                    ? { ...S.tab, ...S.tabActive, fontWeight: 600, fontSize: 14 }
+                    : { ...S.tab, fontWeight: 600, fontSize: 14 },
+                  onClick: () => setTab(members[0][0]),
+                },
+                groupLabel,
+              );
+            }),
+            h('span', { style: { flex: 1 } }),
+            h(
+              'button',
+              {
+                type: 'button',
+                style: S.action,
+                onClick: (event) => {
+                  event.stopPropagation();
+                  setTick((value) => value + 1);
+                },
+              },
+              dict.refresh,
+            ),
+            // 面板形态（侧边栏一级页面）里没有「收起」的概念：整页就是全局的，收起反而突兀
+            opts.variant === 'panel'
+              ? null
+              : h(
+                  'button',
+                  {
+                    type: 'button',
+                    style: S.action,
+                    onClick: (event) => {
+                      event.stopPropagation();
+                      setOpen(false);
+                    },
+                  },
+                  dict.close,
+                ),
+          ),
+          // 次层：当前区里的页签。只有一个成员的区不显示这一行，避免"只有一个还占一行"。
+          (() => {
+            const [, members] = groupOf(tab);
+            if (members.length <= 1) return null;
+            return h(
+              'div',
+              {
+                style: {
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 2,
+                  padding: '2px 0 4px',
+                  borderBottom: '1px solid var(--dsw-alias-border-l1)',
+                },
+              },
+              ...members.map(([key, label]) =>
+                h(
+                  'button',
+                  {
+                    key: 'sub-' + key,
+                    type: 'button',
+                    style: key === tab
+                      ? { ...S.tab, ...S.tabActive, fontSize: 12, padding: '2px 8px' }
+                      : { ...S.tab, fontSize: 12, padding: '2px 8px', opacity: 0.7 },
+                    onClick: () => setTab(key),
+                  },
+                  label,
+                ),
+              ),
+            );
+          })(),
+          h(
+            'div',
+            { style: isPanel ? { ...S.list, ...PANEL_SCROLL_STYLE, flex: '1 1 auto' } : { ...S.list, maxHeight: 280, overflowY: 'auto' } },
+            notice
+              ? h(
+                  'div',
+                  {
+                    style: {
+                      ...S.explain,
+                      padding: '8px 12px',
+                      borderRadius: 8,
+                      background: notice.startsWith('✗') ? 'rgba(248,81,73,0.12)' : 'rgba(63,185,80,0.12)',
+                      color: notice.startsWith('✗') ? '#f85149' : '#3fb950',
+                      border: '1px solid ' + (notice.startsWith('✗') ? 'rgba(248,81,73,0.35)' : 'rgba(63,185,80,0.35)'),
+                    },
+                  },
+                  notice,
+                )
+              : null,
+            tab === 'playbook'
+              ? h('div', { style: S.explain }, dict.playbookHint)
+              : null,
+            tab === 'playbook'
+              ? h(
+                  'div',
+                  { style: S.meta },
+                  h(
+                    'button',
+                    {
+                      type: 'button',
+                      style: S.tab,
+                      onClick: async () => {
+                        await post('/cognition-engine/playbook/distill?maxCandidates=5');
+                        setTick((value) => value + 1);
+                      },
+                    },
+                    dict.playbookDistill,
+                  ),
+                  playbookData === null
+                    ? null
+                    : h(
+                        'span',
+                        null,
+                        `active ${playbookData.stats.active} · pending ${playbookData.stats.pending} · ${playbookData.stats.chars} 字符 · 注入源 ${playbookData.stats.injectSource ?? '-'}`,
+                      ),
+                )
+              : null,
+            formFor(tab),
+            body,
+          ),
+        );
+
+        return h('div', { style: rootStyle }, row, panel);
+      };
+    }
+
+    /**
+     * 侧边栏一级面板视图（`sidebar.panellist`）。
+     *
+     * 为什么要有它：原来六个页签全挤在输入框上方的浮层里（66% 宽、60vh 高），
+     * 记忆/主题/准则那种长列表在里面根本看不全。这里复用同一套组件，
+     * 只把外框换成「占满整列、自己滚动」的形态——**视图逻辑一份都不重写**。
+     *
+     * 侧边栏是全局的（不绑定某个会话），所以某些需要会话上下文的操作
+     * 在这里可能拿不到 sessionId。当前各页签都不依赖它，先不处理。
+     */
+    function createSidebarPanel(ctx) {
+      const Dock = createDock(ctx);
+      const dict = pickDict(ctx);
+      return function SidebarPanel(props) {
+        return h(Dock, { ...(props || {}), variant: 'panel' });
+      };
+    }
+
+    /** 面板形态的外框样式：整列可用，自己管滚动。 */
+    const SIDEBAR_PANEL_STYLE = {
+      display: 'flex',
+      flexDirection: 'column',
+      height: '100%',
+      minHeight: 0,
+      width: '100%',
+      boxSizing: 'border-box',
+      // **不能设背景**：侧栏主列自己有一层底，这里再铺任何颜色都会变成「灰上叠灰」，
+      // 整个面板看起来蒙了一层雾、比周围亮一档。透明就对了。
+      background: 'transparent',
+      color: 'var(--dsw-alias-label-primary)',
+      fontSize: 13,
+    };
+
+    /** 面板里可滚动的正文区（页签栏固定、正文独立滚动）。 */
+    const PANEL_SCROLL_STYLE = {
+      flex: '1 1 auto',
+      minHeight: 0,
+      overflowY: 'auto',
+      scrollbarGutter: 'stable',
+    };
+
+    /* ---------------- 人格页面（settings.section） ---------------- */
+
+    const PERSONA_TEXT = {
+      zh: {
+        nav: '人格',
+        title: '人格',
+        subtitle: '决定它「是谁」。保存立即生效，每次改动都留快照、可撤销。',
+        loading: '加载中…',
+        absent: '还没有人格文件',
+        absentHint:
+          '下面是一份骨架：把尖括号里的内容改成你自己的，再点创建。创建后这段文字会每轮注入系统提示（约 200–600 字，占预算很小）。',
+        personaBlock: '人格（它是什么助手）',
+        humanBlock: '用户画像（你是谁）',
+        create: '创建人格',
+        save: '保存并生效',
+        undo: '撤销最近一次改动',
+        preview: '实际注入内容',
+        showPreview: '展开预览',
+        hidePreview: '收起预览',
+        pending: '待确认的提案',
+        confirm: '确认生效',
+        reject: '放弃',
+        noPending: '没有待确认的提案',
+        locked: '锁定边界',
+        readonly: '只读',
+        audit: '审计信息（不注入上下文）',
+        saveError: '上次写入失败',
+        created: '已创建',
+        saved: '已保存',
+        undone: '已撤销',
+        failed: '操作失败',
+        insufficient: '没有人格文件，页面处于未启用状态',
+        chars: '字',
+        rev: '版本',
+        budget: '注入预算',
+      },
+      en: {
+        nav: 'Persona',
+        title: 'Persona',
+        subtitle: 'Decides "who it is". Saving applies immediately; every change keeps a snapshot and can be undone.',
+        loading: 'Loading…',
+        absent: 'No persona file yet',
+        absentHint:
+          'A skeleton is pre-filled below. Replace the bracketed text, then create it. The text is injected into the system prompt every turn (about 200–600 chars).',
+        personaBlock: 'Persona (who the assistant is)',
+        humanBlock: 'User profile (who you are)',
+        create: 'Create persona',
+        save: 'Save & apply',
+        undo: 'Undo last change',
+        preview: 'Actually injected text',
+        showPreview: 'Show preview',
+        hidePreview: 'Hide preview',
+        pending: 'Pending proposals',
+        confirm: 'Confirm',
+        reject: 'Discard',
+        noPending: 'No pending proposals',
+        locked: 'Locked boundaries',
+        readonly: 'read-only',
+        audit: 'Audit (not injected)',
+        saveError: 'Last write failed',
+        created: 'Created',
+        saved: 'Saved',
+        undone: 'Undone',
+        failed: 'Failed',
+        insufficient: 'No persona file; the feature is inactive',
+        chars: 'chars',
+        rev: 'revision',
+        budget: 'injection budget',
+      },
+    };
+
+    function personaText(ctx) {
+      let id = 'zh';
+      try {
+        const snap = ctx && ctx.locale && typeof ctx.locale.getLocale === 'function' ? ctx.locale.getLocale() : null;
+        id = (snap && (snap.id || snap.locale || snap.language)) || 'zh';
+      } catch {
+        id = 'zh';
+      }
+      return String(id).toLowerCase().startsWith('en') ? PERSONA_TEXT.en : PERSONA_TEXT.zh;
+    }
+
+    const PS = {
+      page: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 16,
+        padding: '20px 24px 40px',
+        maxWidth: 860,
+        width: '100%',
+        boxSizing: 'border-box',
+        color: 'var(--dsw-alias-label-primary)',
+      },
+      pageEmbedded: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+        padding: '2px 0 8px',
+        width: '100%',
+        boxSizing: 'border-box',
+        color: 'var(--dsw-alias-label-primary)',
+        // 作为面板正文的根：必须自己撑满并负责滚动，
+        // 否则内容一长就把面板撑高、被外层 overflow:hidden 裁掉（滚不动）。
+        flex: '1 1 auto',
+        minHeight: 0,
+        overflowY: 'auto',
+        scrollbarGutter: 'stable',
+      },
+      title: { fontSize: 18, fontWeight: 600, margin: 0 },
+      sub: { fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)', margin: 0 },
+      card: {
+        // 不加底色块：面板本身已经是底，再叠一层 layer-1 只会发灰。
+        // 用「上细线 + 上下留白」分组，视觉更轻，也和宿主其它设置页一致。
+        borderTop: '1px solid var(--dsw-alias-border-l1)',
+        padding: '14px 0 4px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+      },
+      blockHead: { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
+      label: { fontSize: 13, fontWeight: 600 },
+      counter: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)', fontVariantNumeric: 'tabular-nums' },
+      counterOver: { fontSize: 11, color: 'var(--dsw-alias-state-error-primary)', fontVariantNumeric: 'tabular-nums' },
+      ta: {
+        width: '100%',
+        minHeight: 108,
+        resize: 'vertical',
+        boxSizing: 'border-box',
+        padding: '10px 12px',
+        borderRadius: 8,
+        border: '1px solid var(--dsw-alias-border-l2)',
+        // 输入框用 bg-base（和面板同底）而不是 layer-2：
+        // layer-2 在深色主题下是一大块浅灰，整页会显得发白/发灰。
+        background: 'var(--dsw-alias-bg-base)',
+        color: 'var(--dsw-alias-label-primary)',
+        fontFamily: 'inherit',
+        fontSize: 13,
+        lineHeight: 1.65,
+      },
+      rowFlex: { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
+      btn: {
+        padding: '6px 14px',
+        borderRadius: 8,
+        border: '1px solid var(--dsw-alias-border-l2)',
+        background: 'transparent',
+        color: 'var(--dsw-alias-label-primary)',
+        cursor: 'pointer',
+        fontSize: 12,
+        fontFamily: 'inherit',
+      },
+      primary: {
+        // 不能假设 brand-primary 是饱和色：本主题里它接近白色，
+        // 之前的「brand 底 + #fff 字」就渲染成一整块白（字看不见）。
+        // 现在主按钮用「label-primary 反色」：深浅主题都自动对比正确。
+        padding: '6px 14px',
+        borderRadius: 8,
+        border: '1px solid var(--dsw-alias-label-primary)',
+        background: 'var(--dsw-alias-label-primary)',
+        color: 'var(--dsw-alias-bg-base)',
+        cursor: 'pointer',
+        fontSize: 12,
+        fontWeight: 600,
+        fontFamily: 'inherit',
+      },
+      btnDisabled: { opacity: 0.5, cursor: 'default' },
+      chip: {
+        fontSize: 11,
+        padding: '2px 8px',
+        borderRadius: 999,
+        background: 'transparent',
+        color: 'var(--dsw-alias-label-secondary)',
+        border: '1px solid var(--dsw-alias-border-l2)',
+      },
+      pre: {
+        margin: 0,
+        whiteSpace: 'pre-wrap',
+        wordBreak: 'break-word',
+        fontSize: 12,
+        lineHeight: 1.65,
+        color: 'var(--dsw-alias-label-secondary)',
+        background: 'transparent',
+        border: '1px solid var(--dsw-alias-border-l1)',
+        padding: '10px 12px',
+        borderRadius: 8,
+      },
+      meta: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)', display: 'flex', gap: 14, flexWrap: 'wrap' },
+      err: { fontSize: 12, color: 'var(--dsw-alias-state-error-primary)' },
+      ok: { fontSize: 12, color: 'var(--dsw-alias-state-success-primary)' },
+      hint: { fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)' },
+    };
+
+    const PERSONA_DEFAULT_PERSONA = [
+      '我是<一句话：你希望它是什么身份的助手>。',
+      '风格：当<某场景>时<怎么做>；当<另一场景>时<怎么做>；当没把握时直接说「没把握」。',
+      '价值观：<更重要的>优先于<次要的>。',
+      '边界：不编造事实；不替你做出不可逆的决定。',
+    ].join('\n');
+    const PERSONA_DEFAULT_HUMAN = '做<你的行业>，中文为主；<你的偏好>。';
+
+    function createPersonaPage(ctx) {
+      return function PersonaPage(props) {
+        const dict = personaText(ctx);
+        // 两种挂载点共用一套逻辑：设置里的整页（默认）与输入框浮层里的页签（embedded）
+        const pageStyle = props && props.variant === 'embedded' ? PS.pageEmbedded : PS.page;
+        const [data, setData] = React.useState(null);
+        const [error, setError] = React.useState(null);
+        const [busy, setBusy] = React.useState(false);
+        const [notice, setNotice] = React.useState(null);
+        const [personaDraft, setPersonaDraft] = React.useState(null);
+        const [humanDraft, setHumanDraft] = React.useState(null);
+        const [showPreview, setShowPreview] = React.useState(false);
+
+        const reload = React.useCallback(async () => {
+          try {
+            const res = await fetch('/cognition-engine/persona', { cache: 'no-store' });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const json = await res.json();
+            setData(json);
+            setError(null);
+            if (json.present && json.blocks) {
+              setPersonaDraft((prev) => (prev === null ? json.blocks.persona.value : prev));
+              setHumanDraft((prev) => (prev === null ? json.blocks.human.value : prev));
+            } else {
+              setPersonaDraft((prev) => (prev === null ? PERSONA_DEFAULT_PERSONA : prev));
+              setHumanDraft((prev) => (prev === null ? PERSONA_DEFAULT_HUMAN : prev));
+            }
+          } catch (e) {
+            setError(e && e.message ? e.message : String(e));
+          }
+        }, []);
+
+        React.useEffect(() => {
+          reload();
+        }, [reload]);
+
+        const call = async (path, init) => {
+          setBusy(true);
+          setNotice(null);
+          try {
+            const options = Object.assign({ cache: 'no-store' }, init || {});
+            const res = await fetch(path, options);
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(json.error || 'HTTP ' + res.status);
+            return json;
+          } finally {
+            setBusy(false);
+          }
+        };
+
+        const say = (kind, text) => setNotice({ kind, text });
+
+        const doCreate = async () => {
+          try {
+            const result = await call(
+              '/cognition-engine/persona/create?persona=' +
+                encodeURIComponent(personaDraft || '') +
+                '&human=' +
+                encodeURIComponent(humanDraft || ''),
+              { method: 'POST' },
+            );
+            if (!result.ok) return say('err', result.reason || dict.failed);
+            say('ok', dict.created + ' · ' + dict.rev + ' ' + result.revision);
+            await reload();
+          } catch (e) {
+            say('err', e && e.message ? e.message : String(e));
+          }
+        };
+
+        const saveBlock = async (label) => {
+          const value = (label === 'persona' ? personaDraft : humanDraft) || '';
+          try {
+            const proposed = await call(
+              '/cognition-engine/persona/propose?label=' + label + '&by=user&value=' + encodeURIComponent(value),
+              { method: 'POST' },
+            );
+            if (proposed.rejected) return say('err', proposed.rejected);
+            const id = proposed.proposal && proposed.proposal.id;
+            if (!id) return say('err', dict.failed);
+            const confirmed = await call('/cognition-engine/persona/confirm?id=' + encodeURIComponent(id), {
+              method: 'POST',
+            });
+            if (!confirmed.ok) return say('err', confirmed.reason || dict.failed);
+            const warn = proposed.warnings && proposed.warnings.length > 0 ? ' · ' + proposed.warnings.join('；') : '';
+            say('ok', dict.saved + ' · ' + dict.rev + ' ' + confirmed.revision + warn);
+            await reload();
+          } catch (e) {
+            say('err', e && e.message ? e.message : String(e));
+          }
+        };
+
+        const doUndo = async () => {
+          try {
+            const result = await call('/cognition-engine/persona/undo', { method: 'POST' });
+            if (!result.ok) return say('err', result.reason || dict.failed);
+            say('ok', dict.undone + ' · ' + dict.rev + ' ' + result.revision);
+            // 撤销后编辑器要跟着文件走
+            setPersonaDraft(null);
+            setHumanDraft(null);
+            await reload();
+          } catch (e) {
+            say('err', e && e.message ? e.message : String(e));
+          }
+        };
+
+        const resolveProposal = async (id, action) => {
+          try {
+            const result = await call(
+              '/cognition-engine/persona/' + action + '?id=' + encodeURIComponent(id),
+              { method: 'POST' },
+            );
+            if (action === 'confirm' && !result.ok) return say('err', result.reason || dict.failed);
+            say('ok', action === 'confirm' ? dict.saved : dict.reject);
+            setPersonaDraft(null);
+            setHumanDraft(null);
+            await reload();
+          } catch (e) {
+            say('err', e && e.message ? e.message : String(e));
+          }
+        };
+
+        const editorFor = (label, value, setValue, block) => {
+          const limit = block && typeof block.limit === 'number' ? block.limit : label === 'persona' ? 600 : 500;
+          const len = (value || '').length;
+          const over = len > limit;
+          const readOnly = block && block.readOnly === true;
+          const locked = (block && block.lockedPhrases) || [];
+          return h(
+            'div',
+            { style: PS.card, key: label },
+            h(
+              'div',
+              { style: PS.blockHead },
+              h('span', { style: PS.label }, label === 'persona' ? dict.personaBlock : dict.humanBlock),
+              h('span', { style: over ? PS.counterOver : PS.counter }, len + ' / ' + limit + ' ' + dict.chars),
+            ),
+            locked.length > 0
+              ? h(
+                  'div',
+                  { style: PS.rowFlex },
+                  h('span', { style: PS.counter }, dict.locked + '：'),
+                  locked.map((phrase) => h('span', { style: PS.chip, key: phrase }, phrase)),
+                )
+              : null,
+            h('textarea', {
+              style: PS.ta,
+              value: value || '',
+              spellCheck: false,
+              readOnly: readOnly,
+              onChange: (event) => setValue(event.target.value),
+            }),
+            h(
+              'div',
+              { style: PS.rowFlex },
+              readOnly
+                ? h('span', { style: PS.counter }, dict.readonly)
+                : h(
+                    'button',
+                    {
+                      type: 'button',
+                      style: busy || over ? Object.assign({}, PS.primary, PS.btnDisabled) : PS.primary,
+                      disabled: busy || over,
+                      onClick: () => saveBlock(label),
+                    },
+                    dict.save,
+                  ),
+              over ? h('span', { style: PS.err }, '超出预算，需先删减') : null,
+            ),
+          );
+        };
+
+        if (data === null && error === null) {
+          return h('div', { style: pageStyle }, h('p', { style: PS.hint }, dict.loading));
+        }
+        if (error !== null && data === null) {
+          return h(
+            'div',
+            { style: pageStyle },
+            h('p', { style: PS.err }, dict.failed + '：' + error),
+            h(
+              'button',
+              { type: 'button', style: PS.btn, onClick: () => { setError(null); setData(null); reload(); } },
+              '重试',
+            ),
+          );
+        }
+
+        const present = data.present === true && data.blocks;
+        const pending = data.pending || [];
+        const usage = data.usage || {};
+        const audit = data.audit || {};
+        const saveError = data.saveError;
+
+        return h(
+          'div',
+          { style: pageStyle },
+          props && props.variant === 'embedded'
+            ? null
+            : h(
+                'div',
+                { style: { display: 'flex', flexDirection: 'column', gap: 6 } },
+                h('h2', { style: PS.title }, dict.title),
+                h('p', { style: PS.sub }, dict.subtitle),
+              ),
+          notice
+            ? h('div', { style: notice.kind === 'err' ? PS.err : PS.ok }, (notice.kind === 'err' ? '✗ ' : '✓ ') + notice.text)
+            : null,
+          saveError ? h('div', { style: PS.err }, dict.saveError + '：' + saveError) : null,
+          present
+            ? h(
+                'div',
+                { style: PS.meta },
+                h('span', null, dict.rev + ' ' + data.revision),
+                h('span', null, dict.budget + ' ' + usage.rendered + ' / ' + (data.budget ? data.budget.total : 1100)),
+                h('span', null, data.path),
+              )
+            : null,
+          !present
+            ? h(
+                'div',
+                { style: PS.card },
+                h('span', { style: PS.label }, dict.absent),
+                h('span', { style: PS.hint }, dict.absentHint),
+              )
+            : null,
+          editorFor('persona', personaDraft, setPersonaDraft, present ? data.blocks.persona : { limit: 600, lockedPhrases: [] }),
+          editorFor('human', humanDraft, setHumanDraft, present ? data.blocks.human : { limit: 500, lockedPhrases: [] }),
+          h(
+            'div',
+            { style: PS.rowFlex },
+            !present
+              ? h(
+                  'button',
+                  { type: 'button', style: busy ? Object.assign({}, PS.primary, PS.btnDisabled) : PS.primary, disabled: busy, onClick: doCreate },
+                  dict.create,
+                )
+              : null,
+            present
+              ? h('button', { type: 'button', style: busy ? Object.assign({}, PS.btn, PS.btnDisabled) : PS.btn, disabled: busy, onClick: doUndo }, dict.undo)
+              : null,
+            present
+              ? h(
+                  'button',
+                  { type: 'button', style: PS.btn, onClick: () => setShowPreview((v) => !v) },
+                  showPreview ? dict.hidePreview : dict.showPreview,
+                )
+              : null,
+          ),
+          present && showPreview
+            ? h(
+                'div',
+                { style: PS.card },
+                h('span', { style: PS.label }, dict.preview),
+                h('pre', { style: PS.pre }, data.render || ''),
+              )
+            : null,
+          present
+            ? h(
+                'div',
+                { style: PS.card },
+                h('span', { style: PS.label }, dict.pending + ' (' + pending.length + ')'),
+                pending.length === 0
+                  ? h('span', { style: PS.hint }, dict.noPending)
+                  : pending.map((item) =>
+                      h(
+                        'div',
+                        { style: { display: 'flex', flexDirection: 'column', gap: 6 }, key: item.id },
+                        h(
+                          'div',
+                          { style: PS.rowFlex },
+                          h('span', { style: PS.chip }, item.label),
+                          h('span', { style: PS.counter }, item.by + ' · ' + new Date(item.at).toLocaleString()),
+                          item.reason ? h('span', { style: PS.counter }, item.reason) : null,
+                        ),
+                        h('pre', { style: PS.pre }, item.value),
+                        h(
+                          'div',
+                          { style: PS.rowFlex },
+                          h(
+                            'button',
+                            { type: 'button', style: PS.primary, disabled: busy, onClick: () => resolveProposal(item.id, 'confirm') },
+                            dict.confirm,
+                          ),
+                          h(
+                            'button',
+                            { type: 'button', style: PS.btn, disabled: busy, onClick: () => resolveProposal(item.id, 'reject') },
+                            dict.reject,
+                          ),
+                        ),
+                      ),
+                    ),
+              )
+            : null,
+          present && (audit.personaTraits || audit.humanSlots)
+            ? h(
+                'div',
+                { style: PS.card },
+                h('span', { style: PS.label }, dict.audit),
+                h(
+                  'pre',
+                  { style: PS.pre },
+                  JSON.stringify(
+                    {
+                      personaTraits: audit.personaTraits || {},
+                      personaInteractionStyle: audit.personaInteractionStyle || {},
+                      humanSlots: audit.humanSlots || {},
+                      humanFacts: audit.humanFacts || [],
+                    },
+                    null,
+                    2,
+                  ),
+                ),
+              )
+            : null,
+        );
+      };
+    }
+
+    /* ---------------- 学习面板（预算 / shadow / CPE / 提醒 / 检索） ---------------- */
+
+    const LEARN_TEXT = {
+      zh: {
+        nav: '学习',
+        title: '学习',
+        budget: '这周还能学多少',
+        budgetHint: '学新东西有上限，用完就先搁着试用，不会硬塞进我的提示里。',
+        used: '已用',
+        remaining: '还剩',
+        revise: '改旧规则',
+        fresh: '加新规则',
+        paused: '暂时停学',
+        cpe: '改动前的自检',
+        cpeHint: '改规则前先跑一遍旧题目；明显不如以前就自动退回。',
+        cases: '题目',
+        baseline: '上次成绩',
+        lastCheck: '最近一次',
+        shadow: '试用中的新规则',
+        shadowHint: '先记下来观察，不进我的提示；确实有用才正式收下。',
+        active: '试用中',
+        promoted: '已收下',
+        ready: '可收下',
+        wouldDo: '想提醒你的事',
+        wouldDoHint: '现在只记录、不打扰你。想让我以后真的提醒，再单独开。',
+        adopt: '好，我去处理',
+        dismiss: '不用管',
+        syncHint: '（会同步改任务：处理→进行中，不用管→删除）',
+        noWouldDo: '暂时没有要提醒的',
+        retrieval: '记忆找得准不准',
+        retrievalHint: '用你真问过的问题抽查：该找到的东西有没有找到。',
+        logged: '查过',
+        zeroRate: '什么都没找到',
+        top1: '第一条就对',
+        top3: '前三条里有',
+        feedback: '你的反馈记到了吗',
+        feedbackHint: '我注入了多少轮内容、你说过几次「不对」「没错」。',
+        audit: '体检报告',
+        auditHint: '分四项看，不给总分——不同维度本来就是不同的事。',
+        tickets: '工单',
+        ticketsHint: '把「积压的事」按阶段摆开：草稿、待办、进行中、待验收、已完成。',
+        stage: { draft: '草稿', open: '待办', doing: '进行中', review: '待验收', done: '已完成' },
+        deliverable: '产物',
+        deliverableHint: '做完要交什么？写一句就够。',
+        background: '背景',
+        blockedBy: '依赖',
+        save: '保存',
+        next: '下一步',
+        advance: '推进',
+        empty: '空',
+        evaluator: '谁评的',
+        provider: '谁评的',
+        repair: '修一下',
+        reparired: '已修复',
+        turns: '轮',
+        corrected: '说不对',
+        confirmed: '说没错',
+        style: '说话风格',
+        styleHint: '只看句长这类统计，不保存原话。',
+        recording: '正在记录',
+        modeRecordOnly: '只记录',
+        modeByRule: '按你定的规则',
+        modeAuto: '可主动提醒',
+        insufficient: '数据还不够',
+        green: '正常',
+        yellow: '有点偏',
+        red: '要注意',
+        loading: '加载中…',
+        failed: '加载失败',
+        refresh: '刷新',
+        checkpoint: '自检一下',
+        done: '记下了',
+        register: '场合判定（只记录，未改行为）',
+        registerHint: '每轮判一次「干活还是闲聊」。现在只攒样本、不改任何注入内容；你标出判错的，我才敢动阈值。',
+        registerEmpty: '还没有记录。说几句话就会开始积累。',
+        registerVerdict: { work: '干活', chat: '闲聊' },
+        registerMarkWrong: '判错了',
+        registerWrong: '已标判错',
+      },
+      en: {
+        nav: 'Learning',
+        title: 'Learning',
+        budget: 'How much it can learn this week',
+        budgetHint: 'Learning has a weekly cap; beyond it, new items wait in trial instead of being injected.',
+        used: 'used',
+        remaining: 'left',
+        revise: 'edit rules',
+        fresh: 'add rules',
+        paused: 'paused',
+        cpe: 'Self-check before changes',
+        cpeHint: 'Re-runs old questions first; if clearly worse, the change is reverted.',
+        cases: 'questions',
+        baseline: 'last score',
+        lastCheck: 'last run',
+        shadow: 'New rules on trial',
+        shadowHint: 'Observed only, never injected; kept only if it proves useful.',
+        active: 'on trial',
+        promoted: 'kept',
+        ready: 'ready',
+        wouldDo: 'Things it wanted to remind you',
+        wouldDoHint: 'Recorded only, no interruption. Turn on reminders later if you want.',
+        adopt: 'On it',
+        dismiss: 'Skip',
+        noWouldDo: 'Nothing to remind right now',
+        retrieval: 'Is memory finding the right thing',
+        retrievalHint: 'Spot-checks with questions you actually asked.',
+        logged: 'looked up',
+        zeroRate: 'found nothing',
+        top1: 'right on first',
+        top3: 'in top three',
+        feedback: 'Is your feedback recorded',
+        feedbackHint: 'How many turns were injected, and how often you said "wrong"/"right".',
+        turns: 'turns',
+        corrected: 'said wrong',
+        confirmed: 'said right',
+        style: 'Speaking style',
+        styleHint: 'Length-type stats only; raw text is not stored.',
+        recording: 'recording',
+        modeRecordOnly: 'record only',
+        modeByRule: 'by your rule',
+        modeAuto: 'may remind',
+        insufficient: 'not enough data',
+        green: 'ok',
+        yellow: 'slightly off',
+        red: 'attention',
+        loading: 'Loading…',
+        failed: 'Load failed',
+        refresh: 'Refresh',
+        checkpoint: 'Run self-check',
+        done: 'Noted',
+        register: 'Work vs chitchat (record only)',
+        registerHint: 'Judged every turn. Nothing is changed yet — it only collects samples; you mark the wrong ones before any threshold moves.',
+        registerEmpty: 'No records yet. They start accumulating as you talk.',
+        registerVerdict: { work: 'work', chat: 'chitchat' },
+        registerMarkWrong: 'Misjudged',
+        registerWrong: 'marked wrong',
+      },
+    };
+
+    function learnText(ctx) {
+      let id = 'zh';
+      try {
+        const snap = ctx && ctx.locale && typeof ctx.locale.getLocale === 'function' ? ctx.locale.getLocale() : null;
+        id = (snap && (snap.id || snap.locale || snap.language)) || 'zh';
+      } catch {
+        id = 'zh';
+      }
+      return String(id).toLowerCase().startsWith('en') ? LEARN_TEXT.en : LEARN_TEXT.zh;
+    }
+
+    const LS = {
+      barTrack: {
+        position: 'relative',
+        height: 6,
+        borderRadius: 3,
+        background: 'transparent',
+        overflow: 'hidden',
+        border: '1px solid var(--dsw-alias-border-l2)',
+      },
+      barFill: { position: 'absolute', left: 0, top: 0, bottom: 0, background: 'var(--dsw-alias-label-primary)' },
+      kv: { display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 11, color: 'var(--dsw-alias-label-secondary)', fontVariantNumeric: 'tabular-nums' },
+      badge: (kind) => ({
+        fontSize: 11,
+        padding: '1px 8px',
+        borderRadius: 999,
+        border: '1px solid var(--dsw-alias-border-l1)',
+        color:
+          kind === 'green'
+            ? 'var(--dsw-alias-state-success-primary)'
+            : kind === 'yellow'
+              ? 'var(--dsw-alias-state-warn-primary)'
+              : kind === 'red'
+                ? 'var(--dsw-alias-state-error-primary)'
+                : 'var(--dsw-alias-label-secondary)',
+      }),
+      item: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 4,
+        padding: '8px 0 8px 10px',
+        borderLeft: '2px solid var(--dsw-alias-border-l2)',
+      },
+    };
+
+    function statusWord(dict, status) {
+      if (status === 'green') return dict.green;
+      if (status === 'yellow' || status === 'orange') return dict.yellow;
+      if (status === 'red') return dict.red;
+      return dict.insufficient;
+    }
+
+    /* ---------------- 超级代理页签：只读镜像 dsh-superagent ---------------- */
+
+    const SA_TEXT = {
+      zh: {
+        title: '超级代理',
+        hint: '只读镜像 superagent 的工单与健康状态，字段可能随它的版本变化。派活、改它的配置请去它自己的面板。',
+        online: '已连接',
+        unreachable: '未连接',
+        retryHint: 'superagent 没起，或 WSL 端口没通。',
+        failed: '读取失败',
+        loading: '加载中…',
+        refresh: '刷新',
+        paused: '已暂停处理',
+        pause: '暂停处理',
+        resume: '继续处理',
+        running: '执行中',
+        queued: '排队',
+        maxWorkers: '并发上限',
+        noTickets: '现在没有工单',
+        needsPerson: '需要你',
+        working: '进行中',
+        idle: '等待',
+        other: '其他',
+        retry: '重试',
+        stop: '停止',
+        actionOk: '已提交',
+        actionFailed: '操作失败',
+        healthProblems: '有问题的部件',
+        healthAllOk: '部件全部正常',
+        dispatch: '派活',
+        dispatchHint: '写一句要它做的事，生成派单文本。到你已登录的 GitHub 里发评论或新建 Issue。',
+        dispatchPlaceholder: '例如：把这个仓库的 README 补一节安装说明',
+        copy: '复制',
+        copied: '已复制',
+        openIssue: '打开新建 Issue',
+        needRepo: '（未配置 superagentRepo，只能复制文本）',
+        link: '关联本地工单',
+        linkNone: '（不关联）',
+        stage: { person: '需要你', working: '进行中', idle: '等待', unknown: '其他' },
+      },
+      en: {
+        title: 'Super-agent',
+        hint: 'Read-only mirror of superagent tickets and health; fields may change with its version. Dispatch and its own settings live in its panel.',
+        online: 'connected',
+        unreachable: 'not reachable',
+        retryHint: 'superagent is not running, or the WSL port is not forwarded.',
+        failed: 'read failed',
+        loading: 'Loading…',
+        refresh: 'Refresh',
+        paused: 'processing paused',
+        pause: 'Pause processing',
+        resume: 'Resume processing',
+        running: 'running',
+        queued: 'queued',
+        maxWorkers: 'max workers',
+        noTickets: 'No tickets right now',
+        needsPerson: 'Needs you',
+        working: 'Working',
+        idle: 'Idle',
+        other: 'Other',
+        retry: 'Retry',
+        stop: 'Stop',
+        actionOk: 'Submitted',
+        actionFailed: 'Action failed',
+        healthProblems: 'Parts with problems',
+        healthAllOk: 'All parts healthy',
+        dispatch: 'Dispatch',
+        dispatchHint: 'Write one line; get a dispatch text. Post it as a comment or new Issue in GitHub where you are signed in.',
+        dispatchPlaceholder: 'e.g. add an install section to this repo’s README',
+        copy: 'Copy',
+        copied: 'Copied',
+        openIssue: 'Open new Issue',
+        needRepo: '(superagentRepo not configured; copy the text instead)',
+        link: 'Link local ticket',
+        linkNone: '(none)',
+        stage: { person: 'needs you', working: 'working', idle: 'idle', unknown: 'other' },
+      },
+    };
+
+    function superagentText(ctx) {
+      let id = 'zh';
+      try {
+        const snap = ctx && ctx.locale && typeof ctx.locale.getLocale === 'function' ? ctx.locale.getLocale() : null;
+        id = (snap && (snap.id || snap.locale || snap.language)) || 'zh';
+      } catch {
+        id = 'zh';
+      }
+      return String(id).toLowerCase().startsWith('en') ? SA_TEXT.en : SA_TEXT.zh;
+    }
+
+    function createSuperagentPane(ctx) {
+      return function SuperagentPane() {
+        const dict = superagentText(ctx);
+        const [data, setData] = React.useState(null);
+        const [failure, setFailure] = React.useState(null);
+        const [busy, setBusy] = React.useState(false);
+        const [notice, setNotice] = React.useState(null);
+        const [draft, setDraft] = React.useState('');
+        const [copied, setCopied] = React.useState(false);
+        const [localTickets, setLocalTickets] = React.useState([]);
+
+        const load = React.useCallback(async () => {
+          try {
+            const [res, tRes] = await Promise.all([
+              fetch('/cognition-engine/superagent/overview', { cache: 'no-store' }),
+              fetch('/cognition-engine/tickets', { cache: 'no-store' }).catch(() => null),
+            ]);
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            setData(await res.json());
+            if (tRes && tRes.ok) {
+              const board = (await tRes.json()).board || [];
+              // 只取还活着的本地工单（草稿/待办/进行中/待验收），用于关联
+              const flat = [];
+              for (const col of board) {
+                if (col.stage === 'done') continue;
+                for (const item of col.items || []) flat.push(item);
+              }
+              setLocalTickets(flat);
+            }
+            setFailure(null);
+          } catch (error) {
+            setFailure(error && error.message ? error.message : String(error));
+          }
+        }, []);
+
+        React.useEffect(() => {
+          load();
+        }, [load]);
+
+        const act = async (query) => {
+          setBusy(true);
+          setNotice(null);
+          try {
+            const res = await fetch('/cognition-engine/superagent/action?' + query, { method: 'POST', cache: 'no-store' });
+            const json = await res.json().catch(() => ({}));
+            setNotice(json && json.ok ? dict.actionOk : dict.actionFailed + (json && json.error ? '：' + json.error : ''));
+            await load();
+          } catch (error) {
+            setNotice(dict.actionFailed + '：' + (error && error.message ? error.message : String(error)));
+          } finally {
+            setBusy(false);
+          }
+        };
+
+        if (failure !== null) return h('div', { style: S.empty }, dict.failed + '：' + failure);
+        if (data === null) return h('div', { style: S.empty }, dict.loading);
+
+        const header = h(
+          'div',
+          { style: { display: 'flex', gap: 10, alignItems: 'baseline', flexWrap: 'wrap' } },
+          h('span', { style: LS.badge(data.reachable ? (data.paused ? 'yellow' : 'green') : 'red') }, data.reachable ? (data.paused ? dict.paused : dict.online) : dict.unreachable),
+          h('span', { style: LS.explain }, data.baseUrl || ''),
+          data.load
+            ? h('span', { style: LS.kv }, h('span', null, `${dict.running} ${data.load.running}`), h('span', null, `${dict.queued} ${data.load.queued}`), h('span', null, `${dict.maxWorkers} ${data.load.maxWorkers}`))
+            : null,
+          h(
+            'button',
+            { type: 'button', style: PS.btn, onClick: load, disabled: busy },
+            dict.refresh,
+          ),
+        );
+
+        if (!data.reachable) {
+          return h(
+            'div',
+            { style: { display: 'flex', flexDirection: 'column', gap: 10 } },
+            header,
+            h('div', { style: LS.item }, h('div', { style: LS.explain }, data.error || dict.retryHint)),
+          );
+        }
+
+        const tickets = data.tickets || [];
+        // C：外部工单 ↔ 本地工单的关联（只存引用，不合并两套状态机）
+        const linkedLocal = (externalId) => {
+          const found = localTickets.find((lt) => lt.linkedTicket === externalId);
+          return found ? found.id : '';
+        };
+        const applyLink = async (externalId, localId) => {
+          setBusy(true);
+          setNotice(null);
+          try {
+            const prev = localTickets.find((lt) => lt.linkedTicket === externalId);
+            if (prev && prev.id !== localId) {
+              await fetch('/cognition-engine/tickets/link?id=' + encodeURIComponent(prev.id) + '&ticket=', { method: 'POST', cache: 'no-store' });
+            }
+            if (localId) {
+              await fetch('/cognition-engine/tickets/link?id=' + encodeURIComponent(localId) + '&ticket=' + encodeURIComponent(externalId), { method: 'POST', cache: 'no-store' });
+            }
+            await load();
+          } finally {
+            setBusy(false);
+          }
+        };
+        const group = (key, label, items) =>
+          items.length === 0
+            ? null
+            : h(
+                'div',
+                { style: { display: 'flex', flexDirection: 'column', gap: 6 }, key },
+                h(
+                  'div',
+                  { style: { display: 'flex', gap: 8, alignItems: 'baseline' } },
+                  h('span', { style: { fontSize: 12, fontWeight: 600 } }, label),
+                  h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } }, String(items.length)),
+                ),
+                items.map((t) =>
+                  h(
+                    'div',
+                    { style: LS.item, key: t.id },
+                    h(
+                      'div',
+                      { style: { display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' } },
+                      h('span', { style: LS.badge(t.stage === 'person' ? 'yellow' : t.stage === 'working' ? 'green' : 'red') }, dict.stage[t.stage] || dict.stage.unknown),
+                      t.action ? h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } }, t.action) : null,
+                      t.assignments ? h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } }, '×' + t.assignments) : null,
+                      h('span', { style: { fontSize: 10, color: 'var(--dsw-alias-label-secondary)', marginLeft: 'auto' } }, String(t.id).slice(0, 8)),
+                    ),
+                    h('span', { style: { fontSize: 12, color: 'var(--dsw-alias-label-primary)' } }, t.title),
+                    h(
+                      'div',
+                      { style: { display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'baseline' } },
+                      t.canRetry
+                        ? h('button', { type: 'button', style: PS.btn, disabled: busy, onClick: () => act('action=retry&id=' + encodeURIComponent(t.id)) }, dict.retry)
+                        : null,
+                      t.canStop
+                        ? h('button', { type: 'button', style: PS.btn, disabled: busy, onClick: () => act('action=stop&id=' + encodeURIComponent(t.id)) }, dict.stop)
+                        : null,
+                      h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } }, dict.link),
+                      h(
+                        'select',
+                        {
+                          style: { fontSize: 11, padding: '2px 6px', borderRadius: 6, background: 'transparent', color: 'inherit', border: '1px solid var(--dsw-alias-border-l2)' },
+                          value: linkedLocal(t.id),
+                          disabled: busy || localTickets.length === 0,
+                          onChange: (event) => applyLink(t.id, event.target.value),
+                        },
+                        h('option', { value: '' }, dict.linkNone),
+                        localTickets.map((lt) =>
+                          h('option', { value: lt.id, key: lt.id }, String(lt.deliverable || lt.action || lt.id).slice(0, 28)),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+
+        const unhealthy = data.unhealthy || [];
+        // 最小编辑约束（依据 arXiv:2604.05963：过度编辑是修复的主要失败模式）。
+        // 派出去的单子自带这条，比事后 review 便宜。
+        const MIN_EDIT_RULE =
+          '\n\n约束：只改必要的行，不要顺手重构或统一格式；' +
+          '改动行数不得超过必要行数的 3 倍，超了先说明理由。';
+        const dispatchText = draft.trim().length === 0 ? '' : draft.trim() + MIN_EDIT_RULE;
+        const issueUrl =
+          data.repo && dispatchText.length > 0
+            ? 'https://github.com/' +
+              data.repo +
+              '/issues/new?title=' +
+              encodeURIComponent(draft.trim().slice(0, 80)) +
+              '&body=' +
+              encodeURIComponent(dispatchText)
+            : null;
+
+        return h(
+          'div',
+          { style: { display: 'flex', flexDirection: 'column', gap: 10 } },
+          header,
+          h('div', { style: LS.explain }, dict.hint),
+          notice ? h('div', { style: { ...LS.explain, color: 'var(--dsw-alias-state-success-primary)' } }, notice) : null,
+          // 暂停/继续
+          h(
+            'div',
+            { style: { display: 'flex', gap: 8 } },
+            h(
+              'button',
+              { type: 'button', style: PS.btn, disabled: busy, onClick: () => act('action=' + (data.paused ? 'resume' : 'pause')) },
+              data.paused ? dict.resume : dict.pause,
+            ),
+          ),
+          // 健康问题
+          unhealthy.length > 0
+            ? h(
+                'div',
+                { style: LS.item },
+                h('div', { style: { display: 'flex', gap: 8, alignItems: 'baseline' } }, h('span', { style: LS.badge('red') }, dict.healthProblems), h('span', { style: { fontSize: 11 } }, String(unhealthy.length))),
+                unhealthy.map((h2) =>
+                  h('div', { style: LS.explain, key: h2.name }, `${h2.name} · ${h2.state}${h2.detail ? ' · ' + h2.detail : ''}`),
+                ),
+              )
+            : h('div', { style: LS.explain }, dict.healthAllOk),
+          // 工单
+          tickets.length === 0
+            ? h('div', { style: S.empty }, dict.noTickets)
+            : h(
+                'div',
+                { style: { display: 'flex', flexDirection: 'column', gap: 10 } },
+                group('person', dict.needsPerson, tickets.filter((t) => t.stage === 'person')),
+                group('working', dict.working, tickets.filter((t) => t.stage === 'working')),
+                group('idle', dict.idle, tickets.filter((t) => t.stage === 'idle')),
+                group('other', dict.other, tickets.filter((t) => t.stage !== 'person' && t.stage !== 'working' && t.stage !== 'idle')),
+              ),
+          // 派活（D）：生成文本 + 可选新建 Issue 链接；不存任何凭据
+          h(
+            'div',
+            { style: LS.item },
+            h('div', { style: { fontSize: 12, fontWeight: 600 } }, dict.dispatch),
+            h('div', { style: LS.explain }, dict.dispatchHint),
+            h('textarea', {
+              style: Object.assign({}, PS.ta, { minHeight: 60 }),
+              placeholder: dict.dispatchPlaceholder,
+              value: draft,
+              onChange: (event) => {
+                setDraft(event.target.value);
+                setCopied(false);
+              },
+            }),
+            h(
+              'div',
+              { style: { display: 'flex', gap: 8, flexWrap: 'wrap' } },
+              h(
+                'button',
+                {
+                  type: 'button',
+                  style: PS.btn,
+                  disabled: dispatchText.length === 0,
+                  onClick: async () => {
+                    try {
+                      await navigator.clipboard.writeText(dispatchText);
+                      setCopied(true);
+                    } catch {
+                      setCopied(false);
+                    }
+                  },
+                },
+                copied ? dict.copied : dict.copy,
+              ),
+              issueUrl
+                ? h('a', { href: issueUrl, target: '_blank', rel: 'noreferrer', style: Object.assign({}, PS.btn, { textDecoration: 'none', display: 'inline-block' }) }, dict.openIssue)
+                : h('span', { style: LS.explain }, dict.needRepo),
+            ),
+          ),
+        );
+      };
+    }
+
+    function createLearningPage(ctx) {
+      return function LearningPage(props) {
+        const dict = learnText(ctx);
+        const embedded = props && props.variant === 'embedded';
+        const pageStyle = embedded ? PS.pageEmbedded : PS.page;
+        const [state, setState] = React.useState(null);
+        const [proactive, setProactive] = React.useState(null);
+        const [cpe, setCpe] = React.useState(null);
+        const [retrieval, setRetrieval] = React.useState(null);
+        const [shadow, setShadow] = React.useState(null);
+        const [audit, setAudit] = React.useState(null);
+        const [tickets, setTickets] = React.useState(null);
+        const [register, setRegister] = React.useState(null);
+        const [error, setError] = React.useState(null);
+        const [busy, setBusy] = React.useState(false);
+        const [notice, setNotice] = React.useState(null);
+
+        const load = React.useCallback(async () => {
+          try {
+            const [a, b, c, d, e] = await Promise.all([
+              fetch('/cognition-engine/state', { cache: 'no-store' }).then((r) => r.json()),
+              fetch('/cognition-engine/proactive', { cache: 'no-store' }).then((r) => r.json()),
+              fetch('/cognition-engine/cpe', { cache: 'no-store' }).then((r) => r.json()),
+              fetch('/cognition-engine/retrieval', { cache: 'no-store' }).then((r) => r.json()),
+              fetch('/cognition-engine/shadow', { cache: 'no-store' }).then((r) => r.json()),
+            ]);
+            setState(a);
+            setProactive(b);
+            setCpe(c);
+            setRetrieval(d);
+            setShadow(e);
+            try {
+              setAudit(await fetch('/cognition-engine/audit/dimensions', { cache: 'no-store' }).then((r) => r.json()));
+            } catch {
+              setAudit(null);
+            }
+            try {
+              setTickets(await fetch('/cognition-engine/tickets', { cache: 'no-store' }).then((r) => r.json()));
+            } catch {
+              setTickets(null);
+            }
+            try {
+              setRegister(await fetch('/cognition-engine/register?limit=12', { cache: 'no-store' }).then((r) => r.json()));
+            } catch {
+              setRegister(null);
+            }
+            setError(null);
+          } catch (err) {
+            setError(err && err.message ? err.message : String(err));
+          }
+        }, []);
+
+        React.useEffect(() => {
+          load();
+        }, [load]);
+
+        const post = async (path) => {
+          setBusy(true);
+          setNotice(null);
+          try {
+            const res = await fetch(path, { method: 'POST', cache: 'no-store' });
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(json.error || 'HTTP ' + res.status);
+            setNotice(dict.done);
+            await load();
+            return json;
+          } catch (err) {
+            setNotice('✗ ' + (err && err.message ? err.message : String(err)));
+          } finally {
+            setBusy(false);
+          }
+        };
+
+        if (state === null && error === null) {
+          return h('div', { style: pageStyle }, h('p', { style: PS.hint }, dict.loading));
+        }
+        if (error !== null && state === null) {
+          return h(
+            'div',
+            { style: pageStyle },
+            h('p', { style: PS.err }, dict.failed + '：' + error),
+            h('button', { type: 'button', style: PS.btn, onClick: () => { setError(null); load(); } }, dict.refresh),
+          );
+        }
+
+        const budget = state.budget || {};
+        const quota = budget.quota || { total: 0, revise: 0, new: 0 };
+        const used = budget.used || { total: 0, revise: 0, new: 0 };
+        const ratio = quota.total > 0 ? Math.min(1, used.total / quota.total) : 0;
+        const cpeInfo = cpe || {};
+        const retInfo = retrieval || {};
+        const shadowInfo = shadow || {};
+        const pending = (proactive && proactive.pending) || [];
+        const fb = state.feedback || {};
+        const st = state.style || {};
+
+        const card = (title, hint, children) =>
+          h(
+            'div',
+            { style: PS.card },
+            h(
+              'div',
+              { style: PS.blockHead },
+              h('span', { style: PS.label }, title),
+              hint ? h('span', { style: PS.counter }, hint) : null,
+            ),
+            children,
+          );
+
+        return h(
+          'div',
+          { style: pageStyle },
+          embedded
+            ? null
+            : h(
+                'div',
+                { style: { display: 'flex', flexDirection: 'column', gap: 6 } },
+                h('h2', { style: PS.title }, dict.title),
+              ),
+          notice ? h('div', { style: notice.startsWith('✗') ? PS.err : PS.ok }, notice) : null,
+          h(
+            'div',
+            { style: PS.rowFlex },
+            h('button', { type: 'button', style: PS.btn, onClick: () => load(), disabled: busy }, dict.refresh),
+            h('button', { type: 'button', style: PS.btn, onClick: () => post('/cognition-engine/cpe/check'), disabled: busy }, dict.checkpoint),
+          ),
+
+          // —— 本周预算 ——
+          card(
+            dict.budget + (budget.paused ? ' · ' + dict.paused : ''),
+            dict.budgetHint,
+            h(
+              'div',
+              { style: { display: 'flex', flexDirection: 'column', gap: 8 } },
+              h('div', { style: LS.barTrack }, h('div', { style: { ...LS.barFill, width: Math.round(ratio * 100) + '%' } })),
+              h(
+                'div',
+                { style: LS.kv },
+                h('span', null, `${dict.used} ${used.total}/${quota.total}`),
+                h('span', null, `${dict.revise} ${used.revise}/${quota.revise}`),
+                h('span', null, `${dict.fresh} ${used.new}/${quota.new}`),
+              ),
+              budget.pauseReason ? h('div', { style: PS.err }, budget.pauseReason) : null,
+            ),
+          ),
+
+          // —— CPE ——
+          // 注意：学习页的 card(title, hint, children) 只吃一个 children 参数——
+          // 多传的参数会被静默丢掉（2026-11-17 踩过：只显示第一行）。所以这里必须包一层。
+          card(
+            dict.cpe,
+            dict.cpeHint,
+            h(
+              'div',
+              { style: { display: 'flex', flexDirection: 'column', gap: 10 } },
+              h(
+                'div',
+                { style: LS.kv },
+                h('span', null, `${dict.cases} ${(cpeInfo.holdout && cpeInfo.holdout.cases) || 0}`),
+                h('span', null, `${dict.baseline} ${cpeInfo.baseline ? cpeInfo.baseline.passRate : '-'}`),
+                h('span', null, `${dict.lastCheck} ${statusWord(dict, (cpeInfo.lastCheck && cpeInfo.lastCheck.status) || 'insufficient')}`),
+                h('span', { style: LS.badge((cpeInfo.lastCheck && cpeInfo.lastCheck.status) || 'insufficient') }, statusWord(dict, (cpeInfo.lastCheck && cpeInfo.lastCheck.status) || 'insufficient')),
+                h('span', null, '门槛 ' + ((cpeInfo.thresholds && cpeInfo.thresholds.minCases) || 20)),
+              ),
+              h(
+                'div',
+                { style: PS.rowFlex },
+                h('button', { type: 'button', style: PS.btn, disabled: busy, onClick: () => post('/cognition-engine/cpe/seed') }, '从准则派生用例'),
+                h('button', { type: 'button', style: PS.btn, disabled: busy, onClick: () => post('/cognition-engine/cpe/baseline') }, '打基线'),
+                h('button', { type: 'button', style: PS.btn, disabled: busy, onClick: () => post('/cognition-engine/cpe/check') }, '跑回归'),
+                h('input', { id: 'cpeMinCases', type: 'number', placeholder: '门槛', defaultValue: (cpeInfo.thresholds && cpeInfo.thresholds.minCases) || 20, style: Object.assign({}, PS.ta, { minHeight: 0, height: 28, padding: '4px 8px', width: 70 }) }),
+                h('button', { type: 'button', style: PS.btn, disabled: busy, onClick: () => post('/cognition-engine/cpe/thresholds?minCases=' + encodeURIComponent(document.getElementById('cpeMinCases').value)) }, '改门槛'),
+              ),
+              h(
+                'div',
+                { style: { display: 'flex', flexDirection: 'column', gap: 6 } },
+                h('input', { id: 'cpeQuestion', placeholder: '用例：一个问题（例：发版前要做什么）', style: Object.assign({}, PS.ta, { minHeight: 0, height: 28, padding: '4px 8px' }) }),
+                h('input', { id: 'cpeRules', placeholder: '期望命中的准则 id，逗号分隔（例：ctxt-00001,ctxt-00005）', style: Object.assign({}, PS.ta, { minHeight: 0, height: 28, padding: '4px 8px' }) }),
+                h('button', { type: 'button', style: PS.btn, disabled: busy, onClick: () => post('/cognition-engine/cpe/case?question=' + encodeURIComponent(document.getElementById('cpeQuestion').value.trim()) + '&rules=' + encodeURIComponent(document.getElementById('cpeRules').value.trim())) }, '添加用例'),
+              ),
+              h(
+                'div',
+                { style: { display: 'flex', flexDirection: 'column', gap: 4 } },
+                ...((((cpeInfo.holdout && cpeInfo.holdout.caseList) || [])).slice(0, 20).map((item) =>
+                  h(
+                    'div',
+                    { key: item.id, style: { ...LS.item, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' } },
+                    h('span', { style: { fontSize: 12 } }, item.question + ' → ' + (item.expectedRuleIds || []).join(',') + (item.derivedFrom === 'rules' ? '（派生）' : '')),
+                    h('button', { type: 'button', style: { ...PS.btn, padding: '0 6px' }, disabled: busy, onClick: () => post('/cognition-engine/cpe/case/remove?id=' + encodeURIComponent(item.id)) }, '删'),
+                  ),
+                )),
+              ),
+            ),
+          ),
+          // —— shadow ——
+          card(
+            dict.shadow,
+            dict.shadowHint,
+            h(
+              'div',
+              { style: LS.kv },
+              h('span', null, `${dict.active} ${(shadowInfo.stats && shadowInfo.stats.active) || 0}`),
+              h('span', null, `${dict.promoted} ${(shadowInfo.stats && shadowInfo.stats.promoted) || 0}`),
+              h('span', null, `${dict.ready} ${(shadowInfo.stats && shadowInfo.stats.readyToPromote) || 0}`),
+            ),
+          ),
+
+          // —— 主动提醒 ——
+          card(
+            dict.wouldDo +
+              ' · ' +
+              ((proactive && proactive.phase) === 'P2'
+                ? dict.modeByRule
+                : (proactive && proactive.phase) === 'P3'
+                  ? dict.modeAuto
+                  : dict.modeRecordOnly),
+            dict.wouldDoHint,
+            pending.length === 0
+              ? h('span', { style: PS.hint }, dict.noWouldDo)
+              : h(
+                  'div',
+                  { style: { display: 'flex', flexDirection: 'column', gap: 8 } },
+                  pending.slice(0, 6).map((item) =>
+                    h(
+                      'div',
+                      { style: LS.item, key: item.id },
+                      h('span', { style: { fontSize: 12, color: 'var(--dsw-alias-label-primary)' } }, item.action),
+                      h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } }, item.userAction + ' · ' + item.benefit),
+                      h(
+                        'div',
+                        { style: PS.rowFlex },
+                        h('button', { type: 'button', style: PS.btn, disabled: busy, onClick: () => post('/cognition-engine/proactive/adopt?id=' + encodeURIComponent(item.id)) }, dict.adopt),
+                        h('button', { type: 'button', style: PS.btn, disabled: busy, onClick: () => post('/cognition-engine/proactive/dismiss?id=' + encodeURIComponent(item.id)) }, dict.dismiss),
+                        item.kind === 'pending-due'
+                          ? h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } }, dict.syncHint)
+                          : null,
+                      ),
+                    ),
+                  ),
+                ),
+          ),
+
+          // —— 检索度量 ——
+          card(
+            dict.retrieval,
+            dict.retrievalHint,
+            h(
+              'div',
+              { style: LS.kv },
+              h('span', null, `${dict.logged} ${(retInfo.logs && retInfo.logs.total) || 0}`),
+              h('span', null, `${dict.zeroRate} ${retInfo.logs ? Math.round((retInfo.logs.zeroRate || 0) * 100) + '%' : '-'}`),
+              h('span', null, `${dict.top1} ${retInfo.eval && retInfo.eval.top1 !== null ? Math.round(retInfo.eval.top1 * 100) + '%' : '-'}`),
+              h('span', null, `${dict.top3} ${retInfo.eval && retInfo.eval.top3 !== null ? Math.round(retInfo.eval.top3 * 100) + '%' : '-'}`),
+              h('span', { style: LS.badge((retInfo.eval && retInfo.eval.status) || 'insufficient') }, statusWord(dict, (retInfo.eval && retInfo.eval.status) || 'insufficient')),
+            ),
+          ),
+
+          // —— 体检报告（分维度，不给总分）——
+          audit && audit.dimensions
+            ? card(
+                dict.audit,
+                dict.auditHint,
+                h(
+                  'div',
+                  { style: { display: 'flex', flexDirection: 'column', gap: 8 } },
+                  audit.dimensions.map((dim) =>
+                    h(
+                      'div',
+                      { style: LS.item, key: dim.key },
+                      h(
+                        'div',
+                        { style: { display: 'flex', alignItems: 'baseline', gap: 8 } },
+                        h('span', { style: { fontSize: 12, fontWeight: 600 } }, dim.title),
+                        h('span', { style: LS.badge(dim.status === 'attention' ? 'red' : dim.status) }, statusWord(dict, dim.status)),
+                        h('span', { style: { fontSize: 10, color: 'var(--dsw-alias-label-secondary)' } }, dim.evaluator),
+                      ),
+                      h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } }, dim.note),
+                      dim.key === 'memory' && dim.facts && dim.facts.orphans > 0
+                        ? h(
+                            'button',
+                            {
+                              type: 'button',
+                              style: PS.btn,
+                              disabled: busy,
+                              onClick: () => post('/cognition-engine/memory/repair'),
+                            },
+                            dict.repair + '（' + dim.facts.orphans + '）',
+                          )
+                        : null,
+                    ),
+                  ),
+                ),
+              )
+            : null,
+
+          // —— 工单看板（S10）——
+          tickets && tickets.board
+            ? card(
+                dict.tickets,
+                dict.ticketsHint,
+                h(
+                  'div',
+                  { style: { display: 'flex', flexDirection: 'column', gap: 8 } },
+                  tickets.board.map((col) =>
+                    h(
+                      'div',
+                      { key: col.stage, style: { display: 'flex', flexDirection: 'column', gap: 6 } },
+                      h(
+                        'div',
+                        { style: { display: 'flex', alignItems: 'baseline', gap: 8 } },
+                        h('span', { style: { fontSize: 12, fontWeight: 600 } }, dict.stage[col.stage] || col.label),
+                        h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } }, col.items.length + ' 项'),
+                      ),
+                      col.items.length === 0
+                        ? h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)', paddingLeft: 2 } }, dict.empty)
+                        : col.items.map((t) =>
+                            h(
+                              'div',
+                              { style: LS.item, key: t.id },
+                              h('span', { style: { fontSize: 12, color: 'var(--dsw-alias-label-primary)' } }, t.action),
+                              t.deliverable
+                                ? h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } }, dict.deliverable + '：' + t.deliverable)
+                                : null,
+                              h(
+                                'div',
+                                { style: PS.rowFlex },
+                                h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } }, '推进到：'),
+                                ['doing', 'review', 'done']
+                                  .filter((s) => s !== t.stage)
+                                  .map((s) =>
+                                    h(
+                                      'button',
+                                      {
+                                        type: 'button',
+                                        style: Object.assign({}, PS.btn, s === 'done' ? { fontWeight: 600 } : {}),
+                                        disabled: busy,
+                                        key: s,
+                                        onClick: () =>
+                                          post(
+                                            '/cognition-engine/tickets/stage?id=' + encodeURIComponent(t.id) + '&stage=' + s,
+                                          ),
+                                      },
+                                      s === 'done' ? '✓ 标为已完成' : dict.stage[s],
+                                    ),
+                                  ),
+                              ),
+                              h(
+                                'div',
+                                { style: { display: 'flex', gap: 6, alignItems: 'center' } },
+                                h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } }, '产物：'),
+                                h('input', {
+                                  id: 'dv-' + t.id,
+                                  placeholder: dict.deliverableHint,
+                                  defaultValue: t.deliverable || '',
+                                  style: Object.assign({}, PS.ta, { minHeight: 0, height: 26, padding: '2px 8px', fontSize: 11, flex: '1 1 120px' }),
+                                  onKeyDown: (event) => {
+                                    if (event.key !== 'Enter') return;
+                                    event.target.blur();
+                                  },
+                                }),
+                                h('button', {
+                                  type: 'button',
+                                  style: PS.btn,
+                                  disabled: busy,
+                                  onClick: () => {
+                                    const el = document.getElementById('dv-' + t.id);
+                                    const v = el && typeof el.value === 'string' ? el.value : '';
+                                    post('/cognition-engine/tickets/update?id=' + encodeURIComponent(t.id) + '&deliverable=' + encodeURIComponent(v));
+                                  },
+                                }, '保存产物'),
+                              ),
+                            ),
+                          ),
+                    ),
+                  ),
+                ),
+              )
+            : null,
+
+          // —— 场合判定（只记录，不改行为）——
+          register && register.overview
+            ? card(
+                dict.register,
+                dict.registerHint,
+                h(
+                  'div',
+                  { style: LS.kv },
+                  h('span', null, `共 ${register.overview.total} 轮`),
+                  h('span', null, `干活 ${register.overview.work}`),
+                  h('span', null, `闲聊 ${register.overview.chat}`),
+                  h('span', null, `兜底 ${register.overview.uncertain}`),
+                  h(
+                    'span',
+                    null,
+                    `关键词 ${register.overview.byLayer.keyword} / 打分 ${register.overview.byLayer.score} / 兜底 ${register.overview.byLayer.fallback}`,
+                  ),
+                  register.overview.labelled > 0
+                    ? h('span', null, `已标 ${register.overview.labelled}，判错 ${register.overview.wrong}`)
+                    : null,
+                ),
+                (register.recent || []).length === 0
+                  ? h('span', { style: LS.explain }, dict.registerEmpty)
+                  : h(
+                      'div',
+                      { style: { display: 'flex', flexDirection: 'column', gap: 6 } },
+                      (register.recent || []).map((row, index) =>
+                        h(
+                          'div',
+                          { style: LS.item, key: `${row.sessionId}-${row.turn}-${index}` },
+                          h(
+                            'div',
+                            { style: { display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' } },
+                            h('span', { style: LS.badge(row.verdict === 'chat' ? 'yellow' : 'green') }, dict.registerVerdict[row.verdict] || row.verdict),
+                            h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } }, `第 ${row.turn} 轮`),
+                            h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } }, `${row.confidence}`),
+                            row.label === 'wrong'
+                              ? h('span', { style: LS.badge('red') }, dict.registerWrong)
+                              : null,
+                          ),
+                          h('span', { style: { fontSize: 12, color: 'var(--dsw-alias-label-primary)' } }, row.excerpt || '（空）'),
+                          h('span', { style: LS.explain }, row.reason),
+                          row.label === 'wrong'
+                            ? null
+                            : h(
+                                'button',
+                                {
+                                  type: 'button',
+                                  style: { ...PS.btn, padding: '2px 8px', fontSize: 11, marginTop: 2 },
+                                  disabled: busy,
+                                  onClick: () =>
+                                    post(
+                                      '/cognition-engine/register/label?sessionId=' +
+                                        encodeURIComponent(row.sessionId) +
+                                        '&turn=' +
+                                        row.turn +
+                                        '&label=wrong',
+                                    ),
+                                },
+                                dict.registerMarkWrong,
+                              ),
+                        ),
+                      ),
+                    ),
+              )
+            : null,
+
+          // —— 反馈闭环 + 风格 ——
+          card(
+            dict.feedback,
+            dict.feedbackHint,
+            h(
+              'div',
+              { style: LS.kv },
+              h('span', null, `${dict.turns} ${fb.total || 0}`),
+              h('span', null, `${dict.corrected} ${fb.corrected || 0}`),
+              h('span', null, `${dict.confirmed} ${fb.confirmed || 0}`),
+              h('span', null, `${dict.recording} ${fb.tracking ? '✓' : '✗'}`),
+              h('span', null, `${dict.style} ${st.turns || 0} ${dict.turns}`),
+              h('span', { style: LS.badge(st.status || 'insufficient') }, statusWord(dict, st.status || 'insufficient')),
+            ),
+          ),
+        );
+      };
+    }
+
+    return {
+      inject: ['slots'],
+      apply(ctx) {
+        // 降级：手机端或精简渲染层可能没有 slots 服务，此时不显示状态条，但不影响插件其他功能
+        if (!ctx || !ctx.slots || typeof ctx.slots.register !== 'function') {
+          return;
+        }
+        // 输入框上方的浮层入口已移除：东西太多反而挡视线，
+        // 认知引擎统一走侧边栏一级面板（下方注册）。工具与记忆功能完全不受影响。
+
+        // 侧边栏一级面板：整列铺满，六个页签不再挤在输入框上方的小浮层里。
+        //
+        // **关键**：`sidebar.panellist` 注册的是**图标**，`main` 注册的才是**面板主体**。
+        // 之前只注册了 panellist，结果整个面板被当成图标塞进侧栏列表里、
+        // 把工作区列表盖住了——这正是用户在截图里看到的那个问题。
+        try {
+          const Panel = createSidebarPanel(ctx);
+          const CogIcon = (props) =>
+            h(
+              'svg',
+              {
+                width: (props && props.size) || 16,
+                height: (props && props.size) || 16,
+                viewBox: '0 0 16 16',
+                fill: 'none',
+                'aria-hidden': true,
+                style: { display: 'block' },
+              },
+              h('circle', { cx: 8, cy: 8, r: 5.2, stroke: 'currentColor', strokeWidth: 1.4 }),
+              h('circle', { cx: 8, cy: 8, r: 1.8, stroke: 'currentColor', strokeWidth: 1.4 }),
+              h('path', { d: 'M8 1.4v2.2M8 12.4v2.2M1.4 8h2.2M12.4 8h2.2', stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round' }),
+            );
+
+          // 1) 主列面板主体：按 key 注册，key 与侧栏图标 id 相同才会被点开
+          ctx.slots.inject('main', () => [
+            ctx.slots.register({ name: 'main', key: 'cognition-engine', label: () => pickDict(ctx).name }, Panel),
+          ]);
+          // 2) 侧栏图标：只放图标，不放整个面板
+          ctx.slots.inject('sidebar.panellist', () => [
+            ctx.slots.register({ name: 'sidebar.panellist', id: 'cognition-engine', order: 30, label: () => pickDict(ctx).name }, CogIcon),
+          ]);
+        } catch (error) {
+          if (ctx.logger && typeof ctx.logger.warn === 'function') {
+            ctx.logger.warn('cognition-engine: 侧边栏面板注册失败，已跳过');
+          }
+        }
+
+        // 设置里的人格页签已移除：人格就在侧边栏面板的「人格」页签里，
+        // 两处入口只会让人困惑「改哪边生效」。设置页保持干净。
+      },
+    };
+  },
+});

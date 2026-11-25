@@ -41,9 +41,9 @@ it('rereads user patches while preserving the Desktop composition and root file'
   const read = () => composeEntries([readProfilePatches('test', ctx.profileContext)])
   const before = read()
   // createDesktopProfileBoot runs syncDesktopManagedProfileBundles, which injects
-  // the shipped literature bundles (dsh-kb-rag / dsh-zotero-skill) into this
-  // profile's manifest after prepare — so the reread carries their rows on top
-  // of the prepared patches.
+  // the shipped research bundles (paper KB / literature library / memory / Zotero)
+  // into this profile's manifest after prepare — so the reread carries their rows
+  // on top of the prepared patches.
   expect(before.find(row => row.name === 'dsh-kb-rag')).toBeDefined()
   expect(before.find(row => row.id === 'dsh-zotero-skill')).toBeDefined()
   writeFileSync(prepared.profile.patchPath, '- id: plugin-manager\n  disabled: true\n')

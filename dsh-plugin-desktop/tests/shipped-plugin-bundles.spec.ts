@@ -1,12 +1,13 @@
-/** Desktop-shipped literature bundles: syncDesktopManagedProfileBundles injects
- * dsh-kb-rag / dsh-zotero-skill into every desktop profile's bundle list,
- * idempotently, without touching unrelated entries or the dependency fields. */
+/** Desktop-shipped research bundles: syncDesktopManagedProfileBundles injects
+ * the partitioned knowledge base, literature library and cognition memory into
+ * every desktop profile's bundle list, idempotently, without touching unrelated
+ * entries or the dependency fields. */
 
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { DESKTOP_SHIPPED_PLUGIN_BUNDLES, syncDesktopManagedProfileBundles } from '../src/profile.ts'
+import { DESKTOP_SHIPPED_PLUGIN_BUNDLES, desktopBundleList, syncDesktopManagedProfileBundles } from '../src/profile.ts'
 
 const homes: string[] = []
 
@@ -33,14 +34,14 @@ function bundlesOf(dir: string): string[] {
 describe('desktop shipped plugin bundles', () => {
   it('declares the literature and research plugins as shipped bundles', () => {
     expect(DESKTOP_SHIPPED_PLUGIN_BUNDLES).toEqual([
-      'dsh-kb-rag',
       'dsh-zotero-skill',
-      'memory-eternal',
-      'dsh-library',
+      'dsh-kb-rag',
+      'dsh-cognition-engine',
+      'dsh-lit-library',
       'dsh-cite-verify',
-      'dsh-research-skills',
       '@perrylink/dsh-research-core',
-      'dsh-matlab-workbench',
+      'dsh-agent-skill',
+      '@bushizhanghan/dsh-context-budget',
     ])
   })
 
@@ -48,11 +49,13 @@ describe('desktop shipped plugin bundles', () => {
     const dir = profileWith(['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'])
     syncDesktopManagedProfileBundles(dir, { market: 'community-market', aaEnabled: false })
     const bundles = bundlesOf(dir)
-    expect(bundles).toContain('dsh-kb-rag')
     expect(bundles).toContain('dsh-zotero-skill')
-    expect(bundles).toContain('memory-eternal')
-    expect(bundles).toContain('dsh-library')
+    expect(bundles).toContain('dsh-kb-rag')
+    expect(bundles).toContain('dsh-cognition-engine')
+    expect(bundles).toContain('dsh-lit-library')
     expect(bundles).toContain('dsh-cite-verify')
+    expect(bundles).toContain('dsh-agent-skill')
+    expect(bundles).toContain('@bushizhanghan/dsh-context-budget')
     expect(bundles).toContain('@deepseek-ai/dsh-base')
   })
 
@@ -61,8 +64,8 @@ describe('desktop shipped plugin bundles', () => {
       '@deepseek-ai/dsh-base',
       '@deepseek-ai/dsh-web-app',
       'dsh-community-market',
-      'dsh-kb-rag',
       'dsh-zotero-skill',
+      'dsh-cognition-engine',
     ])
     syncDesktopManagedProfileBundles(dir, { market: 'community-market', aaEnabled: false })
     const bundles = bundlesOf(dir)
@@ -70,11 +73,50 @@ describe('desktop shipped plugin bundles', () => {
       '@deepseek-ai/dsh-base',
       '@deepseek-ai/dsh-web-app',
       'dsh-community-market',
-      'dsh-kb-rag',
+      'dsh-zotero-skill',
+      'dsh-cognition-engine',
+    ])
+    expect(bundles).toContain('dsh-kb-rag')
+    expect(bundles).toContain('dsh-lit-library')
+  })
+
+  it('retires bundles replaced by the paper-centric research stack', () => {
+    const dir = profileWith([
+      '@deepseek-ai/dsh-base',
+      '@deepseek-ai/dsh-web-app',
+      'dsh-knowledge-base',
+      'dsh-matlab-workbench',
+      'memory-eternal',
+      'dsh-library',
+      'dsh-research-skills',
       'dsh-zotero-skill',
     ])
-    expect(bundles).toContain('memory-eternal')
-    expect(bundles).toContain('dsh-library')
+    syncDesktopManagedProfileBundles(dir, { market: 'disabled', aaEnabled: false })
+    const bundles = bundlesOf(dir)
+    for (const retired of ['dsh-knowledge-base', 'dsh-matlab-workbench', 'memory-eternal', 'dsh-library', 'dsh-research-skills']) {
+      expect(bundles).not.toContain(retired)
+    }
+    expect(bundles).toContain('dsh-zotero-skill')
+    expect(bundles).toContain('dsh-kb-rag')
+    expect(bundles).toContain('dsh-cognition-engine')
+    expect(bundles).toContain('dsh-lit-library')
+  })
+
+  it('prunes retired bundles during profile preparation', () => {
+    const bundles = desktopBundleList([
+      '@deepseek-ai/dsh-base',
+      '@deepseek-ai/dsh-web-app',
+      'dsh-knowledge-base',
+      'dsh-matlab-workbench',
+      'dsh-zotero-skill',
+      'memory-eternal',
+      'dsh-cognition-engine',
+    ])
+    expect(bundles).not.toContain('dsh-knowledge-base')
+    expect(bundles).not.toContain('dsh-matlab-workbench')
+    expect(bundles).not.toContain('memory-eternal')
+    expect(bundles).toContain('dsh-zotero-skill')
+    expect(bundles).toContain('dsh-cognition-engine')
   })
 
   it('leaves dependency fields untouched', () => {

@@ -1,9 +1,9 @@
-/** Headless literature-plugin acceptance: boots the desktop profile composition with
- * dsh-kb-rag + dsh-zotero-skill pinned, then asserts the kb_* tool surface, the
- * zotero skill provider, the six polymer experts, and the pm-research tool surface
- * all survive in ONE composition. Also proves the web client graph materializes the
- * kb-rag client inject row. Complements verify-profile-boot.mjs (which asserts the
- * upstream surface without third-party literature bundles). */
+/** Headless research-bundle acceptance: boots the desktop profile composition with
+ * the partitioned knowledge base, literature library, cognition memory and Zotero
+ * pinned, then asserts their tool surfaces, the zotero/lit skill providers, the six
+ * polymer experts, and the pm-research tool surface all survive in ONE composition.
+ * Also proves the web client graph materializes the paper-KB client row.
+ * Complements verify-profile-boot.mjs (which asserts the shipped-bundle surface). */
 
 import { syncBuiltinESMExports } from 'node:module'
 import { execFileSync } from 'node:child_process'
@@ -26,14 +26,18 @@ import { DesktopProfileService } from '../lib/profile-service.js'
 import { createDesktopProfileBoot } from '../lib/profile-context.js'
 
 const BIN_NAME = 'dsh-plugin-desktop-literature-smoke'
-/** Acceptance-pinned literature bundles (docs/polymechanism/11-文献检索与高分子筛选设计.md §3). */
+/** Acceptance-pinned research bundles (paper KB + literature library + memory). */
 const LITERATURE_BUNDLES = Object.freeze({
-  'dsh-kb-rag': '1.6.8',
   'dsh-zotero-skill': '0.5.5',
+  'dsh-kb-rag': '1.6.8',
+  'dsh-lit-library': '0.2.1',
+  'dsh-cognition-engine': '0.14.0',
 })
 const KB_TOOLS = Object.freeze([
-  'kb_ingest', 'kb_search', 'kb_rag', 'kb_zotero', 'kb_fetch',
-  'kb_scope', 'kb_dedup', 'kb_clear', 'kb_stats', 'kb_status',
+  'kb_ingest', 'kb_search', 'kb_rag', 'kb_stats', 'kb_fetch',
+  'pm_kb_note',
+  'lit_init', 'lit_import', 'lit_find', 'lit_check',
+  'cognition_context', 'cognition_remember', 'cognition_recall',
 ])
 const PM_REGRESSION_TOOLS = Object.freeze([
   'pm_literature_read', 'pm_literature_extract',
@@ -41,7 +45,9 @@ const PM_REGRESSION_TOOLS = Object.freeze([
 ])
 const REQUIRED_SKILLS = Object.freeze([
   'zotero',
+  'lit-library',
   'literature-review',
+  'kb-grounded-answer',
   'polymer-physics', 'pva-oblique-stretching', 'mechanism-discovery', 'experiment-design',
 ])
 const POLYMER_PRESETS = Object.freeze([
@@ -110,11 +116,10 @@ try {
     stdio: 'inherit',
   })
   const prepared = prepareDesktopProfile('1', home, process.platform)
-  if (!prepared.profile.layers.some(layer => layer.packageName === 'dsh-kb-rag')) {
-    throw new Error('composed desktop profile does not carry the dsh-kb-rag bundle layer')
-  }
-  if (!prepared.profile.layers.some(layer => layer.packageName === 'dsh-zotero-skill')) {
-    throw new Error('composed desktop profile does not carry the dsh-zotero-skill bundle layer')
+  for (const bundle of Object.keys(LITERATURE_BUNDLES)) {
+    if (!prepared.profile.layers.some(layer => layer.packageName === bundle)) {
+      throw new Error(`composed desktop profile does not carry the ${bundle} bundle layer`)
+    }
   }
   const electronVersion = JSON.parse(
     readFileSync(new URL('node_modules/electron/package.json', packageRoot), 'utf8'),
@@ -303,20 +308,10 @@ try {
   if (bootMatch?.[1] === undefined) throw new Error('web root is missing window.__DSH_BOOT__')
   const graph = JSON.parse(bootMatch[1])
   const ids = new Set(graph.entries.map(entry => entry.id))
-  for (const id of ['dsh-kb-rag', '@deepseek-ai/dsh-client-ui-conversation']) {
+  for (const id of ['dsh-kb-rag', 'dsh-cognition-engine', '@deepseek-ai/dsh-client-ui-conversation']) {
     if (!ids.has(id)) {
-      throw new Error(`web client graph is missing ${id}; received ${[...ids].filter(candidate => candidate.includes('kb-rag') || candidate.includes('client-ui')).sort().join(', ') || '(no client-ui rows)'}`)
+      throw new Error(`web client graph is missing ${id}; received ${[...ids].filter(candidate => candidate.includes('kb-rag') || candidate.includes('cognition') || candidate.includes('client-ui')).sort().join(', ') || '(no client-ui rows)'}`)
     }
-  }
-  // kb-rag also injects dsh-client-ui-primitives, which does not exist as a graph
-  // ENTRY in the rc3 client module graph (it bundles into other entries). The
-  // kb-rag client half self-registers a lazy-CJS factory requiring only `react`,
-  // and its own header documents that a client-side load failure does not affect
-  // the Host tool surface — so a missing primitives ENTRY degrades to a warning.
-  if (!ids.has('@deepseek-ai/dsh-client-ui-primitives')) {
-    process.stdout.write(
-      'verify-literature-plugins: WARN dsh-client-ui-primitives is not a graph entry on rc3; kb-rag client half may degrade (Host tools unaffected)\n',
-    )
   }
 
   // --- pm-research HTTP surface regression ---
@@ -346,7 +341,7 @@ try {
   }
 
   process.stdout.write(
-    'verify-literature-plugins: kb_* x10 + zotero skill + six polymer experts + pm surface + web client graph passed\n',
+    'verify-literature-plugins: paper kb + lit library + cognition memory + zotero + six polymer experts + pm surface + web client graph passed\n',
   )
 } finally {
   await ctx?.fiber.dispose()
@@ -355,8 +350,8 @@ try {
   try {
     rmSync(home, { recursive: true, force: true })
   } catch (cleanupCause) {
-    // memory-eternal may keep the vault handle open past disposal; never let a
-    // leftover temp directory mask the smoke verdict.
+    // A plugin-held handle may keep the temp profile open past disposal; never
+    // let a leftover temp directory mask the smoke verdict.
     process.stdout.write(`verify-literature-plugins: warning: temp home cleanup failed: ${cleanupCause instanceof Error ? cleanupCause.message : String(cleanupCause)}\n`)
   }
 }

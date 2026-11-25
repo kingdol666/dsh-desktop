@@ -1,9 +1,12 @@
 /** Literature retrieval tools: OpenAlex/Crossref search, polymer screening and
  * OA-chain PDF download with manifest. Python bridge via the science CLI. */
 
+import { mkdir, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { defineTool, type ToolRunContext } from '@deepseek-ai/dsh-tools'
 import type { Context } from '@deepseek-ai/cordis'
 import { actingPreset, canUseTool, type PresetResolver } from './permissions.ts'
+import { ingestKnowledgeBase } from './kb-ingest.ts'
 import { renderJson as render, toToolJson } from './tool-json.ts'
 import {
   resolveDataPath,
@@ -203,7 +206,8 @@ export function registerLiteratureTools(ctx: Context, resolvePreset?: PresetReso
             targetDir: target,
           }, { signal: exec.signal })
           if (result.ok === false && !isStatusOutcome(result)) return toToolJson(dataFailure(result))
-          return toToolJson({ ok: true, data: result })
+          const kbIngest = await ingestKnowledgeBase(scope, exec, typeof result.path === 'string' ? result.path : '')
+          return toToolJson({ ok: true, data: { ...result, kbIngest } })
         } catch (cause) {
           return toToolJson(failure(cause))
         }
@@ -259,7 +263,49 @@ export function registerLiteratureTools(ctx: Context, resolvePreset?: PresetReso
             targetDir: target,
           }, { signal: exec.signal })
           if (result.ok === false && !isStatusOutcome(result)) return toToolJson(dataFailure(result))
-          return toToolJson({ ok: true, data: result })
+          const kbIngest = await ingestKnowledgeBase(scope, exec, typeof result.path === 'string' ? result.path : '')
+          return toToolJson({ ok: true, data: { ...result, kbIngest } })
+        } catch (cause) {
+          return toToolJson(failure(cause))
+        }
+      },
+    }))
+
+    scope.tools.register(defineTool({
+      name: 'pm_kb_note',
+      description: '把用户指定的一段正文手工存入文献知识库：写入 workspace/literature/notes/<时间>-<标题>.txt，再调用 dsh-kb-rag 的 kb_ingest 建立全文索引；随后 kb_search / kb_rag 可立即检索和引用。用于“把这段结论/参数/摘要存进知识库”这类明确指令',
+      parameters: {
+        text: { type: 'string', required: true },
+        title: { type: 'string' },
+        tags: { type: 'array', items: { type: 'string' } },
+        preset: { type: 'string' },
+        actor: { type: 'string' },
+      },
+      output: { schema: { type: 'object', additionalProperties: true }, render },
+      async execute(args: {
+        text: string
+        title?: string
+        tags?: string[]
+        preset?: string
+        actor?: string
+      }, exec) {
+        const auth = authorize('pm_kb_note', args, exec, resolvePreset)
+        if (!auth.ok) return toToolJson(auth)
+        try {
+          const root = sessionWorkspace(exec.agent)
+          const directory = resolveDataPath('literature/notes', root)
+          await mkdir(directory, { recursive: true })
+          const title = (args.title ?? args.text.slice(0, 32)).trim() || 'untitled'
+          const slug = title.replace(/[^\w\u4e00-\u9fff-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48) || 'note'
+          const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+          // kb-rag's Markdown chunker returns 0 chunks for a plain heading+body
+          // note; TXT chunks reliably and stays human-readable.
+          const filePath = join(directory, `${stamp}-${slug}.txt`)
+          const tags = (args.tags ?? []).map(tag => String(tag))
+          const header = tags.length === 0 ? '' : `tags: ${tags.join(', ')}\n\n`
+          await writeFile(filePath, `${title}\n\n${header}${args.text}\n`, 'utf8')
+          const kbIngest = await ingestKnowledgeBase(scope, exec, filePath)
+          return toToolJson({ ok: true, data: { path: filePath, title, tags, kbIngest } })
         } catch (cause) {
           return toToolJson(failure(cause))
         }
