@@ -102,6 +102,11 @@ architecture / security / performance）审查，修复了审查发现的领域�
 | 项 | 值 |
 |---|---|
 | 文件 | dist/PolyMechanism-Studio-2.5.2-x64-Setup.exe |
-| 大小 | 见 release 资产 |
-| SHA-256 | 见 release 资产 |
+| 大小 | 383,047,267 字节 |
+| SHA-256 | `0240d2cf2afd8e95a79240412498ba1c5cb3750a285cae784afb8e01bfb25b91` |
 | 构建 | Node 24.21.0 + electron-builder 26.15.7，x64 NSIS，未签名（Authenticode 独立发布步骤） |
+
+说明：首轮打包（383,044,610 字节）缺少最后一笔 `domain_remember` 响应投影修复，
+已重建 domain-router 后完整重跑 `dist:win` 门禁并重新打包；上表为最终产物。
+最终 `win-unpacked` 已确认同时包含 domain-router 最终 bundle（`MEMORY_WRITE_FAILED`
+标记）与 cognition pm4 过滤代码。2.5.1→2.5.2 应用内更新 E2E 结果见后续验收记录。
