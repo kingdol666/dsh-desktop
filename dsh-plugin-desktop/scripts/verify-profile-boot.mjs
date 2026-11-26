@@ -375,6 +375,11 @@ try {
     'doc_route',
     'pdf_markdown',
     'ask_advisor',
+    'domain_list',
+    'domain_route',
+    'domain_scope',
+    'domain_remember',
+    'domain_recall',
   ]
   let toolSet = globalTools()
   const deadlineShippedTools = Date.now() + 20_000

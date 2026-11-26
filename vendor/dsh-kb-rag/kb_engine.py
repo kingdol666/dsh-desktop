@@ -99,7 +99,8 @@ CREATE TABLE IF NOT EXISTS docs (
   path TEXT NOT NULL UNIQUE,
   title TEXT, authors TEXT, year INTEGER, journal TEXT, doi TEXT,
   kind TEXT, sha256 TEXT, size INTEGER, mtime REAL,
-  chunk_count INTEGER, indexed_at REAL, zotero_key TEXT, indexed_with TEXT
+  chunk_count INTEGER, indexed_at REAL, zotero_key TEXT, indexed_with TEXT,
+  domain TEXT
 );
 CREATE TABLE IF NOT EXISTS chunks (
   id INTEGER PRIMARY KEY,
@@ -123,14 +124,16 @@ CREATE TABLE IF NOT EXISTS cache (
   created REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_chunks_doc ON chunks(doc_id);
+CREATE INDEX IF NOT EXISTS idx_docs_domain ON docs(domain);
 """
 
 # 库结构（schema）版本：与引擎代码版本 VERSION 独立。
 # v1: docs.zotero_key；v2: chunks.para_start/para_end（段落定位，隐式元数据）；
 # v3: chunks.page_start/page_end（PDF 物理页码，证据锚点 → Zotero ?page=N 跳页）；
 # v4: docs.indexed_with（入库时的解析器版本，用于检测"老数据是用旧解析器写的"）。
+# v5: docs.domain（领域隔离主键；旧行 NULL = 未分配）。
 # PRAGMA user_version 记录库结构版本；破坏性变更需新增迁移块（见 docs/MIGRATION.md §4）。
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 # 最近一次连接/迁移说明（cmd_stats 等据此给出迁移与健康提示；每次 connect 更新）
 _LAST_CONNECT = {"created": False, "from_version": None, "to_version": None,
@@ -1474,6 +1477,16 @@ def _migrate(db, created):
             if "duplicate column" not in str(ex):
                 raise
         db.execute("PRAGMA user_version = 4")
+    # v4 -> v5：docs.domain（领域隔离主键；旧行 NULL = 未分配，由迁移脚本/重灌补齐）
+    if cur < 5:
+        try:
+            db.execute("ALTER TABLE docs ADD COLUMN domain TEXT")
+            info["actions"].append("add docs.domain")
+        except sqlite3.OperationalError as ex:
+            if "duplicate column" not in str(ex):
+                raise
+        db.execute("CREATE INDEX IF NOT EXISTS idx_docs_domain ON docs(domain)")
+        db.execute("PRAGMA user_version = 5")
     # zotero_key 回填：旧行按 Zotero storage 路径提取附件 key（幂等，只补 NULL）
     n = db.execute(
         "SELECT COUNT(*) AS n FROM docs WHERE zotero_key IS NULL AND path LIKE ?",
@@ -2217,6 +2230,7 @@ def cmd_ingest(req):
     metadata_only = bool(req.get("metadata_only"))   # 只刷新元数据：不重切块、不重嵌入
     rebuild = bool(req.get("rebuild"))               # 按库内现有路径原地重灌全部文档
     paths = req.get("paths") or []
+    domain = req.get("domain") or None
     progress_path = req.get("progress_path")   # 异步任务专用：后台进程逐文件回写进度
     db = connect(kb_root)
     if rebuild and not paths:
@@ -2290,7 +2304,7 @@ def cmd_ingest(req):
                 if metadata_only:
                     _refresh_meta_file(db, f, files, totals)
                 else:
-                    _ingest_file(db, f, force, files, totals)
+                    _ingest_file(db, f, force, files, totals, domain=domain)
                 processed += 1
                 # 逐文件 commit：把 SQLite 写锁窗口从"整批"缩到"单文件+嵌入"，
                 # 避免异步入库运行期间同库的一切命令（含只读）在 connect 处撞锁
@@ -2445,17 +2459,22 @@ def _embed_new_chunks(db, doc_id):
     return len(rows)
 
 
-def _ingest_file(db, f, force, files, totals, meta=None):
+def _ingest_file(db, f, force, files, totals, meta=None, domain=None):
     t0 = time.time()
     entry = {"path": str(f)}
     try:
         data = f.read_bytes()
         sha = hashlib.sha256(data).hexdigest()
         key = str(f.resolve())
-        row = db.execute("SELECT id, sha256 FROM docs WHERE path = ?", (key,)).fetchone()
+        row = db.execute("SELECT id, sha256, domain FROM docs WHERE path = ?", (key,)).fetchone()
         if row is not None and row["sha256"] == sha and not force:
             n = db.execute(
                 "SELECT COUNT(*) AS n FROM chunks WHERE doc_id = ?", (row["id"],)).fetchone()["n"]
+            # 内容没变但领域变了：允许只改 domain（不重切块/不重嵌入），并清检索缓存。
+            if domain and row["domain"] != domain:
+                db.execute("UPDATE docs SET domain = ? WHERE id = ?", (domain, row["id"]))
+                db.execute("DELETE FROM cache")
+                entry["domain"] = domain
             # 补齐历史缺失的向量：模型不可用时入库不会建向量，而增量入库会跳过内容未变的文件，
             # 所以"修好环境后重跑 kb_ingest"以前永远补不回来（只能 rebuild=true 全量重灌，
             # 312 篇约 322 s）——见 issue #2。向量齐全时这只是一条 SELECT，代价可忽略。
@@ -2492,6 +2511,8 @@ def _ingest_file(db, f, force, files, totals, meta=None):
             journal = meta.get("journal") or journal
             doi = meta.get("doi") or doi
             zotero_key = meta.get("_zotero_key")
+            if domain is None:
+                domain = meta.get("_domain")
         paras = (pdf_meta or {}).get("_paras")          # [(PDF页码或None, 段文本)]
         chunks = chunk_document(text, paras=paras)
         seen, uniq = set(), []
@@ -2507,10 +2528,10 @@ def _ingest_file(db, f, force, files, totals, meta=None):
             db.execute(
                 "UPDATE docs SET title=?,authors=?,year=?,journal=?,doi=?,kind=?,"
                 "sha256=?,size=?,mtime=?,chunk_count=?,indexed_at=?,zotero_key=?,"
-                "indexed_with=? WHERE id=?",
+                "indexed_with=?,domain=COALESCE(?,domain) WHERE id=?",
                 (title, authors, year, journal, doi, f.suffix.lower().lstrip("."),
                  sha, st.st_size, st.st_mtime, len(chunks), time.time(), zotero_key,
-                 PARSER_TOKEN, row["id"]))
+                 PARSER_TOKEN, domain, row["id"]))
             doc_id = row["id"]
             db.execute("DELETE FROM vecs WHERE chunk_id IN "
                        "(SELECT id FROM chunks WHERE doc_id = ?)", (doc_id,))
@@ -2519,11 +2540,11 @@ def _ingest_file(db, f, force, files, totals, meta=None):
         else:
             cur = db.execute(
                 "INSERT INTO docs(path,title,authors,year,journal,doi,kind,sha256,"
-                "size,mtime,chunk_count,indexed_at,zotero_key,indexed_with) "
-                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "size,mtime,chunk_count,indexed_at,zotero_key,indexed_with,domain) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (key, title, authors, year, journal, doi, f.suffix.lower().lstrip("."),
                  sha, st.st_size, st.st_mtime, len(chunks), time.time(), zotero_key,
-                 PARSER_TOKEN))
+                 PARSER_TOKEN, domain))
             doc_id = cur.lastrowid
             status = "added"
         db.executemany(
@@ -2602,8 +2623,24 @@ _NORM_SQL = {"title": _sq_norm("d.title"), "authors": _sq_norm("d.authors"),
              "journal": _sq_norm("d.journal")}
 
 
+def _domain_scope(filters):
+    """filters.domain / filters.domains -> ordered unique exact-match list."""
+    values = []
+    domains = filters.get("domains")
+    if isinstance(domains, (list, tuple)):
+        values.extend(str(item) for item in domains if item)
+    single = filters.get("domain")
+    if isinstance(single, str) and single:
+        values.insert(0, single)
+    return tuple(dict.fromkeys(values))
+
+
 def build_where(filters):
     where, args = [], []
+    scope = _domain_scope(filters)
+    if scope:
+        where.append("d.domain IN (%s)" % ",".join("?" * len(scope)))
+        args.extend(scope)
     for key, col in FILTER_COLS.items():
         v = filters.get(key)
         if v is None or v == "":
@@ -2858,7 +2895,7 @@ def _parse_references(text, cap=400):
     return best
 
 
-def _cited_refs(db, doc_id, chunk_text, cache):
+def _cited_refs(db, doc_id, chunk_text, cache, domains=None):
     """取本块正文引用的 [n] 对应参考文献条目（含范围/逗号列表展开），供引文关联建议使用。
 
     条目里若带 DOI 就一并给出（`doi` 字段）：agent 可以直接 kb_fetch 把它拉进库，
@@ -2877,19 +2914,25 @@ def _cited_refs(db, doc_id, chunk_text, cache):
             out.append({"n": n, "text": refs[n], "doi": m.group(0) if m else None})
         if len(out) >= 8:
             break
-    _annotate_lib_matches(db, doc_id, out, cache)
+    _annotate_lib_matches(db, doc_id, out, cache, domains=domains)
     return out
 
 
-def _lib_docs(db, cache=None):
-    """库内全部文献的轻量元数据行（引文关联库内匹配的数据源）；带 per-search 缓存。"""
-    if cache is not None and "libdocs" in cache:
-        return cache["libdocs"]
-    rows = db.execute(
-        "SELECT id, title, authors, year, journal, doi, zotero_key FROM docs").fetchall()
+def _lib_docs(db, cache=None, domains=None):
+    """库内文献的轻量元数据行（引文关联库内匹配的数据源）；带 per-search 缓存。"""
+    scope = list(domains or [])
+    cache_key = "libdocs:" + ("|".join(scope) if scope else "*")
+    if cache is not None and cache_key in cache:
+        return cache[cache_key]
+    sql = "SELECT id, title, authors, year, journal, doi, zotero_key FROM docs"
+    args = []
+    if scope:
+        sql += " WHERE domain IN (%s)" % ",".join("?" * len(scope))
+        args.extend(scope)
+    rows = db.execute(sql, args).fetchall()
     rows = [dict(r) for r in rows]
     if cache is not None:
-        cache["libdocs"] = rows
+        cache[cache_key] = rows
     return rows
 
 
@@ -2927,7 +2970,7 @@ def _match_cite_lib(cite_text, libdocs):
     return None
 
 
-def _annotate_lib_matches(db, doc_id, cites, cache):
+def _annotate_lib_matches(db, doc_id, cites, cache, domains=None):
     """引文关联深挖：被引条目若命中库内文献，标注 lib 字段，写出"谁引谁"的关系数据。
 
     渲染层据此显示引文关联：本证据文献的引文 [n] == 库内某篇文献（可直接检索/
@@ -2935,7 +2978,7 @@ def _annotate_lib_matches(db, doc_id, cites, cache):
     if not cites:
         return
     try:
-        lib = _lib_docs(db, cache)
+        lib = _lib_docs(db, cache, domains=domains)
     except Exception:
         return
     if not lib:
@@ -2993,11 +3036,17 @@ def _doc_centroid(db, kb_key, doc_id):
     return c
 
 
-def related_docs(db, kb_key, seed_doc_ids, related_k=5):
+def related_docs(db, kb_key, seed_doc_ids, related_k=5, domains=None):
     """Metadata + centroid-similarity association over the docs not already in results."""
     if not seed_doc_ids:
         return []
     import numpy as np
+    scope = list(domains or [])
+    scope_sql = ""
+    scope_args = []
+    if scope:
+        scope_sql = " AND domain IN (%s)" % ",".join("?" * len(scope))
+        scope_args = scope
     seeds = []
     for did in seed_doc_ids:
         c = _doc_centroid(db, kb_key, did)
@@ -3006,8 +3055,9 @@ def related_docs(db, kb_key, seed_doc_ids, related_k=5):
     seed_c = np.vstack(seeds).mean(axis=0) if seeds else None
     seed_meta = {}
     for r in db.execute(
-            "SELECT id, authors, journal, year FROM docs WHERE id IN (%s)"
-            % ",".join("?" * len(seed_doc_ids)), list(seed_doc_ids)).fetchall():
+            "SELECT id, authors, journal, year FROM docs WHERE id IN (%s)%s"
+            % (",".join("?" * len(seed_doc_ids)), scope_sql),
+            list(seed_doc_ids) + scope_args).fetchall():
         seed_meta[r["id"]] = r
     seed_authors = set()
     seed_journals = set()
@@ -3022,8 +3072,8 @@ def related_docs(db, kb_key, seed_doc_ids, related_k=5):
             pass
     cands = db.execute(
         "SELECT id, title, authors, year, journal, doi, path, zotero_key FROM docs "
-        "WHERE id NOT IN (%s)" % ",".join("?" * len(seed_doc_ids)),
-        list(seed_doc_ids)).fetchall()
+        "WHERE id NOT IN (%s)%s" % (",".join("?" * len(seed_doc_ids)), scope_sql),
+        list(seed_doc_ids) + scope_args).fetchall()
     scored = []
     for c in cands:
         meta = 0.0
@@ -3217,6 +3267,7 @@ def _search_core(db, query, top_k, snippet_w, filters, mode, use_cache, rerank_f
                   related_flag=True, related_k=5):
     t0 = time.time()
     where, args = build_where(filters)
+    domain_scope = _domain_scope(filters)
     # References（weight 0）只作引文关联数据源，不参与检索
     where = (where + " AND c.weight > 0") if where else " WHERE c.weight > 0"
     # R9：每次查询要把参与检索的分块读进内存（BM25 需要文本、向量路需要向量），
@@ -3228,7 +3279,7 @@ def _search_core(db, query, top_k, snippet_w, filters, mode, use_cache, rerank_f
     vec_join = " LEFT JOIN vecs v ON v.chunk_id = c.id" if need_vec else ""
     cols = ("c.id AS cid, c.doc_id, c.text, c.section, c.weight, "
             "c.para_start, c.para_end, c.page_start, c.page_end, d.title, d.authors, "
-            "d.year, d.journal, d.doi, d.path, d.kind, d.zotero_key" + (", v.vec" if need_vec else ""))
+            "d.year, d.journal, d.doi, d.path, d.kind, d.domain, d.zotero_key" + (", v.vec" if need_vec else ""))
     t_load = time.time()
     corpus_hit = False
     rows = None
@@ -3479,6 +3530,7 @@ def _search_core(db, query, top_k, snippet_w, filters, mode, use_cache, rerank_f
             "year": r["year"],
             "journal": r["journal"],
             "doi": r["doi"],
+            "domain": r["domain"],
             "zotero_key": r["zotero_key"] or None,
             "section": r["section"],
             "para": [r["para_start"], r["para_end"]] if r["para_start"] is not None else None,
@@ -3487,7 +3539,7 @@ def _search_core(db, query, top_k, snippet_w, filters, mode, use_cache, rerank_f
             "snippet": make_snippet(r["text"], best_term[i] if best_term else None, snippet_w),
         }
         # 引文关联：本块正文引用 [n] -> 该文献 References 对应条目（隐式元数据，按需暴露）
-        cites = _cited_refs(db, r["doc_id"], r["text"], caption_cache)
+        cites = _cited_refs(db, r["doc_id"], r["text"], caption_cache, domains=domain_scope)
         if cites:
             entry["citations"] = cites
         if r["section"] != "Figure/Table":
@@ -3567,7 +3619,8 @@ def _search_core(db, query, top_k, snippet_w, filters, mode, use_cache, rerank_f
         try:
             kb_key = str(db.execute("PRAGMA database_list").fetchall()[0][2] or "kb")
             if seed_doc_ids:
-                resp["related"] = related_docs(db, kb_key, seed_doc_ids, related_k)
+                resp["related"] = related_docs(db, kb_key, seed_doc_ids, related_k,
+                                               domains=domain_scope)
         except Exception as e:
             resp["related_error"] = str(e)[:200]
     # 语言提示：零成本检测（只判断是否含 CJK + 库内中文占比），**不改写查询**。
@@ -4201,8 +4254,12 @@ def cmd_stats(req):
         blind_sample = [Path(r["path"]).name for r in
                         db.execute(blind_sql + " ORDER BY d.id LIMIT 5").fetchall()]
         rows = db.execute(
-            "SELECT path,title,authors,year,kind,chunk_count,indexed_at "
+            "SELECT path,title,authors,year,kind,domain,chunk_count,indexed_at "
             "FROM docs ORDER BY indexed_at DESC LIMIT 20").fetchall()
+        domain_rows = db.execute(
+            "SELECT COALESCE(domain, '未分配') AS domain, COUNT(*) AS docs, "
+            "COALESCE(SUM(chunk_count),0) AS chunks FROM docs GROUP BY domain "
+            "ORDER BY docs DESC").fetchall()
         # 陈旧数据：入库时用的解析器版本（rev）与当前不一致。取 '/rev' 之后的部分做**精确**
         # 比较，避免 'rev2' 前缀误匹配 'rev20'；NULL / 无标记的老行都算陈旧。
         stale_sql = ("WHERE COALESCE(substr(indexed_with, instr(indexed_with, '/rev') + 4), '') <> ?")
@@ -4253,10 +4310,13 @@ def cmd_stats(req):
         "chunks": chunks_n,
         "vectors": vecs_n,
         "chars": chars_n,
+        "domains": [{
+            "domain": r["domain"], "docs": r["docs"], "chunks": r["chunks"],
+        } for r in domain_rows],
         "recent": [{
             "file": Path(r["path"]).name, "path": r["path"], "title": r["title"],
             "authors": r["authors"], "year": r["year"], "kind": r["kind"],
-            "chunks": r["chunk_count"], "indexed_at": r["indexed_at"],
+            "domain": r["domain"], "chunks": r["chunk_count"], "indexed_at": r["indexed_at"],
         } for r in rows],
         "ms": round((time.time() - t0) * 1000),
     }
@@ -4394,6 +4454,7 @@ def cmd_zotero(req):
     limit = req.get("limit")
     force = bool(req.get("force"))
     dry_run = bool(req.get("dry_run"))
+    domain = req.get("domain") or None
     try:
         entries = _zotero_entries(zdb)
     except Exception as e:
@@ -4430,11 +4491,12 @@ def cmd_zotero(req):
                 continue
             if dry_run:
                 files.append({"path": full, "status": "candidate", "type": ptype,
-                              "title": meta.get("title"), "year": meta.get("year")})
+                              "title": meta.get("title"), "year": meta.get("year"),
+                              "domain": domain})
                 processed += 1
                 _prog()
                 continue
-            _ingest_file(db, Path(full), force, files, totals, meta)
+            _ingest_file(db, Path(full), force, files, totals, meta, domain=domain)
             processed += 1
             # 与 cmd_ingest 对齐的逐文件 commit：整批单事务有两个后果——
             # ① 任务被杀（宿主强杀/断电）时把已入库文件全部回滚；
@@ -4969,7 +5031,11 @@ def cmd_fetch(req):
         paths = [f["path"] for f in files if f["status"] == "downloaded" and f.get("path")]
         if paths:
             try:
-                ingest_result = cmd_ingest({"kb_root": req.get("kb_root") or ".kb", "paths": paths})
+                ingest_result = cmd_ingest({
+                    "kb_root": req.get("kb_root") or ".kb",
+                    "paths": paths,
+                    "domain": req.get("domain"),
+                })
                 ingest_result.pop("device", None)      # 响应里不必重复一整块设备信息
                 note += " 已直接入库 %d 篇（可用 kb_search 立即检索）。" % len(paths)
             except Exception as e:

@@ -353,7 +353,7 @@
     "dsh-community-market": "0.1.0-dev.0",
     "dsh-doc-router": "0.6.3",
     "dsh-domain-router": "workspace:*",
-    "dsh-kb-rag": "file:../vendor/dsh-kb-rag/dsh-kb-rag-1.6.8-pm1.tgz",
+    "dsh-kb-rag": "file:../vendor/dsh-kb-rag/dsh-kb-rag-1.6.8-pm2.tgz",
     "dsh-lit-harvest": "0.1.2",
     "dsh-lit-library": "0.2.1",
     "dsh-preview-stl": "0.1.1",

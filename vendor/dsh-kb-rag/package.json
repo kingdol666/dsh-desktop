@@ -1,6 +1,6 @@
 {
   "name": "dsh-kb-rag",
-  "version": "1.6.8-pm1",
+  "version": "1.6.8-pm2",
   "description": "Literature knowledge base for DSH and MCP clients. Index PDFs or a Zotero library into one SQLite file; search and RAG tools return passages with section, page and DOI. Embedding and reranking run locally.",
   "type": "module",
   "main": "lib/index.js",

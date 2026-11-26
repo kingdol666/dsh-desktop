@@ -64,6 +64,21 @@ process.env.DSH_HOME = home
 // boot inside an isolated workspace so lit_* writes stay under the smoke home.
 const workspace = join(home, 'research-workspace')
 mkdirSync(workspace, { recursive: true })
+mkdirSync(join(workspace, 'domains', 'test'), { recursive: true })
+writeFileSync(join(workspace, 'domains', 'test', 'domain.json'), JSON.stringify({
+  id: 'test',
+  name: 'Verification domain',
+  kbRoot: '.kb',
+  allowedKinds: ['pdf', 'txt', 'md'],
+  defaultKind: 'all',
+  relatedDomains: [],
+}), 'utf8')
+mkdirSync(join(workspace, '.pm-domain'), { recursive: true })
+writeFileSync(join(workspace, '.pm-domain', 'state.json'), JSON.stringify({
+  schemaVersion: 1,
+  domain: 'test',
+  updatedAt: new Date().toISOString(),
+}), 'utf8')
 process.chdir(workspace)
 // AA 2.0.3+ reads `os.userInfo().homedir`; redirect like verify-profile-boot.mjs so
 // the smoke never touches the operator's real home or a running Desktop instance.

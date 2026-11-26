@@ -40,6 +40,24 @@ const HOME = mkdtempSync(join(tmpdir(), 'dsh-desktop-agent-team-'))
 process.env.DSH_HOME = HOME
 const WORKSPACE = join(HOME, 'agent-team-workspace')
 mkdirSync(WORKSPACE, { recursive: true })
+// Domain isolation smoke: the temp workspace has one test domain whose KB is
+// the workspace .kb. Active state lets pm_kb_note / kb_search resolve without
+// an explicit domain while the real 2.5.0 strict path is exercised.
+mkdirSync(join(WORKSPACE, 'domains', 'test'), { recursive: true })
+writeFileSync(join(WORKSPACE, 'domains', 'test', 'domain.json'), JSON.stringify({
+  id: 'test',
+  name: 'Verification domain',
+  kbRoot: '.kb',
+  allowedKinds: ['pdf', 'txt', 'md'],
+  defaultKind: 'all',
+  relatedDomains: [],
+}), 'utf8')
+mkdirSync(join(WORKSPACE, '.pm-domain'), { recursive: true })
+writeFileSync(join(WORKSPACE, '.pm-domain', 'state.json'), JSON.stringify({
+  schemaVersion: 1,
+  domain: 'test',
+  updatedAt: new Date().toISOString(),
+}), 'utf8')
 process.chdir(WORKSPACE)
 const realUserInfo = os.userInfo.bind(os)
 os.userInfo = options => ({ ...realUserInfo(options), homedir: HOME })
@@ -203,6 +221,20 @@ try {
   }
   const delegate = tools.get('delegate_agent')
   process.stdout.write(`verify-agent-team: global tools ${tools.schemas().length}\n`)
+  const emptyWorkspace = join(HOME, 'empty-domain-workspace')
+  mkdirSync(emptyWorkspace, { recursive: true })
+  const strictRaw = await tools.get('kb_search').execute(
+    { query: 'PVA' },
+    {
+      agent: { id: 'verify-strict-domain', session: { header: { cwd: emptyWorkspace } } },
+      signal: new AbortController().signal,
+    },
+  )
+  const strictResult = typeof strictRaw === 'string' ? JSON.parse(strictRaw) : strictRaw
+  if (strictResult?.error?.code !== 'DOMAIN_REQUIRED') {
+    throw new Error(`strict domain rejection failed: ${JSON.stringify(strictResult).slice(0, 500)}`)
+  }
+  process.stdout.write('verify-agent-team: strict DOMAIN_REQUIRED rejection ok\n')
   if (process.env.VERIFY_CTX_BUDGET_DIR) {
     const exec = { agent: { id: 'verify-ctx-budget' }, signal: new AbortController().signal }
     const budget = await tools.get('ctx_budget').execute({ dir: process.env.VERIFY_CTX_BUDGET_DIR }, exec)
