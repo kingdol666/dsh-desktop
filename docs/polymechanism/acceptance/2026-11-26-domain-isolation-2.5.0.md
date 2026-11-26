@@ -128,7 +128,7 @@
 - 安装版「文献」页读取真实工作区：domain `pva-optical-film`，4 论文 / 4 报告 /
   1 手记 / 0 向量（关键词回退）；论文表 4 篇 PVA PDF 带标题/DOI/chunks。
 - 点击论文「打开」在 2.5.0 报 `sidebarRight without inject`（见 1.5 注），
-  2.5.1 修复后 dev 实测右栏 PDF 渲染 22 页 canvas、0 console 错误。
+  2.5.1 修复后 dev/packaged 实测右栏 PDF 渲染 22/4 页 canvas、0 console 错误。
 
 ## 4. 已知限制
 

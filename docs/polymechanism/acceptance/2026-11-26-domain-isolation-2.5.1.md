@@ -49,13 +49,28 @@ cannot get property "sidebarRight" without inject
   module-resolution、client-environment 等），见 2.5.0 验收的说明；本次 release
   相关测试全过。
 
+### 3.1 2.5.0 → 2.5.1 应用内更新 E2E
+
+- 2.5.0 应用内检查到 2.5.1，弹出「现在下载此更新？」；确认保存路径后下载
+  `PolyMechanism-Studio-2.5.1-windows.exe`，383,020,632 字节，SHA-256
+  `f3151d4c...f79efe` 与 Release asset 一致。
+- 弹出「重启并运行安装程序？」→ 重启并安装 → 安装向导完成 → 安装目录
+  `resources/app/package.json` 为 2.5.1。
+- 更新后弹「删除更新安装包？」选择「保留安装包」；安装版启动 URL
+  `dsh-desktop-version=2.5.1`。
+- 安装版真实工作区文献页 4 篇论文；点击 URSU 后右栏 4 个 canvas、正文可读，
+  0 console error。
+- 环境说明：更新检查/资产下载统一走本机 `127.0.0.1:7890` 代理时，该出口的
+  GitHub 匿名 API 配额一度耗尽返回 403；等待配额重置后本次 E2E 正常完成。
+  API 直连可用但 GitHub 资产直连在本网络会 `ERR_TIMED_OUT`，因此代理是必要的。
+
 ## 4. 已知限制
 
 - 右栏 PDF 预览依赖当前会话的 cwd 与文献页所选 workspace 一致；没有该工作区会话时
   提示先打开会话。
 - 2.5.1 只修 PDF 打开，不改领域隔离/KB/记忆行为；2.5.0 的已知限制继续有效。
 
-## 5. 安装包
+## 6. 安装包
 
 | 项 | 值 |
 |---|---|
