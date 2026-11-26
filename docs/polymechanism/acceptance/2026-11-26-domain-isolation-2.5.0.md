@@ -99,6 +99,18 @@
 - `/api/pm-domain/domains`/`literature` 真实数据通过。
 - 页面在默认空工作区显示“没有领域注册表”；真实 profile 的 PVA 会话会显示数据。
 
+### 3.4 打包版 2.5.0（win-unpacked，隔离 DSH_HOME/APPDATA/LOCALAPPDATA）
+
+- 启动 URL `dsh-desktop-version=2.5.0`；日志 `agent team: seeded ...`；`[kb-rag] v1.6.8-pm2`。
+- 侧栏「文献」出现；`/api/pm-domain/domains` 返回 3 域：
+  `pva-optical-film` 4 papers/4 reports/1 note、`waxs-methods` 4、`generic-polymer` 4，
+  active `pva-optical-film`；控制台 0 错误。
+- 打包内 `dsh-domain-router 0.1.0`、`dsh-kb-rag 1.6.8-pm2`、
+  `dsh-cognition-engine 0.14.0-pm3`、`app/skills/domain-routing/SKILL.md` 均已确认。
+
+> 注意：用同一 Electron appName 启动 dev 与 packaged 两个实例会争 `%LOCALAPPDATA%` 缓存，
+> packaged 实例可能直接退出；测试时需隔离 `LOCALAPPDATA` 或先停掉另一个实例。
+
 ## 4. 已知限制
 
 - **向量仍 keyword 回退**：迁移后 `.kb-papers` vectors=0；`KB_RAG_PYTHON` 指向的

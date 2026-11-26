@@ -58,6 +58,12 @@ writeFileSync(join(WORKSPACE, '.pm-domain', 'state.json'), JSON.stringify({
   domain: 'test',
   updatedAt: new Date().toISOString(),
 }), 'utf8')
+mkdirSync(join(HOME, 'pm', 'projects', 'PR-1'), { recursive: true })
+writeFileSync(join(HOME, 'pm', 'projects', 'PR-1', 'project.json'), JSON.stringify({
+  id: 'PR-1',
+  title: 'Domain memory verification',
+  domain: 'pva-optical-film',
+}), 'utf8')
 process.chdir(WORKSPACE)
 const realUserInfo = os.userInfo.bind(os)
 os.userInfo = options => ({ ...realUserInfo(options), homedir: HOME })
@@ -321,6 +327,29 @@ try {
     }
     await tools.get('cognition_forget').execute({ id: wsStored.stored.id }, wsExec)
     process.stdout.write(`verify-agent-team: cognition workspace isolation ok id=${wsStored.stored.id}\n`)
+    const domainExec = {
+      agent: { id: 'verify-domain-memory', session: { header: { cwd: WORKSPACE, agentPreset: 'polymer-scientist' } } },
+      signal: new AbortController().signal,
+    }
+    const scoped = await tools.get('domain_scope').execute({ domain: 'test', projectId: 'PR-1' }, domainExec)
+    if (scoped?.ok !== true) throw new Error(`domain_scope failed: ${JSON.stringify(scoped).slice(0, 400)}`)
+    const domainMarker = `verify-domain-memory-${Date.now().toString(36)}`
+    const domainStored = parseToolResult(await tools.get('domain_remember').execute({
+      text: `${domainMarker}：领域记忆必须绑定项目与工作区。`,
+      tags: ['verify-domain'],
+    }, domainExec))
+    if (typeof domainStored?.result?.stored?.id !== 'string') {
+      throw new Error(`domain_remember failed: ${JSON.stringify(domainStored).slice(0, 500)}`)
+    }
+    const domainRecalled = parseToolResult(await tools.get('domain_recall').execute({
+      query: domainMarker,
+      tags: ['verify-domain'],
+    }, domainExec))
+    if (!Array.isArray(domainRecalled?.hits) || !domainRecalled.hits.some(hit => String(hit.content).includes(domainMarker))) {
+      throw new Error(`domain_recall missed the memory: ${JSON.stringify(domainRecalled).slice(0, 500)}`)
+    }
+    await tools.get('cognition_forget').execute({ id: domainStored.result.stored.id }, domainExec)
+    process.stdout.write(`verify-agent-team: domain memory ok id=${domainStored.result.stored.id}\n`)
   }
   if (process.env.VERIFY_DOMAIN_WORKSPACE) {
     const exec = {
