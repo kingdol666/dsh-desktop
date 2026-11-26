@@ -29,3 +29,13 @@ export async function readProject(homeDir: string, projectId: string): Promise<P
     return undefined
   }
 }
+
+/** Read one project only when it is bound to the selected domain. */
+export async function readProjectForDomain(
+  homeDir: string,
+  projectId: string,
+  domain: string,
+): Promise<ProjectInfo | undefined> {
+  const project = await readProject(homeDir, projectId)
+  return project?.domain === domain ? project : undefined
+}

@@ -5,6 +5,7 @@ import { registerDomainGuard } from './guard.ts'
 import { registerDomainRoutes } from './routes.ts'
 import { resolveHomeDir } from './registry.ts'
 import { DEFAULT_EXPERT_PRESETS, registerDomainTools, type DomainRouterOptions } from './tools.ts'
+import type { WorkspaceRegistryLike } from './workspace.ts'
 
 /** Plugin identity. */
 export const name = 'dsh-domain-router'
@@ -26,11 +27,16 @@ export function apply(ctx: Context, config: DomainRouterConfig = {}): void {
     homeDir: resolveHomeDir(config.homeDir),
     expertPresets: new Set([...DEFAULT_EXPERT_PRESETS, ...(config.expertPresets ?? [])]),
   }
-  registerDomainTools(ctx, options)
+  // The raw tool guard must remain active even without a workspace provider.
   registerDomainGuard(ctx, options)
-  ctx.inject(['connection'], scope => {
-    const connection = (scope as unknown as { connection: Parameters<typeof registerDomainRoutes>[0] }).connection
-    const dispose = registerDomainRoutes(connection, options)
-    ctx.effect(() => dispose)
+  ctx.inject(['workspaceRegistry'], scope => {
+    const workspaceRegistry = (scope as unknown as { workspaceRegistry: WorkspaceRegistryLike }).workspaceRegistry
+    const scopedOptions: DomainRouterOptions = { ...options, workspaceRegistry }
+    registerDomainTools(scope, scopedOptions)
+    scope.inject(['connection'], connectionScope => {
+      const connection = (connectionScope as unknown as { connection: Parameters<typeof registerDomainRoutes>[0] }).connection
+      const dispose = registerDomainRoutes(connection, scopedOptions)
+      connectionScope.effect(() => dispose)
+    })
   })
 }

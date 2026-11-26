@@ -1,11 +1,11 @@
 /** Active-domain state and stable workspace identity. */
 
-import { createHash } from 'node:crypto'
-import { existsSync } from 'node:fs'
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { createHash, randomUUID } from 'node:crypto'
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { statePath } from './registry.ts'
 import type { DomainState } from './types.ts'
+import { isContainedWorkspacePath } from './workspace.ts'
 
 /** Stable short workspace id used in cognition tags and workspace scoping. */
 export function workspaceId(workspace: string): string {
@@ -15,7 +15,7 @@ export function workspaceId(workspace: string): string {
 /** Read the active domain state; corrupt/missing state is treated as absent. */
 export async function readState(workspace: string): Promise<DomainState | undefined> {
   const file = statePath(workspace)
-  if (!existsSync(file)) return undefined
+  if (!await isContainedWorkspacePath(workspace, file)) return undefined
   try {
     const parsed = JSON.parse((await readFile(file, 'utf8')).replace(/^\uFEFF/u, '')) as unknown
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return undefined
@@ -37,8 +37,13 @@ export async function readState(workspace: string): Promise<DomainState | undefi
 /** Atomically persist the active domain state. */
 export async function writeState(workspace: string, state: DomainState): Promise<void> {
   const file = statePath(workspace)
+  if (!await isContainedWorkspacePath(workspace, file)) throw new Error('Domain state path is not inside the workspace')
   await mkdir(dirname(file), { recursive: true })
-  const temporary = `${file}.${process.pid}.tmp`
-  await writeFile(temporary, `${JSON.stringify(state, null, 2)}\n`, 'utf8')
-  await rename(temporary, file)
+  const temporary = `${file}.${process.pid}.${randomUUID()}.tmp`
+  try {
+    await writeFile(temporary, `${JSON.stringify(state, null, 2)}\n`, { encoding: 'utf8', flag: 'wx' })
+    await rename(temporary, file)
+  } finally {
+    await rm(temporary, { force: true }).catch(() => {})
+  }
 }

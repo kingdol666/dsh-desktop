@@ -31,6 +31,7 @@ export interface KbCounts {
 export interface ListOptions {
   readonly domain?: string
   readonly kind?: string
+  readonly kinds?: readonly string[]
   readonly limit?: number
   readonly offset?: number
 }
@@ -68,15 +69,32 @@ function hasTable(db: DatabaseSync, table: string): boolean {
 function whereFor(columnsSet: Set<string>, options: ListOptions): { sql: string; args: Array<string | number> } {
   const clauses: string[] = []
   const args: Array<string | number> = []
-  if (columnsSet.has('domain') && options.domain !== undefined && options.domain !== '') {
+  if (options.domain !== undefined && options.domain !== '') {
+    if (!columnsSet.has('domain')) return { sql: ' WHERE 0', args }
     clauses.push('domain = ?')
     args.push(options.domain)
   }
-  if (options.kind !== undefined && options.kind !== '' && options.kind !== 'all') {
+  if (options.kinds !== undefined) {
+    if (options.kinds.length === 0) return { sql: ' WHERE 0', args: [] }
+    clauses.push(`kind IN (${options.kinds.map(() => '?').join(', ')})`)
+    args.push(...options.kinds)
+  } else if (options.kind !== undefined && options.kind !== '' && options.kind !== 'all') {
     clauses.push('kind = ?')
     args.push(options.kind)
   }
   return { sql: clauses.length === 0 ? '' : ` WHERE ${clauses.join(' AND ')}`, args }
+}
+
+export function domainSchemaState(root: string): 'missing' | 'ready' | 'legacy' {
+  const file = join(root, 'kb.sqlite')
+  if (!existsSync(file)) return 'missing'
+  const db = open(root)
+  if (db === undefined) return 'legacy'
+  try {
+    return columns(db, 'docs').has('domain') ? 'ready' : 'legacy'
+  } finally {
+    db.close()
+  }
 }
 
 /** List documents from one KB directory. Missing DB returns an empty result. */
@@ -127,7 +145,7 @@ export function domainCounts(domain: DomainConfig): KbCounts {
     if (db === undefined) continue
     try {
       const columnsSet = columns(db, 'docs')
-      if (columnsSet.size === 0) continue
+      if (columnsSet.size === 0 || !columnsSet.has('domain')) continue
       const where = whereFor(columnsSet, { domain: domain.id })
       const rows = db.prepare(`SELECT kind, count(*) AS docs, coalesce(sum(chunk_count), 0) AS chunks FROM docs${where.sql} GROUP BY kind`).all(...where.args) as unknown as Array<Record<string, unknown>>
       for (const row of rows) {
@@ -138,8 +156,10 @@ export function domainCounts(domain: DomainConfig): KbCounts {
         else notes += count
         chunks += Number(row.chunks ?? 0)
       }
-      if (hasTable(db, 'vecs')) {
-        const vec = db.prepare('SELECT count(*) AS n FROM vecs').get() as unknown as { n?: unknown } | undefined
+      if (hasTable(db, 'vecs') && hasTable(db, 'chunks')) {
+        const vec = db.prepare(
+          'SELECT count(*) AS n FROM vecs v JOIN chunks c ON c.id = v.chunk_id WHERE c.doc_id IN (SELECT id FROM docs WHERE domain = ?)',
+        ).get(domain.id) as unknown as { n?: unknown } | undefined
         vectors += Number(vec?.n ?? 0)
       }
     } finally {

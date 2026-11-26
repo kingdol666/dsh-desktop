@@ -18895,10 +18895,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"dsh-cognition-engine@file:../vendor/dsh-cognition-engine/dsh-cognition-engine-0.14.0-pm3.tgz::locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop":
-  version: 0.14.0-pm3
-  resolution: "dsh-cognition-engine@file:../vendor/dsh-cognition-engine/dsh-cognition-engine-0.14.0-pm3.tgz#../vendor/dsh-cognition-engine/dsh-cognition-engine-0.14.0-pm3.tgz::hash=029f45&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
-  checksum: 10c0/5081f98b3c84455f4e9501074d6fcdb734da73413baabe0682cf829ce56f531e8e82427ce1a67de016b3aa40a0f82906c30b370fb278afe95fcfec7c9240372f
+"dsh-cognition-engine@file:../vendor/dsh-cognition-engine/dsh-cognition-engine-0.14.0-pm4.tgz::locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop":
+  version: 0.14.0-pm4
+  resolution: "dsh-cognition-engine@file:../vendor/dsh-cognition-engine/dsh-cognition-engine-0.14.0-pm4.tgz#../vendor/dsh-cognition-engine/dsh-cognition-engine-0.14.0-pm4.tgz::hash=2f13b1&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
+  checksum: 10c0/1584d78f923154f54d78eb4fdc13ccf46c3c1315d221c2a227987aba390aebe076d1b9645afa11495dabd89648111de4b06911ddd570633634a32622dfd676c5
   languageName: node
   linkType: hard
 
@@ -19884,7 +19884,7 @@ __metadata:
     clsx: "npm:^2.1.1"
     dsh-agent-skill: "file:../vendor/dsh-agent-skill/dsh-agent-skill-0.3.0-pm2.tgz"
     dsh-cite-verify: "npm:0.2.3"
-    dsh-cognition-engine: "file:../vendor/dsh-cognition-engine/dsh-cognition-engine-0.14.0-pm3.tgz"
+    dsh-cognition-engine: "file:../vendor/dsh-cognition-engine/dsh-cognition-engine-0.14.0-pm4.tgz"
     dsh-community-market: "npm:0.1.0-dev.0"
     dsh-doc-router: "npm:0.6.3"
     dsh-domain-router: "workspace:*"

@@ -50,7 +50,7 @@ describe('domain tools', () => {
       keywords: ['GIWAXS'],
     }), 'utf8')
     await writeFile(join(home, 'pm', 'projects', 'PR-1', 'project.json'), JSON.stringify({
-      id: 'PR-1', title: 'PVA 项目', domain: 'pva-optical-film',
+      id: 'PR-1', title: 'PVA 项目', domain: 'pva',
     }), 'utf8')
 
     const registered = new Map<string, FakeTool>()
@@ -63,7 +63,7 @@ describe('domain tools', () => {
       },
       get(name: string): FakeTool | undefined {
         if (name === 'cognition_remember') {
-          return { execute: async (args) => { remembered = args as Record<string, unknown>; return JSON.stringify({ stored: { id: 'mem-1' } }) } }
+          return { execute: async (args) => { remembered = args as Record<string, unknown>; return JSON.stringify({ stored: { id: 'mem-1' }, conflicts: [{ content: 'unrelated fact' }] }) } }
         }
         if (name === 'cognition_recall') {
           return { execute: async (args) => { recalls.push(args as Record<string, unknown>); return JSON.stringify({ hits: [{ content: 'rule' }] }) } }
@@ -75,7 +75,13 @@ describe('domain tools', () => {
       inject(_names: string[], mount: (scope: { tools: typeof fakeTools }) => void) { mount({ tools: fakeTools }) },
       effect(fn: () => void) { fn() },
     } as unknown as Context
-    registerDomainTools(fakeCtx, { homeDir: home, expertPresets: new Set() })
+    registerDomainTools(fakeCtx, {
+      homeDir: home,
+      expertPresets: new Set(),
+      workspaceRegistry: {
+        resolveByPath: async path => path === workspace ? { id: 'workspace-1', path: workspace } : undefined,
+      },
+    })
     expect([...registered.keys()].sort()).toEqual([
       'domain_list', 'domain_recall', 'domain_remember', 'domain_route', 'domain_scope',
     ])
@@ -99,7 +105,8 @@ describe('domain tools', () => {
     expect((await readState(workspace))?.projectId).toBe('PR-1')
 
     const stored = await call('domain_remember', { text: 'PVA 报告必须带不确定度' })
-    expect(stored.ok).toBe(true)
+    expect(stored).toMatchObject({ ok: true, result: { stored: { id: 'mem-1' } } })
+    expect(stored.result).not.toHaveProperty('conflicts')
     expect(remembered?.scope).toBe('workspace')
     expect(remembered?.workspaceId).toBeTypeOf('string')
     const tags = remembered?.tags as string[]
@@ -117,6 +124,21 @@ describe('domain tools', () => {
 
     const badProject = await call('domain_route', { question: 'PVA', projectId: 'PR-404' })
     expect((badProject.error as Record<string, unknown>)?.code).toBe('PROJECT_NOT_FOUND')
+
+    const projectMismatch = await call('domain_route', { question: 'GIWAXS', projectId: 'PR-1' })
+    expect((projectMismatch.error as Record<string, unknown>)?.code).toBe('PROJECT_DOMAIN_MISMATCH')
+
+    await call('domain_scope', { domain: 'pva' })
+    const noProjectRecall = await call('domain_recall', { query: '不确定度' })
+    expect((noProjectRecall.error as Record<string, unknown>)?.code).toBe('PROJECT_REQUIRED')
+
+    const unregisteredExec = {
+      agent: { session: { header: { cwd: join(root, 'unregistered') } } },
+      signal: new AbortController().signal,
+    } as unknown as ToolRunContext
+    const list = registered.get('domain_list')
+    if (list === undefined) throw new Error('missing domain_list')
+    await expect(list.execute({}, unregisteredExec)).rejects.toThrow('registered session workspace')
 
     const badDomain = await call('domain_scope', { domain: 'missing' })
     expect((badDomain.error as Record<string, unknown>)?.code).toBe('DOMAIN_NOT_FOUND')

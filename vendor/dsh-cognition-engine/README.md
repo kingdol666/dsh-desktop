@@ -1,7 +1,7 @@
 # dsh-cognition-engine (vendored patch)
 
 Upstream: `dsh-cognition-engine@0.14.0` (MIT), npm tarball repacked as
-`dsh-cognition-engine-0.14.0-pm1.tgz`.
+`dsh-cognition-engine-0.14.0-pm4.tgz`.
 
 ## Why patched
 
@@ -25,12 +25,13 @@ Rebuild with:
 ```bash
 npm pack dsh-cognition-engine@0.14.0
 tar -xzf dsh-cognition-engine-0.14.0.tgz -C src
-# apply the one-line diff to src/package/client.js
-cd src/package && npm pack --silent
-mv dsh-cognition-engine-0.14.0.tgz ../../dsh-cognition-engine-0.14.0-pm1.tgz
+# apply the client POST patch and the related-recall visibility filters
+cd src/package && npm pack --silent --pack-destination ../..
 ```
 
-Drop this patch when upstream ships the POST fix.
+The pm4 package also filters `expand` / `associative` related memories with the
+same scope, subject, and required tags as the primary recall. This prevents
+same-topic facts from other workspaces or domains from leaking into results.
 
 ## Related desktop config
 

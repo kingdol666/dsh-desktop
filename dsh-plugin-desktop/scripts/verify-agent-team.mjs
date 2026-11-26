@@ -62,7 +62,7 @@ mkdirSync(join(HOME, 'pm', 'projects', 'PR-1'), { recursive: true })
 writeFileSync(join(HOME, 'pm', 'projects', 'PR-1', 'project.json'), JSON.stringify({
   id: 'PR-1',
   title: 'Domain memory verification',
-  domain: 'pva-optical-film',
+  domain: 'test',
 }), 'utf8')
 process.chdir(WORKSPACE)
 const realUserInfo = os.userInfo.bind(os)
@@ -260,6 +260,8 @@ try {
   }
   const parseToolResult = (value) => (typeof value === 'string' ? JSON.parse(value) : value)
   if (process.env.VERIFY_COGNITION === '1') {
+    const workspaceRegistry = ctx.get('workspaceRegistry')
+    if (await workspaceRegistry.resolveByPath(WORKSPACE) === undefined) await workspaceRegistry.create(WORKSPACE)
     const exec = { agent: { id: 'verify-cognition' }, signal: new AbortController().signal }
     const marker = `verify-230-memory-${Date.now().toString(36)}`
     const stored = parseToolResult(await tools.get('cognition_remember').execute({

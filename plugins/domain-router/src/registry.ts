@@ -3,8 +3,9 @@
 import { existsSync } from 'node:fs'
 import { readFile, readdir } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { isAbsolute, join, relative, resolve } from 'node:path'
+import { isAbsolute, join, resolve } from 'node:path'
 import type { DomainConfig, DomainRegistry } from './types.ts'
+import { isContainedWorkspacePath, relativeWorkspacePath } from './workspace.ts'
 
 /** Resolve the DSH home that owns the global domains fallback. */
 export function resolveHomeDir(explicit?: string): string {
@@ -19,13 +20,15 @@ export function statePath(workspace: string): string {
   return join(workspace, '.pm-domain', 'state.json')
 }
 
-/** Whether a workspace-relative domain path stays inside the workspace. */
-function insideWorkspace(workspace: string, raw: string): string | undefined {
-  if (raw.trim() === '' || isAbsolute(raw)) return undefined
+/** Validate the configured directory and the SQLite files it can open. */
+async function insideWorkspace(workspace: string, raw: string): Promise<string | undefined> {
+  if (isAbsolute(raw)) return undefined
   const resolved = resolve(workspace, raw)
-  const rel = relative(workspace, resolved)
-  if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) return undefined
-  return resolved
+  const local = relativeWorkspacePath(workspace, resolved)
+  if (local === undefined || local === '.') return undefined
+  const files = ['kb.sqlite', 'kb.sqlite-wal', 'kb.sqlite-shm']
+  const allowed = await Promise.all(files.map(file => isContainedWorkspacePath(workspace, join(resolved, file))))
+  return allowed.every(Boolean) ? resolved : undefined
 }
 
 function asString(value: unknown): string | undefined {
@@ -43,12 +46,12 @@ interface Layer {
   readonly defaultDomain?: string
 }
 
-function parseDomain(
+async function parseDomain(
   raw: unknown,
   directoryName: string,
   workspace: string,
   warnings: string[],
-): DomainConfig | undefined {
+): Promise<DomainConfig | undefined> {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     warnings.push(`${directoryName}: domain.json is not an object`)
     return undefined
@@ -64,13 +67,13 @@ function parseDomain(
     warnings.push(`${id}: missing kbRoot`)
     return undefined
   }
-  const kbRoot = insideWorkspace(workspace, kbRaw)
+  const kbRoot = await insideWorkspace(workspace, kbRaw)
   if (kbRoot === undefined) {
     warnings.push(`${id}: kbRoot must stay inside the workspace (${kbRaw})`)
     return undefined
   }
   const notesRaw = asString(record.notesRoot)
-  const notesRoot = notesRaw === undefined ? undefined : insideWorkspace(workspace, notesRaw)
+  const notesRoot = notesRaw === undefined ? undefined : await insideWorkspace(workspace, notesRaw)
   if (notesRaw !== undefined && notesRoot === undefined) {
     warnings.push(`${id}: notesRoot must stay inside the workspace (${notesRaw})`)
     return undefined
@@ -130,7 +133,7 @@ async function readLayer(
         warnings.push(`${source}/${entry.name}: invalid JSON (${cause instanceof Error ? cause.message : String(cause)})`)
         continue
       }
-      const domain = parseDomain(parsed, entry.name, workspace, warnings)
+      const domain = await parseDomain(parsed, entry.name, workspace, warnings)
       if (domain !== undefined) domains.set(domain.id, domain)
     }
   } catch (cause) {

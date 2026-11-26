@@ -106,4 +106,42 @@ describe('Literature page registration', () => {
     await new Promise(resolve => setTimeout(resolve, 120))
     expect(calls[1]).toMatch(/^open:dsh-resource:\/\/file\/session\/a\//)
   })
+
+  it('cancels a pending PDF open when the preview services reload', async () => {
+    const registered: Registered[] = []
+    const calls: string[] = []
+    let disposeServices: (() => void) | undefined
+    const ctx = {
+      locale: { getSnapshot: () => ({ active: 'zh' }) },
+      sessions: { list: { getSnapshot: () => ({ byId: { a: { cwd: 'D:/ws' } } }) } },
+      slots: {
+        inject(name: string, mount: () => unknown) {
+          const options = mount() as Record<string, unknown>
+          registered.push({ name, options, component: (options as { component?: unknown }).component })
+          return () => {}
+        },
+        register(options: Record<string, unknown>, component?: unknown) { return { ...options, component } },
+      },
+      effect(fn: () => void) { fn(); return () => {} },
+      inject(_names: string[], mount: (scope: unknown) => void) {
+        mount({
+          layout: { selectPanel: (panel: string | null) => calls.push(`panel:${String(panel)}`) },
+          sidebarRight: { openResource: (address: string) => calls.push(`open:${address}`) },
+          effect(fn: () => (() => void) | void) {
+            const cleanup = fn()
+            if (typeof cleanup === 'function') disposeServices = cleanup
+            return () => {}
+          },
+        })
+        return () => {}
+      },
+    } as unknown as ClientContext
+    applyLiterature(ctx)
+    const main = registered.find(entry => entry.name === 'main')
+    const face = main?.options.inject as (() => { openPdf: (workspace: string, path: string) => void }) | undefined
+    face?.().openPdf('D:/ws', 'D:\\ws\\p.pdf')
+    disposeServices?.()
+    await new Promise(resolve => setTimeout(resolve, 120))
+    expect(calls).toEqual(['panel:null'])
+  })
 })

@@ -5,9 +5,10 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import { routeDomains } from './classifier.ts'
-import { readProject } from './projects.ts'
+import { readProject, readProjectForDomain } from './projects.ts'
 import { findDomain, loadRegistry } from './registry.ts'
 import { readState, workspaceId, writeState } from './state.ts'
+import { resolveRegisteredWorkspace, type WorkspaceRegistryLike } from './workspace.ts'
 import type { DomainConfig, DomainRegistry, DomainState } from './types.ts'
 
 /** Default expert presets whose raw cognition tools are hidden by the guard. */
@@ -23,16 +24,20 @@ export const DEFAULT_EXPERT_PRESETS: readonly string[] = Object.freeze([
 export interface DomainRouterOptions {
   readonly homeDir: string
   readonly expertPresets: ReadonlySet<string>
+  readonly workspaceRegistry?: WorkspaceRegistryLike
 }
 
 interface ExecAgent {
   readonly session?: { readonly header?: { readonly cwd?: string; readonly agentPreset?: string } }
 }
 
-function execWorkspace(exec: ToolRunContext): string {
+async function execWorkspace(exec: ToolRunContext, options: DomainRouterOptions): Promise<string> {
   const agent = exec.agent as ExecAgent | undefined
   const cwd = agent?.session?.header?.cwd
-  return cwd !== undefined && cwd.trim() !== '' ? cwd : process.cwd()
+  if (cwd === undefined || cwd.trim() === '') throw new Error('domain tools require a session workspace')
+  const workspace = await resolveRegisteredWorkspace(options.workspaceRegistry, cwd)
+  if (workspace === undefined) throw new Error('domain tools require a registered session workspace')
+  return workspace.path
 }
 
 type JsonObject = Record<string, JsonValue>
@@ -83,7 +88,7 @@ async function contextFor(exec: ToolRunContext, options: DomainRouterOptions): P
   registry: DomainRegistry
   state: DomainState | undefined
 }> {
-  const workspace = execWorkspace(exec)
+  const workspace = await execWorkspace(exec, options)
   const registry = await loadRegistry(workspace, options.homeDir)
   const state = await readState(workspace)
   return { workspace, registry, state }
@@ -140,6 +145,9 @@ export function registerDomainTools(ctx: Context, options: DomainRouterOptions):
           return error('PROJECT_NOT_FOUND', `项目不存在：${args.projectId}`, '先 pm_project_create，或去掉 projectId')
         }
         const routed = routeDomains(args.question, registry.domains)
+        if (project !== undefined && routed.domain !== null && project.domain !== routed.domain) {
+          return error('PROJECT_DOMAIN_MISMATCH', `项目 ${project.id} 属于 ${project.domain}，不能用于 ${routed.domain}`)
+        }
         return json({
           ...routed,
           workspace,
@@ -166,6 +174,9 @@ export function registerDomainTools(ctx: Context, options: DomainRouterOptions):
         const project = args.projectId === undefined ? undefined : await readProject(options.homeDir, args.projectId)
         if (args.projectId !== undefined && project === undefined) {
           return error('PROJECT_NOT_FOUND', `项目不存在：${args.projectId}`)
+        }
+        if (project !== undefined && project.domain !== domain.id) {
+          return error('PROJECT_DOMAIN_MISMATCH', `项目 ${project.id} 属于 ${project.domain}，不能用于 ${domain.id}`)
         }
         const state: DomainState = {
           schemaVersion: 1,
@@ -200,8 +211,8 @@ export function registerDomainTools(ctx: Context, options: DomainRouterOptions):
         if (projectId === undefined) {
           return error('PROJECT_REQUIRED', '领域记忆必须绑定 PM 项目；先 domain_scope(projectId=...)')
         }
-        const project = await readProject(options.homeDir, projectId)
-        if (project === undefined) return error('PROJECT_NOT_FOUND', `项目不存在：${projectId}`)
+        const project = await readProjectForDomain(options.homeDir, projectId, domain.id)
+        if (project === undefined) return error('PROJECT_DOMAIN_MISMATCH', `项目不存在或不属于领域 ${domain.id}：${projectId}`)
         const remember = tools.get('cognition_remember')
         if (remember === undefined) return error('UNAVAILABLE', 'cognition_remember 未注册')
         const callerTags = Array.isArray(args.tags) ? args.tags.filter((tag): tag is string => typeof tag === 'string') : []
@@ -220,7 +231,11 @@ export function registerDomainTools(ctx: Context, options: DomainRouterOptions):
           scope: 'workspace',
           workspaceId: workspaceId(workspace),
         }, exec))
-        return json({ ok: true, workspace, domain: domain.id, projectId, result })
+        // The engine also returns store-wide conflicts and statistics. Only
+        // project the receipt for this write into the domain tool response.
+        const stored = parseToolResult(result.stored)
+        if (typeof stored.id !== 'string') return error('MEMORY_WRITE_FAILED', '领域记忆未返回写入凭据')
+        return json({ ok: true, workspace, domain: domain.id, projectId, result: { stored: { id: stored.id } } })
       },
     }))
 
@@ -242,6 +257,9 @@ export function registerDomainTools(ctx: Context, options: DomainRouterOptions):
         const domain = activeDomain(registry, state)
         if (domain === undefined) return error('DOMAIN_REQUIRED', '没有 active domain；先 domain_route + domain_scope')
         const projectId = args.projectId ?? state?.projectId
+        if (projectId === undefined) return error('PROJECT_REQUIRED', '领域记忆必须绑定 PM 项目；先 domain_scope(projectId=...)')
+        const project = await readProjectForDomain(options.homeDir, projectId, domain.id)
+        if (project === undefined) return error('PROJECT_DOMAIN_MISMATCH', `项目不存在或不属于领域 ${domain.id}：${projectId}`)
         const callerTags = Array.isArray(args.tags) ? args.tags.filter((tag): tag is string => typeof tag === 'string') : []
         const domains = args.crossDomain === true
           ? [domain.id, ...domain.relatedDomains]

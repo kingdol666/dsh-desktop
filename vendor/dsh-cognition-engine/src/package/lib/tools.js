@@ -214,6 +214,9 @@ export function createTools(deps) {
                     related = memory
                         .all()
                         .filter((fact) => fact.deletedAt === undefined && !hitIds.has(fact.id))
+                        .filter((fact) => memory.visibleByScope(fact, options))
+                        .filter((fact) => options.subject === undefined || fact.subject === options.subject)
+                        .filter((fact) => options.tags === undefined || options.tags.length === 0 || options.tags.every((tag) => fact.tags.includes(tag)))
                         .filter((fact) => fact.topicIds.some((id) => topicIds.has(id)))
                         .slice(0, 5)
                         .map((fact) => fact.content);

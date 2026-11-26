@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -58,6 +58,17 @@ describe('domain registry', () => {
     await domain(root, 'domains', 'evil', { id: 'evil', name: 'Evil', kbRoot: '../outside' })
     const registry = await loadRegistry(root, join(root, 'home'))
     expect(registry.domains.map(item => item.id)).toEqual(['global'])
+    expect(registry.warnings.some(warning => warning.includes('kbRoot must stay inside'))).toBe(true)
+  })
+
+  it('rejects an existing symlinked KB root that resolves outside the workspace', async () => {
+    const root = await workspace()
+    const outside = await mkdtemp(join(tmpdir(), 'domain-router-outside-'))
+    roots.push(outside)
+    await symlink(outside, join(root, 'outside-link'), 'junction')
+    await domain(root, 'domains', 'linked', { id: 'linked', name: 'Linked', kbRoot: 'outside-link' })
+    const registry = await loadRegistry(root, join(root, 'home'))
+    expect(registry.domains).toHaveLength(0)
     expect(registry.warnings.some(warning => warning.includes('kbRoot must stay inside'))).toBe(true)
   })
 })

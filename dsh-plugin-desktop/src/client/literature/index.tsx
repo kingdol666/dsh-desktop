@@ -38,6 +38,19 @@ interface PreviewServices {
   sidebarRight?: SidebarRightLike
 }
 
+type PreviewTimer = ReturnType<typeof setTimeout>
+
+function schedulePreview(
+  pendingTimers: Set<PreviewTimer>,
+  callback: () => void,
+): void {
+  const timer = setTimeout(() => {
+    pendingTimers.delete(timer)
+    callback()
+  }, 80)
+  pendingTimers.add(timer)
+}
+
 function sessionsOf(ctx: ClientContext): SessionsLike {
   return (ctx as unknown as { sessions: SessionsLike }).sessions
 }
@@ -68,11 +81,17 @@ function fileAddress(sessionId: string, path: string): string {
   return `dsh-resource://file/session/${encodeURIComponent(sessionId)}/${encoded}`
 }
 
+function workspacePath(workspace: string, path: string): string {
+  if (/^(?:[A-Za-z]:[\\/]|\\\\|\/)/u.test(path)) return path
+  return `${workspace.replace(/[\\/]+$/u, '')}/${path.replace(/^[\\/]+/u, '')}`
+}
+
 function openPdf(
   services: PreviewServices,
   ctx: ClientContext,
   workspace: string,
   path: string,
+  schedule: (callback: () => void) => void,
 ): void {
   const sessionId = sessionForWorkspace(ctx, workspace)
   if (sessionId === undefined) throw new Error('没有对应工作区的会话；先打开一个该工作区的会话')
@@ -81,7 +100,12 @@ function openPdf(
   // A global main page unmounts the session surface; return to the conversation
   // first, then hand the resource address to the right sidebar on the next frame.
   layout.selectPanel(null)
-  setTimeout(() => { sidebarRight.openResource(fileAddress(sessionId, path)) }, 80)
+  const expectedSidebarRight = sidebarRight
+  schedule(() => {
+    // A shell reload may dispose this provider while the delayed callback is pending.
+    if (services.sidebarRight !== expectedSidebarRight) return
+    expectedSidebarRight.openResource(fileAddress(sessionId, workspacePath(workspace, path)))
+  })
 }
 
 function LiteratureIcon({ size = 18, active = false }: { size?: number; active?: boolean }): ReactElement {
@@ -105,18 +129,23 @@ export function applyLiterature(ctx: ClientContext): void {
   // `layout` is owned by the shell and `sidebarRight` by the right-bar plugin;
   // resolve both through a scoped inject so the page can outlive either reload.
   const services: PreviewServices = {}
+  const pendingTimers = new Set<PreviewTimer>()
   ctx.inject(['layout', 'sidebarRight'], (scope: ClientContext) => {
     const resolved = scope as unknown as { layout: LayoutLike; sidebarRight: SidebarRightLike }
     services.layout = resolved.layout
     services.sidebarRight = resolved.sidebarRight
     scope.effect(() => () => {
+      for (const timer of pendingTimers) clearTimeout(timer)
+      pendingTimers.clear()
       delete services.layout
       delete services.sidebarRight
     }, 'dsh-plugin-desktop: literature preview services')
   })
   const face: LiteraturePageInjected = {
     workspaces: () => workspaceList(ctx),
-    openPdf: (workspace, path) => { openPdf(services, ctx, workspace, path) },
+    openPdf: (workspace, path) => {
+      openPdf(services, ctx, workspace, path, callback => schedulePreview(pendingTimers, callback))
+    },
     locale,
   }
   ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
