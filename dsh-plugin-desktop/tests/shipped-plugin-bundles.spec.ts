@@ -44,6 +44,7 @@ describe('desktop shipped plugin bundles', () => {
       '@perrylink/dsh-research-core',
       'dsh-agent-skill',
       '@bushizhanghan/dsh-context-budget',
+      'dsh-domain-router',
       'dsh-doc-router',
       'dsh-python-env',
       'dsh-second-opinion',
@@ -63,6 +64,7 @@ describe('desktop shipped plugin bundles', () => {
     expect(bundles).toContain('dsh-cite-verify')
     expect(bundles).toContain('dsh-agent-skill')
     expect(bundles).toContain('@bushizhanghan/dsh-context-budget')
+    expect(bundles).toContain('dsh-domain-router')
     expect(bundles).toContain('dsh-zotero-local')
     expect(bundles).toContain('dsh-lit-harvest')
     expect(bundles).toContain('dsh-doc-router')

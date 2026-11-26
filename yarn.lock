@@ -19371,6 +19371,21 @@ __metadata:
   languageName: node
   linkType: hard
 
+"dsh-domain-router@workspace:*, dsh-domain-router@workspace:plugins/domain-router":
+  version: 0.0.0-use.local
+  resolution: "dsh-domain-router@workspace:plugins/domain-router"
+  dependencies:
+    "@deepseek-ai/cordis": "npm:4.0.5"
+    "@deepseek-ai/dsh-client-connection": "npm:0.2.1-rc.3"
+    "@deepseek-ai/dsh-tools": "npm:0.2.1-rc.3"
+    "@deepseek-ai/dsh-util-values": "npm:0.2.1-rc.3"
+    "@types/node": "npm:^22.20.0"
+    tsdown: "npm:0.22.2"
+    typescript: "npm:6.0.3"
+    vitest: "npm:4.1.8"
+  languageName: unknown
+  linkType: soft
+
 "dsh-kb-rag@file:../vendor/dsh-kb-rag/dsh-kb-rag-1.6.8-pm1.tgz::locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop":
   version: 1.6.8-pm1
   resolution: "dsh-kb-rag@file:../vendor/dsh-kb-rag/dsh-kb-rag-1.6.8-pm1.tgz#../vendor/dsh-kb-rag/dsh-kb-rag-1.6.8-pm1.tgz::hash=0e1151&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
@@ -19872,6 +19887,7 @@ __metadata:
     dsh-cognition-engine: "file:../vendor/dsh-cognition-engine/dsh-cognition-engine-0.14.0-pm2.tgz"
     dsh-community-market: "npm:0.1.0-dev.0"
     dsh-doc-router: "npm:0.6.3"
+    dsh-domain-router: "workspace:*"
     dsh-kb-rag: "file:../vendor/dsh-kb-rag/dsh-kb-rag-1.6.8-pm1.tgz"
     dsh-lit-harvest: "npm:0.1.2"
     dsh-lit-library: "npm:0.2.1"

@@ -309,7 +309,9 @@ try {
       }, { agent: { id: 'verify-kb' }, signal: new AbortController().signal }))
       const hits = Array.isArray(searched?.results) ? searched.results : []
       process.stdout.write(
-        `verify-agent-team: kb_search q=${query} mode=${process.env.VERIFY_KB_MODE ?? 'default'} hits=${hits.length} `
+        `verify-agent-team: kb_search q=${query} mode=${process.env.VERIFY_KB_MODE ?? 'default'} `
+          + `engineMode=${String(searched?.mode ?? searched?.mode_used ?? '?')} hits=${hits.length} `
+          + `note=${JSON.stringify(String(searched?.note ?? '').slice(0, 180))} `
           + `titles=${JSON.stringify(hits.slice(0, 3).map(hit => hit.title ?? hit.file ?? hit.source)).slice(0, 900)}\n`,
       )
       if (hits.length === 0) throw new Error(`kb_search returned no hits for ${query}`)

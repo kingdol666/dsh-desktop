@@ -1,0 +1,8 @@
+# dsh-domain-router bundle patch: one host-only plugin row.
+#
+# The Literature page lives in the desktop-owned client. This plugin owns the
+# domain registry, classifier, active-domain state, memory wrappers, and the
+# authenticated /api/pm-domain/* routes.
+- insert:
+    - id: domain-router
+      name: dsh-domain-router
