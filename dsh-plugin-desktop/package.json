@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-desktop",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "description": "PolyMechanism Studio: an AI research desktop composed as a DeepSeek Harness Cordis plugin (forked from DSH Desktop)",
   "desktopName": "dsh-desktop.desktop",
   "license": "MIT",

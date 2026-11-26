@@ -322,6 +322,35 @@ try {
     await tools.get('cognition_forget').execute({ id: wsStored.stored.id }, wsExec)
     process.stdout.write(`verify-agent-team: cognition workspace isolation ok id=${wsStored.stored.id}\n`)
   }
+  if (process.env.VERIFY_DOMAIN_WORKSPACE) {
+    const exec = {
+      agent: { id: 'verify-domain-kb', session: { header: { cwd: process.env.VERIFY_DOMAIN_WORKSPACE } } },
+      signal: new AbortController().signal,
+    }
+    const search = parseToolResult(await tools.get('kb_search').execute({
+      query: 'polyvinyl alcohol crystallinity orientation',
+      domain: 'pva-optical-film',
+      top_k: 5,
+    }, exec))
+    const hits = Array.isArray(search?.results) ? search.results : []
+    if (hits.length === 0) throw new Error(`domain kb_search returned no hits: ${JSON.stringify(search).slice(0, 500)}`)
+    if (!hits.every(hit => hit.domain === 'pva-optical-film')) {
+      throw new Error(`domain kb_search leaked another domain: ${JSON.stringify(hits.map(hit => hit.domain))}`)
+    }
+    const cross = parseToolResult(await tools.get('kb_search').execute({
+      query: 'GIWAXS grazing incidence scattering',
+      domain: 'pva-optical-film',
+      crossDomain: true,
+      top_k: 5,
+    }, exec))
+    const crossHits = Array.isArray(cross?.results) ? cross.results : []
+    if (!crossHits.some(hit => hit.domain === 'waxs-methods')) {
+      throw new Error(`crossDomain search did not reach related waxs-methods: ${JSON.stringify(crossHits.map(hit => hit.domain))}`)
+    }
+    process.stdout.write(
+      `verify-agent-team: domain KB isolation ok hits=${hits.length} crossHits=${crossHits.length}\n`,
+    )
+  }
   if (process.env.VERIFY_ZOTERO_DB) {
     const zotero = tools.get('kb_zotero')
     if (zotero === undefined) throw new Error('kb_zotero did not register')

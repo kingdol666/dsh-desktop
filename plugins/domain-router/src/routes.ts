@@ -62,7 +62,9 @@ function workspaceOf(request: Request): string | undefined {
 }
 
 function queryNumber(url: URL, name: string, fallback: number, max: number): number {
-  const raw = Number(url.searchParams.get(name) ?? '')
+  const value = url.searchParams.get(name)
+  if (value === null || value.trim() === '') return fallback
+  const raw = Number(value)
   return Number.isFinite(raw) ? Math.max(0, Math.min(max, Math.trunc(raw))) : fallback
 }
 
