@@ -408,6 +408,7 @@ try {
     'data-analysis',
     'python-env',
     'doc-routing',
+    'domain-routing',
   ]
   const skillsDeadline = Date.now() + 15_000
   let skillNames = []

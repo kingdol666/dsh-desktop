@@ -22,6 +22,10 @@ export const PM_SKILL_NAMES: readonly string[] = Object.freeze([
   'scientific-review',
   'research-project-management',
   'waxs-pro-processing',
+  'data-analysis',
+  'kb-grounded-answer',
+  'polymer-chief-route',
+  'domain-routing',
 ])
 
 /** Repo skills directory, resolved from this module so both dev and packaged hosts find it. */

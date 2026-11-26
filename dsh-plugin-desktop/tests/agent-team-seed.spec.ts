@@ -83,6 +83,11 @@ const TOOLS = [
   'pyenv_uninstall',
   'pyenv_remove',
   'ask_advisor',
+  'domain_list',
+  'domain_route',
+  'domain_scope',
+  'domain_remember',
+  'domain_recall',
   'cognition_context',
   'cognition_recall',
   'cognition_remember',
@@ -111,6 +116,7 @@ const SKILLS = [
   'data-analysis',
   'python-env',
   'doc-routing',
+  'domain-routing',
 ]
 
 function quietLogger(): {
@@ -218,7 +224,7 @@ describe('seedAgentTeam', () => {
     expect(after.agents[0].description).toBe('my edited physicist')
   })
 
-  it('extends a pristine 2.3.0 store with the 2.4.0 whitelist entries', async () => {
+  it('extends a pristine 2.3.0 store through 2.4.0 into 2.5.0 domain tools', async () => {
     const dir = home()
     await seedAgentTeam(dir, TOOLS, SKILLS)
     const file = join(dir, 'agent-skill', 'agents.json')
@@ -228,9 +234,11 @@ describe('seedAgentTeam', () => {
       'zotero_collections', 'zotero_search', 'zotero_browse', 'zotero_item', 'zotero_fulltext',
       'zotero_annotations', 'zotero_notes', 'zotero_download', 'zotero_export',
       'lit_search', 'lit_resolve_oa', 'lit_sufficiency', 'lit_harvest_run', 'doc_route', 'pdf_markdown',
+      'cognition_remember', 'domain_list', 'domain_route', 'domain_scope', 'domain_remember', 'domain_recall',
     ]
     literature.tools = literature.tools.filter((tool: string) => !addedTools.includes(tool))
-    literature.skills = literature.skills.filter((skill: string) => skill !== 'doc-routing')
+    literature.tools.push('cognition_context', 'cognition_recall')
+    literature.skills = literature.skills.filter((skill: string) => skill !== 'doc-routing' && skill !== 'domain-routing')
     writeFileSync(file, JSON.stringify(store, null, 2))
 
     const result = await seedAgentTeam(dir, TOOLS, SKILLS)
@@ -240,7 +248,32 @@ describe('seedAgentTeam', () => {
     expect(upgraded.tools).toContain('zotero_search')
     expect(upgraded.tools).toContain('lit_search')
     expect(upgraded.tools).toContain('doc_route')
+    expect(upgraded.tools).toContain('domain_route')
+    expect(upgraded.tools).toContain('domain_remember')
+    expect(upgraded.tools).not.toContain('cognition_context')
     expect(upgraded.skills).toContain('doc-routing')
+    expect(upgraded.skills).toContain('domain-routing')
+  })
+
+  it('migrates a pristine 2.4.0 store to 2.5.0 and removes raw cognition', async () => {
+    const dir = home()
+    await seedAgentTeam(dir, TOOLS, SKILLS)
+    const file = join(dir, 'agent-skill', 'agents.json')
+    const store = JSON.parse(readFileSync(file, 'utf8'))
+    const literature = store.agents.find((agent: { name: string }) => agent.name === 'literature')
+    literature.tools = literature.tools.filter((tool: string) => !tool.startsWith('domain_') && tool !== 'domain_route')
+    literature.tools.push('cognition_context', 'cognition_recall', 'cognition_remember')
+    literature.skills = literature.skills.filter((skill: string) => skill !== 'domain-routing')
+    writeFileSync(file, JSON.stringify(store, null, 2))
+
+    const result = await seedAgentTeam(dir, TOOLS, SKILLS)
+    expect(result.upgraded).toContain('literature')
+    const after = JSON.parse(readFileSync(file, 'utf8'))
+    const upgraded = after.agents.find((agent: { name: string }) => agent.name === 'literature')
+    expect(upgraded.tools).toContain('domain_route')
+    expect(upgraded.tools).toContain('domain_recall')
+    expect(upgraded.tools).not.toContain('cognition_recall')
+    expect(upgraded.skills).toContain('domain-routing')
   })
 
   it('does not upgrade a customized whitelist', async () => {

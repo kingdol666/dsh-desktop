@@ -10,6 +10,7 @@ metadata:
 # 文献工作流
 
 ## 流程
+0. **领域与资料分层**：先 `domain_route` + `domain_scope`；`kb_search`/`kb_rag`/`kb_ingest` 带 domain；文献结论默认 `kind=pdf`；内部报告/手记在独立 `.kb-notes`，不得当论文引用；跨域只在 `crossDomain=true` 时查 `relatedDomains`，结果标明 domain。
 1. **在线检索**：`pm_literature_search`（OpenAlex/Crossref + 高分子预筛，结果自带 rubric 分与理由）；本地库检索用 `kb_search`（quick/deep，英文库用英文术语串）、综合回答用 `kb_rag`（按证据带标题/年份/DOI 引用）、文献索引再用 `lit_find` 交叉核对。论文下载成功后 `pm_literature_download` 会返回 `data.kbIngest`；若 `kbIngest.ok` 不是 true，用 `kb_ingest` 对下载路径补入库，并用 `kb_stats` 核对。
 2. **两阶段筛选**：
    - 第一级（工具）：`pm_literature_search`/`pm_literature_screen` 的 rubric 分（core≥70 / important≥45 / reference）只做**预筛排序**，不等于采纳。
@@ -34,3 +35,5 @@ metadata:
 - [ ] 综述结论不直接当一手数据引用
 - [ ] 终审三分法（accept/review/reject）覆盖了所有 core/important 候选，reject 有理由
 - [ ] 工具预筛分与终审结论的分歧已记录
+- [ ] 检索带 domain，文献结论默认 kind=pdf；内部报告/手记未当论文引用
+- [ ] 跨域结果标明 related domain，未冒充主域事实

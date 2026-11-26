@@ -102,6 +102,14 @@
                 skill for routing and the JSON output contract. The child runs
                 under that expert's own polymer preset. Do not do another
                 expert's specialty work yourself.
+
+                Domain protocol (all polymer experts): before any retrieval or
+                literature/memory work, call domain_route and domain_scope; pass
+                the active domain to kb_search / kb_rag / kb_ingest / zotero_* /
+                lit_* calls; literature evidence defaults to kind=pdf; cross-domain
+                retrieval only with crossDomain=true and relatedDomains; domain
+                memory uses domain_remember / domain_recall with the project tag;
+                raw cognition_remember / cognition_recall is forbidden for experts.
           - id: agent-instructions
             name: '@deepseek-ai/dsh-agent-instructions'
             config:
@@ -260,6 +268,14 @@
                 skill for routing and the JSON output contract. The child runs
                 under that expert's own polymer preset. Do not do another
                 expert's specialty work yourself.
+
+                Domain protocol (all polymer experts): before any retrieval or
+                literature/memory work, call domain_route and domain_scope; pass
+                the active domain to kb_search / kb_rag / kb_ingest / zotero_* /
+                lit_* calls; literature evidence defaults to kind=pdf; cross-domain
+                retrieval only with crossDomain=true and relatedDomains; domain
+                memory uses domain_remember / domain_recall with the project tag;
+                raw cognition_remember / cognition_recall is forbidden for experts.
           - id: agent-instructions
             name: '@deepseek-ai/dsh-agent-instructions'
             config:
@@ -414,6 +430,14 @@
                 skill for routing and the JSON output contract. The child runs
                 under that expert's own polymer preset. Do not do another
                 expert's specialty work yourself.
+
+                Domain protocol (all polymer experts): before any retrieval or
+                literature/memory work, call domain_route and domain_scope; pass
+                the active domain to kb_search / kb_rag / kb_ingest / zotero_* /
+                lit_* calls; literature evidence defaults to kind=pdf; cross-domain
+                retrieval only with crossDomain=true and relatedDomains; domain
+                memory uses domain_remember / domain_recall with the project tag;
+                raw cognition_remember / cognition_recall is forbidden for experts.
           - id: agent-instructions
             name: '@deepseek-ai/dsh-agent-instructions'
             config:
@@ -571,6 +595,14 @@
                 skill for routing and the JSON output contract. The child runs
                 under that expert's own polymer preset. Do not do another
                 expert's specialty work yourself.
+
+                Domain protocol (all polymer experts): before any retrieval or
+                literature/memory work, call domain_route and domain_scope; pass
+                the active domain to kb_search / kb_rag / kb_ingest / zotero_* /
+                lit_* calls; literature evidence defaults to kind=pdf; cross-domain
+                retrieval only with crossDomain=true and relatedDomains; domain
+                memory uses domain_remember / domain_recall with the project tag;
+                raw cognition_remember / cognition_recall is forbidden for experts.
           - id: agent-instructions
             name: '@deepseek-ai/dsh-agent-instructions'
             config:
@@ -726,6 +758,14 @@
                 skill for routing and the JSON output contract. The child runs
                 under that expert's own polymer preset. Do not do another
                 expert's specialty work yourself.
+
+                Domain protocol (all polymer experts): before any retrieval or
+                literature/memory work, call domain_route and domain_scope; pass
+                the active domain to kb_search / kb_rag / kb_ingest / zotero_* /
+                lit_* calls; literature evidence defaults to kind=pdf; cross-domain
+                retrieval only with crossDomain=true and relatedDomains; domain
+                memory uses domain_remember / domain_recall with the project tag;
+                raw cognition_remember / cognition_recall is forbidden for experts.
           - id: agent-instructions
             name: '@deepseek-ai/dsh-agent-instructions'
             config:
@@ -879,6 +919,14 @@
                 skill for routing and the JSON output contract. The child runs
                 under that expert's own polymer preset. Do not do another
                 expert's specialty work yourself.
+
+                Domain protocol (all polymer experts): before any retrieval or
+                literature/memory work, call domain_route and domain_scope; pass
+                the active domain to kb_search / kb_rag / kb_ingest / zotero_* /
+                lit_* calls; literature evidence defaults to kind=pdf; cross-domain
+                retrieval only with crossDomain=true and relatedDomains; domain
+                memory uses domain_remember / domain_recall with the project tag;
+                raw cognition_remember / cognition_recall is forbidden for experts.
           - id: agent-instructions
             name: '@deepseek-ai/dsh-agent-instructions'
             config:

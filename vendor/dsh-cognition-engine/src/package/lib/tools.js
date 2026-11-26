@@ -6,6 +6,8 @@
  *
  * 所有工具都是纯函数式定义，状态全部来自 deps，不持有任何自己的状态。
  */
+import { createHash } from "node:crypto";
+import { resolve } from "node:path";
 import { TemporalMemoryStore } from "./memory.js";
 import { buildCoreDigest } from "./views.js";
 import { ProactiveGate } from "./proactive.js";
@@ -14,6 +16,14 @@ import { completionNeedsEvidence } from "./task_manager.js";
 import { inspectRequirement } from "./ambiguity.js";
 import { memoryConfidence } from "./views.js";
 import { asRecord, optionalString, pick, requireString, textOutput, parseMoment } from "./util.js";
+
+/** Stable workspace id for scope=workspace (derived from the session cwd). */
+function workspaceIdFromExec(exec) {
+    const cwd = exec?.agent?.session?.header?.cwd;
+    if (typeof cwd !== "string" || cwd.trim() === "")
+        return undefined;
+    return createHash("sha256").update(resolve(cwd)).digest("hex").slice(0, 16);
+}
 export function createTools(deps) {
     const { memory, topics, refreshEvidence, playbookRate, gapRecorder, taskManager, proactive, reflection, touch, tasksReady, config, currentReflectionMode, distillPlaybook } = deps;
     const remember = {
@@ -45,6 +55,10 @@ export function createTools(deps) {
                     enum: ['global', 'workspace', 'session'],
                     description: '作用域，默认 global；session 自动绑定当前会话。',
                 },
+                workspaceId: {
+                    type: 'string',
+                    description: '工作区 id（内部；缺省由会话 cwd 派生）。scope=workspace 时用于隔离。',
+                },
             },
         },
         output: textOutput,
@@ -52,6 +66,7 @@ export function createTools(deps) {
             const input = asRecord(args);
             const text = requireString(input, 'text');
             const scopeValue = (optionalString(input, 'scope') ?? 'global');
+            const workspaceId = optionalString(input, 'workspaceId') ?? workspaceIdFromExec(exec);
             const agentId = exec?.agent?.id;
             const kind = optionalString(input, 'kind') ?? 'fact';
             const isCorrection = kind === 'correction';
@@ -73,6 +88,7 @@ export function createTools(deps) {
                 ...(mergedTags.length > 0 ? { tags: mergedTags } : {}),
                 importance: isCorrection ? Math.max(0.85, rawImportance ?? 0) : rawImportance,
                 scope: scopeValue,
+                ...(workspaceId === undefined ? {} : { workspaceId }),
                 ...(scopeValue === 'session' && agentId !== undefined ? { sessionId: agentId } : {}),
             });
             // 重建多级图式层次（CAM 的 run_hierarchy）；图很小，成本可忽略
@@ -141,6 +157,10 @@ export function createTools(deps) {
                     enum: ['all', 'global', 'workspace', 'session'],
                     description: '作用域，默认 all。',
                 },
+                workspaceId: {
+                    type: 'string',
+                    description: '工作区 id（内部；缺省由会话 cwd 派生）。scope=workspace 时用于隔离。',
+                },
             },
         },
         output: textOutput,
@@ -152,12 +172,14 @@ export function createTools(deps) {
                 throw new Error('mode 只能是 strict / historical / belief / associative');
             }
             const agentId = exec?.agent?.id;
+            const workspaceId = optionalString(input, 'workspaceId') ?? workspaceIdFromExec(exec);
             const options = {
                 mode: rawMode,
                 ...pick(input, ['limit', 'subject', 'tags', 'inlineChars', 'scope']),
                 ...(parseMoment(input.validTime) === undefined ? {} : { validTime: parseMoment(input.validTime) }),
                 ...(parseMoment(input.recordedTime) === undefined ? {} : { recordedTime: parseMoment(input.recordedTime) }),
                 ...(agentId === undefined ? {} : { sessionId: agentId }),
+                ...(workspaceId === undefined ? {} : { workspaceId }),
             };
             // S8 检索度量：记下这次召回（render 分支也一样要记，否则少一半样本）
             const logRecall = (rows, rendered) => {
