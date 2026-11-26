@@ -40,6 +40,24 @@ const HOME = mkdtempSync(join(tmpdir(), 'dsh-desktop-agent-team-'))
 process.env.DSH_HOME = HOME
 const WORKSPACE = join(HOME, 'agent-team-workspace')
 mkdirSync(WORKSPACE, { recursive: true })
+// Domain isolation smoke: the temp workspace has one test domain whose KB is
+// the workspace .kb. Active state lets pm_kb_note / kb_search resolve without
+// an explicit domain while the real 2.5.0 strict path is exercised.
+mkdirSync(join(WORKSPACE, 'domains', 'test'), { recursive: true })
+writeFileSync(join(WORKSPACE, 'domains', 'test', 'domain.json'), JSON.stringify({
+  id: 'test',
+  name: 'Verification domain',
+  kbRoot: '.kb',
+  allowedKinds: ['pdf', 'txt', 'md'],
+  defaultKind: 'all',
+  relatedDomains: [],
+}), 'utf8')
+mkdirSync(join(WORKSPACE, '.pm-domain'), { recursive: true })
+writeFileSync(join(WORKSPACE, '.pm-domain', 'state.json'), JSON.stringify({
+  schemaVersion: 1,
+  domain: 'test',
+  updatedAt: new Date().toISOString(),
+}), 'utf8')
 process.chdir(WORKSPACE)
 const realUserInfo = os.userInfo.bind(os)
 os.userInfo = options => ({ ...realUserInfo(options), homedir: HOME })
@@ -203,6 +221,20 @@ try {
   }
   const delegate = tools.get('delegate_agent')
   process.stdout.write(`verify-agent-team: global tools ${tools.schemas().length}\n`)
+  const emptyWorkspace = join(HOME, 'empty-domain-workspace')
+  mkdirSync(emptyWorkspace, { recursive: true })
+  const strictRaw = await tools.get('kb_search').execute(
+    { query: 'PVA' },
+    {
+      agent: { id: 'verify-strict-domain', session: { header: { cwd: emptyWorkspace } } },
+      signal: new AbortController().signal,
+    },
+  )
+  const strictResult = typeof strictRaw === 'string' ? JSON.parse(strictRaw) : strictRaw
+  if (strictResult?.error?.code !== 'DOMAIN_REQUIRED') {
+    throw new Error(`strict domain rejection failed: ${JSON.stringify(strictResult).slice(0, 500)}`)
+  }
+  process.stdout.write('verify-agent-team: strict DOMAIN_REQUIRED rejection ok\n')
   if (process.env.VERIFY_CTX_BUDGET_DIR) {
     const exec = { agent: { id: 'verify-ctx-budget' }, signal: new AbortController().signal }
     const budget = await tools.get('ctx_budget').execute({ dir: process.env.VERIFY_CTX_BUDGET_DIR }, exec)
@@ -247,6 +279,76 @@ try {
     process.stdout.write(
       `verify-agent-team: cognition remember/recall/forget ok id=${stored.stored.id} `
         + `hits=${recalled.hits.length} removed=${String(forgot?.removed ?? '?')}\n`,
+    )
+    const otherWorkspace = join(WORKSPACE, 'other-cognition-workspace')
+    mkdirSync(otherWorkspace, { recursive: true })
+    const wsMarker = `verify-workspace-memory-${Date.now().toString(36)}`
+    const wsExec = {
+      agent: { id: 'verify-cognition-ws', session: { header: { cwd: WORKSPACE } } },
+      signal: new AbortController().signal,
+    }
+    const otherExec = {
+      agent: { id: 'verify-cognition-other', session: { header: { cwd: otherWorkspace } } },
+      signal: new AbortController().signal,
+    }
+    const wsStored = parseToolResult(await tools.get('cognition_remember').execute({
+      text: `${wsMarker}：PVA 域内规则只在该工作区可见。`,
+      subject: wsMarker,
+      tags: ['verify-ws'],
+      source: 'test',
+      scope: 'workspace',
+    }, wsExec))
+    if (typeof wsStored?.stored?.id !== 'string') {
+      throw new Error(`workspace cognition_remember failed: ${JSON.stringify(wsStored).slice(0, 400)}`)
+    }
+    const wsRecalled = parseToolResult(await tools.get('cognition_recall').execute({
+      query: wsMarker,
+      tags: ['verify-ws'],
+      limit: 5,
+      scope: 'workspace',
+    }, wsExec))
+    if (!Array.isArray(wsRecalled?.hits) || !wsRecalled.hits.some(hit => String(hit.content).includes(wsMarker))) {
+      throw new Error(`workspace cognition_recall missed the memory: ${JSON.stringify(wsRecalled).slice(0, 400)}`)
+    }
+    const otherRecalled = parseToolResult(await tools.get('cognition_recall').execute({
+      query: wsMarker,
+      tags: ['verify-ws'],
+      limit: 5,
+      scope: 'workspace',
+    }, otherExec))
+    if (Array.isArray(otherRecalled?.hits) && otherRecalled.hits.some(hit => String(hit.content).includes(wsMarker))) {
+      throw new Error(`workspace cognition leaked into another workspace: ${JSON.stringify(otherRecalled).slice(0, 400)}`)
+    }
+    await tools.get('cognition_forget').execute({ id: wsStored.stored.id }, wsExec)
+    process.stdout.write(`verify-agent-team: cognition workspace isolation ok id=${wsStored.stored.id}\n`)
+  }
+  if (process.env.VERIFY_DOMAIN_WORKSPACE) {
+    const exec = {
+      agent: { id: 'verify-domain-kb', session: { header: { cwd: process.env.VERIFY_DOMAIN_WORKSPACE } } },
+      signal: new AbortController().signal,
+    }
+    const search = parseToolResult(await tools.get('kb_search').execute({
+      query: 'polyvinyl alcohol crystallinity orientation',
+      domain: 'pva-optical-film',
+      top_k: 5,
+    }, exec))
+    const hits = Array.isArray(search?.results) ? search.results : []
+    if (hits.length === 0) throw new Error(`domain kb_search returned no hits: ${JSON.stringify(search).slice(0, 500)}`)
+    if (!hits.every(hit => hit.domain === 'pva-optical-film')) {
+      throw new Error(`domain kb_search leaked another domain: ${JSON.stringify(hits.map(hit => hit.domain))}`)
+    }
+    const cross = parseToolResult(await tools.get('kb_search').execute({
+      query: 'GIWAXS grazing incidence scattering',
+      domain: 'pva-optical-film',
+      crossDomain: true,
+      top_k: 5,
+    }, exec))
+    const crossHits = Array.isArray(cross?.results) ? cross.results : []
+    if (!crossHits.some(hit => hit.domain === 'waxs-methods')) {
+      throw new Error(`crossDomain search did not reach related waxs-methods: ${JSON.stringify(crossHits.map(hit => hit.domain))}`)
+    }
+    process.stdout.write(
+      `verify-agent-team: domain KB isolation ok hits=${hits.length} crossHits=${crossHits.length}\n`,
     )
   }
   if (process.env.VERIFY_ZOTERO_DB) {
@@ -309,7 +411,9 @@ try {
       }, { agent: { id: 'verify-kb' }, signal: new AbortController().signal }))
       const hits = Array.isArray(searched?.results) ? searched.results : []
       process.stdout.write(
-        `verify-agent-team: kb_search q=${query} mode=${process.env.VERIFY_KB_MODE ?? 'default'} hits=${hits.length} `
+        `verify-agent-team: kb_search q=${query} mode=${process.env.VERIFY_KB_MODE ?? 'default'} `
+          + `engineMode=${String(searched?.mode ?? searched?.mode_used ?? '?')} hits=${hits.length} `
+          + `note=${JSON.stringify(String(searched?.note ?? '').slice(0, 180))} `
           + `titles=${JSON.stringify(hits.slice(0, 3).map(hit => hit.title ?? hit.file ?? hit.source)).slice(0, 900)}\n`,
       )
       if (hits.length === 0) throw new Error(`kb_search returned no hits for ${query}`)
@@ -453,16 +557,16 @@ try {
     }
     return String(outcome.error?.message ?? outcome.error?.code ?? 'denied')
   }
-  requireTool('literature', ['kb_search', 'kb_rag', 'pm_kb_note', 'zotero_search', 'lit_search', 'doc_route'])
-  forbidTool('literature', ['pm_sim_flory_huggins', 'pm_sim_md_run', 'delegate_agent', 'write', 'zotero_note', 'zotero_highlight'])
-  requireTool('reviewer', ['pm_gate_check', 'pm_evidence_verify', 'kb_search', 'ask_advisor'])
-  forbidTool('reviewer', ['write', 'pm_hypothesis_transition', 'delegate_agent', 'pm_sim_md_run', 'zotero_note'])
-  requireTool('characterization', ['pm_waxs_pro', 'pm_evidence_record', 'pyenv_discover', 'cognition_remember'])
-  forbidTool('characterization', ['pm_sim_md_run', 'delegate_agent'])
-  requireTool('physicist', ['pm_hypothesis_propose', 'pm_sim_flory_huggins', 'cognition_remember'])
-  forbidTool('physicist', ['delegate_agent', 'write'])
-  requireTool('modeler', ['pm_sim_flory_huggins', 'pm_sim_md_run', 'pyenv_create'])
-  forbidTool('modeler', ['delegate_agent'])
+  requireTool('literature', ['kb_search', 'kb_rag', 'pm_kb_note', 'zotero_search', 'lit_search', 'doc_route', 'domain_route', 'domain_scope', 'domain_recall', 'domain_remember'])
+  forbidTool('literature', ['pm_sim_flory_huggins', 'pm_sim_md_run', 'delegate_agent', 'write', 'zotero_note', 'zotero_highlight', 'cognition_context', 'cognition_recall', 'cognition_remember'])
+  requireTool('reviewer', ['pm_gate_check', 'pm_evidence_verify', 'kb_search', 'ask_advisor', 'domain_route', 'domain_scope', 'domain_recall'])
+  forbidTool('reviewer', ['write', 'pm_hypothesis_transition', 'delegate_agent', 'pm_sim_md_run', 'zotero_note', 'domain_remember', 'cognition_context', 'cognition_recall', 'cognition_remember'])
+  requireTool('characterization', ['pm_waxs_pro', 'pm_evidence_record', 'pyenv_discover', 'domain_route', 'domain_remember'])
+  forbidTool('characterization', ['pm_sim_md_run', 'delegate_agent', 'cognition_context', 'cognition_recall', 'cognition_remember'])
+  requireTool('physicist', ['pm_hypothesis_propose', 'pm_sim_flory_huggins', 'domain_route', 'domain_remember'])
+  forbidTool('physicist', ['delegate_agent', 'write', 'cognition_context', 'cognition_recall', 'cognition_remember'])
+  requireTool('modeler', ['pm_sim_flory_huggins', 'pm_sim_md_run', 'pyenv_create', 'domain_route', 'domain_remember'])
+  forbidTool('modeler', ['delegate_agent', 'cognition_context', 'cognition_recall', 'cognition_remember'])
   const forbidden = [
     await expectDenied('literature', 'pm_sim_flory_huggins'),
     await expectDenied('reviewer', 'pm_hypothesis_transition'),

@@ -375,6 +375,11 @@ try {
     'doc_route',
     'pdf_markdown',
     'ask_advisor',
+    'domain_list',
+    'domain_route',
+    'domain_scope',
+    'domain_remember',
+    'domain_recall',
   ]
   let toolSet = globalTools()
   const deadlineShippedTools = Date.now() + 20_000
@@ -403,6 +408,7 @@ try {
     'data-analysis',
     'python-env',
     'doc-routing',
+    'domain-routing',
   ]
   const skillsDeadline = Date.now() + 15_000
   let skillNames = []

@@ -4,8 +4,8 @@
 import { defineTool } from "@deepseek-ai/dsh-tools";
 import { fileURLToPath } from "node:url";
 import os from "node:os";
-import { join as joinPath, extname } from "node:path";
-import { readdirSync } from "node:fs";
+import { join as joinPath, extname, isAbsolute, relative, resolve as resolvePath } from "node:path";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { guidedDescription, resultNotes, makeThrottle, policyInventory } from "./guidance.js";
 
 const name = "kb-rag";
@@ -726,6 +726,120 @@ function apply(ctx) {
 
 
   const kbRootOf = (args, exec) => typeof args.kb_root === "string" && args.kb_root.length > 0 ? args.kb_root : workspaceOf(exec) + "/.kb";
+
+  // ── 领域注册表（工作区 domains/ + $DSH_HOME/domains 回退）────────────────────
+  // 为什么在 kb-rag 里再读一遍：MCP/CLI/直接引擎调用不会经过 domain-router，
+  // 严格模式必须在检索入口自己解析 domain，不能只靠上层 prompt。
+  function domainHomeDir() {
+    const env = process.env.DSH_HOME;
+    return env && env.trim() ? resolvePath(env.trim()) : joinPath(os.homedir(), ".pmstudio");
+  }
+
+  function readJsonFile(file) {
+    try { return JSON.parse(readFileSync(file, "utf8").replace(/^\uFEFF/u, "")); } catch (e) { return undefined; }
+  }
+
+  function safeDomainRoot(workspace, raw) {
+    if (typeof raw !== "string" || raw.trim() === "" || isAbsolute(raw)) return undefined;
+    const resolved = resolvePath(workspace, raw);
+    const rel = relative(workspace, resolved);
+    if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) return undefined;
+    return resolved;
+  }
+
+  function readDomainLayer(root, workspace) {
+    const map = new Map();
+    if (!existsSync(root)) return map;
+    let entries = [];
+    try { entries = readdirSync(root, { withFileTypes: true }); } catch (e) { return map; }
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const file = joinPath(root, entry.name, "domain.json");
+      if (!existsSync(file)) continue;
+      const raw = readJsonFile(file);
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+      const id = typeof raw.id === "string" && raw.id.trim() ? raw.id.trim() : entry.name;
+      if (!/^[a-z0-9][a-z0-9-]{1,63}$/u.test(id)) continue;
+      const kbRoot = safeDomainRoot(workspace, raw.kbRoot);
+      if (kbRoot === undefined) continue;
+      const notesRoot = raw.notesRoot === undefined ? undefined : safeDomainRoot(workspace, raw.notesRoot);
+      const allowedKinds = Array.isArray(raw.allowedKinds)
+        ? raw.allowedKinds.filter(kind => typeof kind === "string" && kind !== "")
+        : ["pdf"];
+      map.set(id, {
+        id,
+        name: typeof raw.name === "string" ? raw.name : id,
+        kbRoot,
+        ...(notesRoot === undefined ? {} : { notesRoot }),
+        allowedKinds: allowedKinds.length > 0 ? allowedKinds : ["pdf"],
+        defaultKind: typeof raw.defaultKind === "string" ? raw.defaultKind : (allowedKinds[0] || "pdf"),
+        relatedDomains: Array.isArray(raw.relatedDomains)
+          ? raw.relatedDomains.filter(item => typeof item === "string" && item !== "")
+          : [],
+      });
+    }
+    return map;
+  }
+
+  function loadDomainRegistry(workspace) {
+    const merged = readDomainLayer(joinPath(domainHomeDir(), "domains"), workspace);
+    const local = readDomainLayer(joinPath(workspace, "domains"), workspace);
+    for (const [id, value] of local) merged.set(id, value);
+    return merged;
+  }
+
+  function readActiveDomainState(workspace) {
+    const raw = readJsonFile(joinPath(workspace, ".pm-domain", "state.json"));
+    return raw && typeof raw === "object" && typeof raw.domain === "string" && raw.domain.trim()
+      ? raw.domain.trim()
+      : undefined;
+  }
+
+  function resolveDomainContext(args, exec) {
+    const workspace = workspaceOf(exec);
+    const explicit = typeof args.domain === "string" && args.domain.trim() ? args.domain.trim() : undefined;
+    const registry = loadDomainRegistry(workspace);
+    const domainId = explicit || readActiveDomainState(workspace);
+    if (domainId === undefined) {
+      if (typeof args.kb_root === "string" && args.kb_root.length > 0) {
+        return { ok: true, workspace, root: args.kb_root, domain: undefined, config: undefined };
+      }
+      return { ok: false, code: "DOMAIN_REQUIRED", message: "缺少 domain 或 kb_root；先用 domain_route + domain_scope 选择领域", available: [...registry.keys()] };
+    }
+    const config = registry.get(domainId);
+    if (config === undefined) {
+      return { ok: false, code: "DOMAIN_NOT_FOUND", message: "领域不存在: " + domainId, available: [...registry.keys()] };
+    }
+    const root = typeof args.kb_root === "string" && args.kb_root.length > 0 ? args.kb_root : config.kbRoot;
+    return { ok: true, workspace, root, domain: domainId, config };
+  }
+
+  function effectiveFilters(args, context) {
+    const filters = Object.assign({}, args.filters && typeof args.filters === "object" ? args.filters : {});
+    if (context.domain !== undefined && context.config !== undefined) {
+      if (args.crossDomain === true) {
+        filters.domain = context.domain;
+        filters.domains = [context.domain]
+          .concat(context.config.relatedDomains || [])
+          .filter((value, index, array) => array.indexOf(value) === index);
+      } else if (filters.domain === undefined && filters.domains === undefined) {
+        filters.domain = context.domain;
+      }
+      if (filters.kind === "all") delete filters.kind;
+      else if (filters.kind === undefined && context.config.defaultKind && context.config.defaultKind !== "all") {
+        filters.kind = context.config.defaultKind;
+      }
+    }
+    return filters;
+  }
+
+  function domainError(context) {
+    return JSON.stringify({ ok: false, error: {
+      code: context.code, message: context.message,
+      ...(Array.isArray(context.available) ? { available: context.available } : {}),
+      hint: "调 domain_list / domain_route / domain_scope 选择领域；迁移/测试可显式传 kb_root",
+    } });
+  }
 
   // 宿主对 output.schema = {type:"json"} 做无损序列化；对象里带 undefined 值会导致
   // 整个工具调用失败（"value is not lossless JSON"）。这里递归剔除 undefined，
@@ -1487,8 +1601,10 @@ function apply(ctx) {
       authors: { type: "string", description: "作者子串匹配（如 Zhang）。" },
       title: { type: "string", description: "标题子串匹配。" },
       journal: { type: "string", description: "期刊子串匹配。注意：期刊字段目前只由 Zotero 迁移填充（publicationTitle/journalAbbreviation）；用 kb_ingest 建起来的库里该字段为 NULL，用它过滤通常零命中——想限定来源请改用 authors/year/title。" },
-      kind: { type: "string", description: "文件类型：pdf/txt/md/docx。" },
+      kind: { type: "string", description: "文件类型：pdf/txt/md/docx；all=不过滤。" },
       section: { type: "string", description: "章节子串匹配（如 Methods、Results、方法）。" },
+      domain: { type: "string", description: "领域 id（精确匹配）；与 domains 二选一。" },
+      domains: { type: "array", items: { type: "string" }, description: "多个领域 id（关联域显式放行时用）。" },
       year: { oneOf: [{ type: "integer", description: "精确年份（如 2024）。" }, { type: "string", description: "年份比较式（如 \">=2020\"）。" }], description: "年份过滤。" },
     },
   };
@@ -1503,6 +1619,7 @@ function apply(ctx) {
       // 都不传时走默认收件箱（先问一次，问不了用默认）。
       paths: { type: "array", items: { type: "string" }, description: "要入库的文件或目录路径列表。省略时入默认收件箱 <DSH_HOME>/kb-rag/inbox，交互式会话会先问一次；rebuild=true 时也不需要它。" },
       kb_root: { type: "string", description: "知识库目录（默认：工作区下的 .kb）。" },
+      domain: { type: "string", description: "领域 id；省略时用 active domain；都没有时传 kb_root 作为兼容模式。" },
       force: { type: "boolean", description: "true 时强制重新解析并重新编码向量（默认 false）。" },
       metadata_only: { type: "boolean", description: "true 时只刷新元数据（重抽标题/作者/年份/期刊/DOI，秒级；不重切块、不重嵌入；内容已变的文件不动）。" },
       rebuild: { type: "boolean", description: "true 时原地重灌库内全部已入库文档（路径取自库内，可省略 paths）。大批量会自动转后台并返回 job_id。" },
@@ -1510,8 +1627,11 @@ function apply(ctx) {
     output: { schema: { type: "json" }, render: withNotes("kb_ingest", renderIngest), presentationMeta: ingestMeta },
     timeoutMs: 1800000,
     execute(args, exec) {
+      const context = resolveDomainContext(args, exec);
+      if (!context.ok) return domainError(context);
       const base = {
-        kb_root: kbRootOf(args, exec),
+        kb_root: context.root,
+        ...(context.domain === undefined ? {} : { domain: context.domain }),
         force: args.force === true,
         metadata_only: args.metadata_only === true,
         rebuild: args.rebuild === true,
@@ -1548,14 +1668,19 @@ function apply(ctx) {
       related: { type: "boolean", description: "true 时附带 related 关联文献列表（默认 quick 关 / deep 开，供补充建议引用）。" },
       strict: { type: "boolean", description: "严格模式：true 时答案仅基于本次检索结果，禁止补充库外知识/常识外延（默认继承 kb_scope 的 strict 设置）。" },
       kb_root: { type: "string", description: "知识库目录（默认：工作区下的 .kb）。" },
+      domain: { type: "string", description: "领域 id；省略时用 active domain。严格模式下没有 domain/kb_root 会拒绝检索。" },
+      crossDomain: { type: "boolean", description: "true 时把该领域的 relatedDomains 一并检索（显式放行）；结果带 domain 标签。" },
       probe: { type: "boolean", description: "true 时只做意图探针：快速召回 Top-5 的标题/作者/年份，不返回正文、不生成答案（约 0.3s）。用于“开放问题但用户没说要多深”时先看一眼库里有什么、再决定是否问用户；事实问题不要用它。" },
       filters: filterSchema,
     },
     output: { schema: { type: "json" }, render: withNotes("kb_search", renderSources), presentationMeta: sourcesMeta },
     presentCall: presentQueryCall,
     execute(args, exec) {
+      const context = resolveDomainContext(args, exec);
+      if (!context.ok) return domainError(context);
       const strict = args.strict === undefined ? stateOf(exec).strict : args.strict === true;
-      const root = kbRootOf(args, exec);
+      const root = context.root;
+      const filters = effectiveFilters(args, context);
       if (args.probe === true) {
         const probe = runEngine("search", {
           query: args.query,
@@ -1563,7 +1688,7 @@ function apply(ctx) {
           top_k: args.top_k === undefined ? PROBE_TOP_K : args.top_k,
           snippet: 40,
           mode: args.mode,
-          filters: args.filters,
+          filters,
           kb_root: root,
         }, exec).then(toProbe);
         return scopeWrapped(exec, probe, strict, root);
@@ -1576,7 +1701,7 @@ function apply(ctx) {
         mode: args.mode,
         rerank: args.rerank,
         related: args.related,
-        filters: args.filters,
+        filters,
         kb_root: root,
       }, exec);
       return scopeWrapped(exec, call, strict, root);
@@ -1594,6 +1719,8 @@ function apply(ctx) {
       related: { type: "boolean", description: "true 时附带 related 关联文献列表供补充建议引用（默认 quick 关 / deep 开）。" },
       strict: { type: "boolean", description: "严格模式：true 时仅基于 evidence 作答，禁止库外知识补充（默认继承 kb_scope 的 strict 设置）。" },
       kb_root: { type: "string", description: "知识库目录（默认：工作区下的 .kb）。" },
+      domain: { type: "string", description: "领域 id；省略时用 active domain。严格模式下没有 domain/kb_root 会拒绝检索。" },
+      crossDomain: { type: "boolean", description: "true 时把该领域的 relatedDomains 一并检索（显式放行）；结果带 domain 标签。" },
       probe: { type: "boolean", description: "true 时只做意图探针（走 search）：快速召回 Top-5 的标题/作者/年份，不返回证据正文、不生成答案（约 0.3s）。用于“开放问题但用户没说要多深”时先看一眼库里有什么；确认粒度后再用正常调用作答。" },
       filters: filterSchema,
       answer: answerSchema,
@@ -1601,8 +1728,11 @@ function apply(ctx) {
     output: { schema: { type: "json" }, render: withNotes("kb_rag", renderSources), presentationMeta: sourcesMeta },
     presentCall: presentQueryCall,
     execute(args, exec) {
+      const context = resolveDomainContext(args, exec);
+      if (!context.ok) return domainError(context);
       const strict = args.strict === undefined ? stateOf(exec).strict : args.strict === true;
-      const root = kbRootOf(args, exec);
+      const root = context.root;
+      const filters = effectiveFilters(args, context);
       if (args.probe === true) {
         const probe = runEngine("search", {
           query: args.query,
@@ -1610,7 +1740,7 @@ function apply(ctx) {
           top_k: args.top_k === undefined ? PROBE_TOP_K : args.top_k,
           snippet: 40,
           mode: "hybrid",
-          filters: args.filters,
+          filters,
           kb_root: root,
         }, exec).then(toProbe);
         return scopeWrapped(exec, probe, strict, root);
@@ -1627,7 +1757,7 @@ function apply(ctx) {
           top_k: args.top_k,
           rerank: args.rerank,
           related: args.related,
-          filters: args.filters,
+          filters,
           answer: applyFormatDefault(exec, args.answer),
           kb_root: root,
         }, exec);
@@ -1642,6 +1772,7 @@ function apply(ctx) {
     parameters: {
       zotero_db: { type: "string", description: "zotero.sqlite 显式路径（默认自动定位）。" },
       kb_root: { type: "string", description: "知识库目录（默认：工作区下的 .kb）。" },
+      domain: { type: "string", description: "领域 id；省略时用 active domain；都没有时传 kb_root 作为兼容模式。" },
       limit: { type: "integer", description: "迁移条数上限（默认全部）。" },
       force: { type: "boolean", description: "true 时强制重新解析已入库附件（默认 false）。" },
       dry_run: { type: "boolean", description: "true 时只列候选文献，不导入（默认 false）。" },
@@ -1649,9 +1780,12 @@ function apply(ctx) {
     output: { schema: { type: "json" }, render: withNotes("kb_zotero", renderIngest), presentationMeta: ingestMeta },
     timeoutMs: 1800000,
     execute(args, exec) {
+      const context = resolveDomainContext(args, exec);
+      if (!context.ok) return domainError(context);
       return runEngine("zotero", {
         zotero_db: args.zotero_db,
-        kb_root: kbRootOf(args, exec),
+        kb_root: context.root,
+        ...(context.domain === undefined ? {} : { domain: context.domain }),
         limit: args.limit,
         force: args.force === true,
         dry_run: args.dry_run === true,
@@ -1691,16 +1825,24 @@ function apply(ctx) {
       identifiers: { type: "array", required: true, items: { type: "string" }, description: "DOI 或 arXiv ID 列表（如 10.5555/12345679 或 arXiv:2401.00001）。" },
       target_dir: { type: "string", description: "下载目录（默认 ~/.kb-rag/downloads）；文件按 <来源>/<年份>/ 分层存放。" },
       ingest: { type: "boolean", description: "true 时下载完直接入库到知识库（等价于紧接着调一次 kb_ingest；增量入库按 sha256 自动跳过已入库文件，重复调用安全）。深挖模式里用它减少往返。" },
+      kb_root: { type: "string", description: "入库目录（ingest=true 时默认：工作区下的 .kb）。" },
+      domain: { type: "string", description: "领域 id；ingest=true 时省略则用 active domain。" },
     },
     output: { schema: { type: "json" }, render: renderFetch },
     timeoutMs: 300000,
     execute(args, exec) {
       askNetworkOnce(exec && exec.agent, exec);
       const network = { env: netEnv, proxy: { env: envProxyDetect() } };
+      let context = { ok: true, root: kbRootOf(args, exec), domain: undefined };
+      if (args.ingest === true) {
+        context = resolveDomainContext(args, exec);
+        if (!context.ok) return domainError(context);
+      }
       return runEngine("fetch", {
         identifiers: args.identifiers, target_dir: args.target_dir, network: network,
         // ingest=true：下载即入库（"深挖模式"里"找文献 → 入库 → 再查"少一次往返）
-        ingest: args.ingest === true, kb_root: kbRootOf(args, exec),
+        ingest: args.ingest === true, kb_root: context.root,
+        ...(context.domain === undefined ? {} : { domain: context.domain }),
       }, exec);
     },
   }));
@@ -1751,10 +1893,13 @@ function apply(ctx) {
     description: "查看知识库统计：文档数、分块数、向量数、最近入库列表及数据库位置。用于检查哪些文档已入库、索引状态；检索无命中时先调它确认库里有什么。",
     parameters: {
       kb_root: { type: "string", description: "知识库目录（默认：工作区下的 .kb）。" },
+      domain: { type: "string", description: "领域 id；省略时用 active domain；都没有时回退到工作区 .kb。" },
     },
     output: { schema: { type: "json" }, render: renderStats },
     execute(args, exec) {
-      return runEngine("stats", { kb_root: kbRootOf(args, exec) }, exec);
+      const context = resolveDomainContext(args, exec);
+      const root = context.ok ? context.root : kbRootOf(args, exec);
+      return runEngine("stats", { kb_root: root }, exec);
     },
   }));
 
@@ -1771,7 +1916,7 @@ function apply(ctx) {
     },
   }));
 
-  console.log("[kb-rag] static tools registered (v1.6.8): kb_ingest / kb_search / kb_rag / kb_zotero / kb_dedup / kb_clear / kb_fetch / kb_scope / kb_stats / kb_status");
+  console.log("[kb-rag] static tools registered (v1.6.8-pm2): kb_ingest / kb_search / kb_rag / kb_zotero / kb_dedup / kb_clear / kb_fetch / kb_scope / kb_stats / kb_status");
   }   // registerAllTools()
 
   registerAllTools();
@@ -1923,7 +2068,7 @@ function apply(ctx) {
     console.error("[kb-rag] commands 服务不可用：/kb 命令未注册（工具与检索不受影响）");
   }
 
-  console.log("[kb-rag] ready (v1.6.8): 10 tools + " + (commands === undefined ? "no /kb command" : "/kb command"));
+  console.log("[kb-rag] ready (v1.6.8-pm2): 10 tools + " + (commands === undefined ? "no /kb command" : "/kb command"));
 }
 
 export { apply, inject, name };

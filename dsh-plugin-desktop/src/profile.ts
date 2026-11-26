@@ -779,6 +779,7 @@ export const DESKTOP_SHIPPED_PLUGIN_BUNDLES: readonly string[] = Object.freeze([
   '@perrylink/dsh-research-core',
   'dsh-agent-skill',
   '@bushizhanghan/dsh-context-budget',
+  'dsh-domain-router',
   'dsh-doc-router',
   'dsh-python-env',
   'dsh-second-opinion',

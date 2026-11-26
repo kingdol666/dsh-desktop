@@ -28,6 +28,7 @@ import { installDesktopLaunchWorkspaceBridge } from './launch-workspace.ts'
 import { DESKTOP_SETTINGS_FORMS_SERVICE } from './settings-bridge.ts'
 import { installSidebarFooterStyles } from './sidebar-footer-styles.ts'
 import { applyPmStudio } from './pm-studio/index.ts'
+import { applyLiterature } from './literature/index.tsx'
 import { desktopWindowService, provideDesktopWindow } from './window-service.ts'
 
 export { applyAdvancedShell } from './advanced-shell.ts'
@@ -140,6 +141,7 @@ export function apply(ctx: ClientContext): void {
   )
   const desktopSettings = applyDesktopSettings(ctx, environment)
   applyPmStudio(ctx)
+  applyLiterature(ctx)
   registerPluginControls(ctx)
   registerDesktopOnboarding(ctx, (snapshot, locale, finish, renderNavigation) => createElement<{ embedded?: EmbeddedSetupWizard }>(SetupWizardApp, {
     embedded: { input: snapshot.input, locale, renderNavigation, finish: selection => finish(snapshot.profile, selection) },

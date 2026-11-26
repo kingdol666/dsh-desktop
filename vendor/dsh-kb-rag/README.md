@@ -9,7 +9,9 @@
 
 Static DSH plugin for a local literature knowledge base. It indexes PDFs, folders or a Zotero library into one SQLite file and gives the model ten tools for ingest, hybrid search, cited answers and HTML reports. Embedding and reranking run locally.
 
-> **Latest version 1.6.8.** Install with `dsh plugin --profile web add dsh-kb-rag@1.6.8`. A DSH profile is a pnpm workspace, so do not run `npm install` inside it; for a hand-managed deployment see [Option 3](#option-3--manual-npm-install).
+> **PolyMechanism patch 1.6.8-pm2** — adds `docs.domain` (schema v5), `domain`/`domains` filters, strict `DOMAIN_REQUIRED`, notes-KB support, and domain-aware stats. The upstream surface remains 10 tools.
+>
+> **Latest upstream version 1.6.8.** Install with `dsh plugin --profile web add dsh-kb-rag@1.6.8`. A DSH profile is a pnpm workspace, so do not run `npm install` inside it; for a hand-managed deployment see [Option 3](#option-3--manual-npm-install).
 
 This release fixes the DSH 0.2 install path (`peerDependencies` and the client injection list), the tool cards, and adds engine-rendered HTML answers with retrieval/render time in the footer.
 

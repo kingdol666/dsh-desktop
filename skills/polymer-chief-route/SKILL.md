@@ -80,13 +80,17 @@ metadata:
 
 1. **共享真相**：PM 证据账本（`pm_evidence_*`）、假设/机理图谱（`pm_hypothesis_*`、
    `pm_mechanism_*`）、知识库（`kb_search`/`kb_rag`）和 Zotero 原文（`zotero_fulltext`）
-   是唯一跨专家事实来源。brief 必须带 `evidenceIds`、DOI、数据文件路径。
-2. **经验记忆**：可复用的方法/准则用 `cognition_remember` 写入，tags 固定带
-   `project:<id>`、`expert:<name>`、`topic:<短主题>`；下次用 `cognition_recall`
-   按同一组 tags 召回。记忆只能帮助**找证据/避免重复踩坑**，不能替代证据 ID。
-3. **写入纪律**：`cognition_remember` 只写“可复用的判断规则/流程经验”，不写一次性
-   数值、不写未经验证的假设；评审专家只 recall，不 remember。
-4. **冲突**：记忆与账本冲突时以账本和原始数据为准，并把冲突交给 `reviewer`。
+   是唯一跨专家事实来源。brief 必须带 `domain`、`evidenceIds`、DOI、数据文件路径。
+2. **领域路由**：开始检索/文献/记忆前先 `domain_route` + `domain_scope`；KB/Zotero/lit
+   调用带 domain；文献结论默认 `kind=pdf`；跨域只在 `crossDomain=true` 时查
+   `relatedDomains`，并标明来源 domain。
+3. **经验记忆**：可复用的方法/准则用 `domain_remember` 写入（强制 workspace 作用域，
+   tags 带 `project:<id>`、`domain:<id>`、`workspace:<hash>`）；下次用 `domain_recall`
+   按同组 tags 召回。记忆只能帮助**找证据/避免重复踩坑**，不能替代证据 ID。
+4. **写入纪律**：`domain_remember` 只写“可复用的判断规则/流程经验”，不写一次性
+   数值、不写未经验证的假设；评审专家只 recall，不 remember；专家不得调用原始
+   `cognition_remember/recall`。
+5. **冲突**：记忆与账本冲突时以账本和原始数据为准，并把冲突交给 `reviewer`。
 
 ## 6. 禁止
 
@@ -94,4 +98,4 @@ metadata:
 - 协调者不得替专家做其专业细节（例如自己算峰、自己拟合），只做拆解、派活、汇总、报告。
 - 专家不得调用 `delegate_agent`；不得越权调用白名单外的工具。
 - 不得把“文献里大概有”当成 `kb_search` 命中；不得编造 DOI、页码或数值。
-- 不得把 `cognition_recall` 的记忆当成新证据；没有账本/原文支持就写 `gaps`。
+- 不得把 `domain_recall` 的记忆当成新证据；没有账本/原文支持就写 `gaps`。

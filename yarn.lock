@@ -18895,10 +18895,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"dsh-cognition-engine@file:../vendor/dsh-cognition-engine/dsh-cognition-engine-0.14.0-pm2.tgz::locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop":
-  version: 0.14.0
-  resolution: "dsh-cognition-engine@file:../vendor/dsh-cognition-engine/dsh-cognition-engine-0.14.0-pm2.tgz#../vendor/dsh-cognition-engine/dsh-cognition-engine-0.14.0-pm2.tgz::hash=f74515&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
-  checksum: 10c0/b27895c9cbcd35c4e077568fe9ca1e0f3afde6f793cdc32d024840641639e7871a1746cf74e6f7c92743095ea236846b4c91512cd6fb0240abb961c692858e57
+"dsh-cognition-engine@file:../vendor/dsh-cognition-engine/dsh-cognition-engine-0.14.0-pm3.tgz::locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop":
+  version: 0.14.0-pm3
+  resolution: "dsh-cognition-engine@file:../vendor/dsh-cognition-engine/dsh-cognition-engine-0.14.0-pm3.tgz#../vendor/dsh-cognition-engine/dsh-cognition-engine-0.14.0-pm3.tgz::hash=029f45&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
+  checksum: 10c0/5081f98b3c84455f4e9501074d6fcdb734da73413baabe0682cf829ce56f531e8e82427ce1a67de016b3aa40a0f82906c30b370fb278afe95fcfec7c9240372f
   languageName: node
   linkType: hard
 
@@ -19371,15 +19371,30 @@ __metadata:
   languageName: node
   linkType: hard
 
-"dsh-kb-rag@file:../vendor/dsh-kb-rag/dsh-kb-rag-1.6.8-pm1.tgz::locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop":
-  version: 1.6.8-pm1
-  resolution: "dsh-kb-rag@file:../vendor/dsh-kb-rag/dsh-kb-rag-1.6.8-pm1.tgz#../vendor/dsh-kb-rag/dsh-kb-rag-1.6.8-pm1.tgz::hash=0e1151&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
+"dsh-domain-router@workspace:*, dsh-domain-router@workspace:plugins/domain-router":
+  version: 0.0.0-use.local
+  resolution: "dsh-domain-router@workspace:plugins/domain-router"
+  dependencies:
+    "@deepseek-ai/cordis": "npm:4.0.5"
+    "@deepseek-ai/dsh-client-connection": "npm:0.2.1-rc.3"
+    "@deepseek-ai/dsh-tools": "npm:0.2.1-rc.3"
+    "@deepseek-ai/dsh-util-values": "npm:0.2.1-rc.3"
+    "@types/node": "npm:^22.20.0"
+    tsdown: "npm:0.22.2"
+    typescript: "npm:6.0.3"
+    vitest: "npm:4.1.8"
+  languageName: unknown
+  linkType: soft
+
+"dsh-kb-rag@file:../vendor/dsh-kb-rag/dsh-kb-rag-1.6.8-pm2.tgz::locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop":
+  version: 1.6.8-pm2
+  resolution: "dsh-kb-rag@file:../vendor/dsh-kb-rag/dsh-kb-rag-1.6.8-pm2.tgz#../vendor/dsh-kb-rag/dsh-kb-rag-1.6.8-pm2.tgz::hash=d3ccca&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
   peerDependencies:
     "@deepseek-ai/cordis": ^4.0.1
     "@deepseek-ai/dsh-tools": ">=0.2.0-rc.2 <0.3.0"
   bin:
     dsh-kb-rag-install: ./install.mjs
-  checksum: 10c0/8314e2b878ca7dd9b6d7a8d377126e75dfedb066c966a027941d77ea600006b9fc3aa4c820104cfc3c57c8871e7742ec3800026de0369d49ebd5520107472898
+  checksum: 10c0/ea5920730d374e0399a249a444bd180a99e13e643e5a6616f58a32389deb85b2a75a82c839bdde86a0381bc5257c5a7753d26f59ebf90d27fcdd5d97fc6654e2
   languageName: node
   linkType: hard
 
@@ -19869,10 +19884,11 @@ __metadata:
     clsx: "npm:^2.1.1"
     dsh-agent-skill: "file:../vendor/dsh-agent-skill/dsh-agent-skill-0.3.0-pm2.tgz"
     dsh-cite-verify: "npm:0.2.3"
-    dsh-cognition-engine: "file:../vendor/dsh-cognition-engine/dsh-cognition-engine-0.14.0-pm2.tgz"
+    dsh-cognition-engine: "file:../vendor/dsh-cognition-engine/dsh-cognition-engine-0.14.0-pm3.tgz"
     dsh-community-market: "npm:0.1.0-dev.0"
     dsh-doc-router: "npm:0.6.3"
-    dsh-kb-rag: "file:../vendor/dsh-kb-rag/dsh-kb-rag-1.6.8-pm1.tgz"
+    dsh-domain-router: "workspace:*"
+    dsh-kb-rag: "file:../vendor/dsh-kb-rag/dsh-kb-rag-1.6.8-pm2.tgz"
     dsh-lit-harvest: "npm:0.1.2"
     dsh-lit-library: "npm:0.2.1"
     dsh-preview-stl: "npm:0.1.1"

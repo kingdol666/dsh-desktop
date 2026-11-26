@@ -107,11 +107,13 @@ const BLUEPRINTS: readonly AgentBlueprint[] = Object.freeze([
       'grep',
       'pwsh',
       'todo_write',
-      'cognition_context',
-      'cognition_recall',
-      'cognition_remember',
+      'domain_route',
+      'domain_scope',
+      'domain_list',
+      'domain_recall',
+      'domain_remember',
     ],
-    skills: ['polymer-physics', 'mechanism-discovery', 'simulation-workflow', 'data-analysis'],
+    skills: ['polymer-physics', 'mechanism-discovery', 'simulation-workflow', 'data-analysis', 'domain-routing'],
     contract: '输出：{"findings":[],"hypotheses":[],"evidenceIds":[],"gaps":[],"nextActions":[]}',
   },
   {
@@ -135,16 +137,18 @@ const BLUEPRINTS: readonly AgentBlueprint[] = Object.freeze([
       'pyenv_discover',
       'pyenv_create',
       'pyenv_install',
-      'cognition_context',
-      'cognition_recall',
-      'cognition_remember',
+      'domain_route',
+      'domain_scope',
+      'domain_list',
+      'domain_recall',
+      'domain_remember',
       'read',
       'write',
       'grep',
       'pwsh',
       'todo_write',
     ],
-    skills: ['waxs-analysis', 'ftir-analysis', 'saxs-analysis', 'waxs-pro-processing', 'optics-birefringence', 'data-analysis', 'python-env'],
+    skills: ['waxs-analysis', 'ftir-analysis', 'saxs-analysis', 'waxs-pro-processing', 'optics-birefringence', 'data-analysis', 'python-env', 'domain-routing'],
     contract: '输出：{"measurements":[],"conditions":[],"evidenceIds":[],"fitQuality":{},"gaps":[]}',
   },
   {
@@ -171,15 +175,17 @@ const BLUEPRINTS: readonly AgentBlueprint[] = Object.freeze([
       'pyenv_install',
       'pyenv_uninstall',
       'pyenv_remove',
-      'cognition_context',
-      'cognition_recall',
-      'cognition_remember',
+      'domain_route',
+      'domain_scope',
+      'domain_list',
+      'domain_recall',
+      'domain_remember',
       'read',
       'write',
       'pwsh',
       'todo_write',
     ],
-    skills: ['simulation-workflow', 'polymer-physics', 'experiment-design', 'data-analysis', 'python-env'],
+    skills: ['simulation-workflow', 'polymer-physics', 'experiment-design', 'data-analysis', 'python-env', 'domain-routing'],
     contract: '输出：{"model":"","parameters":{},"goodnessOfFit":{},"predictions":[],"limits":[],"evidenceIds":[]}',
   },
   {
@@ -221,11 +227,13 @@ const BLUEPRINTS: readonly AgentBlueprint[] = Object.freeze([
       'read',
       'write',
       'todo_write',
-      'cognition_context',
-      'cognition_recall',
-      'cognition_remember',
+      'domain_route',
+      'domain_scope',
+      'domain_list',
+      'domain_recall',
+      'domain_remember',
     ],
-    skills: ['literature-review', 'lit-library', 'kb-grounded-answer', 'doc-routing'],
+    skills: ['literature-review', 'lit-library', 'kb-grounded-answer', 'doc-routing', 'domain-routing'],
     contract: '输出：{"papers":[{"doi":"","title":"","year":0,"quartile":""}],"quotes":[{"text":"","page":0,"doi":""}],"evidenceIds":[],"gaps":[]}；库内无命中必须写 gaps，不得编造。',
   },
   {
@@ -244,12 +252,14 @@ const BLUEPRINTS: readonly AgentBlueprint[] = Object.freeze([
       'kb_rag',
       'zotero_fulltext',
       'ask_advisor',
-      'cognition_context',
-      'cognition_recall',
+      'domain_route',
+      'domain_scope',
+      'domain_list',
+      'domain_recall',
       'read',
       'grep',
     ],
-    skills: ['scientific-review', 'mechanism-discovery', 'data-analysis'],
+    skills: ['scientific-review', 'mechanism-discovery', 'data-analysis', 'domain-routing'],
     contract: '输出：{"verdict":"pass|revise|reject","violations":[],"missingEvidence":[],"requiredChanges":[]}',
   },
 ])
@@ -285,6 +295,40 @@ const UPGRADE_ADDITIONS: Readonly<Record<string, { tools: readonly string[]; ski
   },
 })
 
+/** 2.4.0 -> 2.5.0: replace raw cognition with domain-scoped memory tools and
+ * add the domain protocol skill. Reviewer remains read-only (no domain_remember). */
+const UPGRADE_2_5_0: Readonly<Record<string, {
+  readonly addTools: readonly string[]
+  readonly removeTools: readonly string[]
+  readonly addSkills: readonly string[]
+}>> = Object.freeze({
+  physicist: {
+    addTools: ['domain_route', 'domain_scope', 'domain_list', 'domain_recall', 'domain_remember'],
+    removeTools: ['cognition_context', 'cognition_recall', 'cognition_remember'],
+    addSkills: ['domain-routing'],
+  },
+  characterization: {
+    addTools: ['domain_route', 'domain_scope', 'domain_list', 'domain_recall', 'domain_remember'],
+    removeTools: ['cognition_context', 'cognition_recall', 'cognition_remember'],
+    addSkills: ['domain-routing'],
+  },
+  modeler: {
+    addTools: ['domain_route', 'domain_scope', 'domain_list', 'domain_recall', 'domain_remember'],
+    removeTools: ['cognition_context', 'cognition_recall', 'cognition_remember'],
+    addSkills: ['domain-routing'],
+  },
+  literature: {
+    addTools: ['domain_route', 'domain_scope', 'domain_list', 'domain_recall', 'domain_remember'],
+    removeTools: ['cognition_context', 'cognition_recall', 'cognition_remember'],
+    addSkills: ['domain-routing'],
+  },
+  reviewer: {
+    addTools: ['domain_route', 'domain_scope', 'domain_list', 'domain_recall'],
+    removeTools: ['cognition_context', 'cognition_recall'],
+    addSkills: ['domain-routing'],
+  },
+})
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -297,11 +341,13 @@ function isShellTool(name: string): boolean {
   return name === 'pwsh' || name === 'bash'
 }
 
-/** Extend pristine 2.3.0 expert stores with 2.4.0 whitelist entries.
+/** Extend pristine 2.3.0/2.4.0 expert stores with 2.5.0 domain tools.
  *
- * Returns the (possibly mutated) agent records and the names it upgraded. User
- * agents and user-edited expert whitelists are preserved: a whitelist with any
- * name outside the previous blueprint is considered customized and skipped. */
+ * A store is upgraded only when its tools/skills are still a subset of a
+ * previous release's blueprint. Custom whitelists and user-edited prompts are
+ * preserved. The 2.4.0 prior blueprint is reconstructed from the live blueprint
+ * by undoing the 2.5.0 add/remove sets, so this function does not need a second
+ * large literal that could drift. */
 function upgradeAgentStore(
   store: Record<string, unknown>,
   logger?: AgentTeamSeedLogger,
@@ -310,39 +356,59 @@ function upgradeAgentStore(
   const records = agents.filter(isRecord)
   const upgraded: string[] = []
   for (const blueprint of BLUEPRINTS) {
-    const additions = UPGRADE_ADDITIONS[blueprint.name]
-    if (additions === undefined) continue
+    const spec = UPGRADE_2_5_0[blueprint.name]
+    if (spec === undefined) continue
     const existing = records.find((agent) => agent.id === blueprint.id)
       ?? records.find((agent) => agent.name === blueprint.name)
     if (existing === undefined) continue
-    const priorTools = new Set(
-      blueprint.tools.filter((tool) => !additions.tools.includes(tool) && !isShellTool(tool)),
-    )
-    const priorSkills = new Set(blueprint.skills.filter((skill) => !additions.skills.includes(skill)))
     const existingTools = asStringArray(existing.tools)
     const existingSkills = asStringArray(existing.skills)
-    const missingTools = additions.tools.filter((tool) => !existingTools.includes(tool))
-    const missingSkills = additions.skills.filter((skill) => !existingSkills.includes(skill))
-    if (missingTools.length === 0 && missingSkills.length === 0) continue
-    const customTools = existingTools.filter(
-      (tool) => !isShellTool(tool) && !priorTools.has(tool) && !additions.tools.includes(tool),
-    )
-    const customSkills = existingSkills.filter(
-      (skill) => !priorSkills.has(skill) && !additions.skills.includes(skill),
-    )
-    if (customTools.length > 0 || customSkills.length > 0) {
+    const alreadyCurrent = spec.removeTools.every(tool => !existingTools.includes(tool))
+      && spec.addTools.every(tool => existingTools.includes(tool))
+      && spec.addSkills.every(skill => existingSkills.includes(skill))
+    if (alreadyCurrent) continue
+
+    // Reconstruct the 2.4.0 blueprint: undo the 2.5.0 additions and restore the
+    // raw cognition tools that 2.5.0 removes.
+    const prior24Tools = blueprint.tools.filter(tool => !spec.addTools.includes(tool))
+    for (const tool of spec.removeTools) if (!prior24Tools.includes(tool)) prior24Tools.push(tool)
+    const prior24Skills = blueprint.skills.filter(skill => !spec.addSkills.includes(skill))
+    const prior24 = { ...blueprint, tools: prior24Tools, skills: prior24Skills }
+    const additions24 = UPGRADE_ADDITIONS[blueprint.name] ?? { tools: [], skills: [] }
+    const prior23Tools = prior24Tools.filter(tool => !additions24.tools.includes(tool))
+    const prior23Skills = prior24Skills.filter(skill => !additions24.skills.includes(skill))
+    const prior23 = { ...blueprint, tools: prior23Tools, skills: prior23Skills }
+
+    const prior24ToolSet = new Set(prior24Tools)
+    const prior24SkillSet = new Set(prior24Skills)
+    const prior23ToolSet = new Set(prior23Tools)
+    const prior23SkillSet = new Set(prior23Skills)
+    const subset = (values: readonly string[], allowed: ReadonlySet<string>, shellAware: boolean): boolean =>
+      values.every(value => (shellAware && isShellTool(value)) || allowed.has(value))
+    const from24 = subset(existingTools, prior24ToolSet, true)
+      && subset(existingSkills, prior24SkillSet, false)
+    const from23 = subset(existingTools, prior23ToolSet, true)
+      && subset(existingSkills, prior23SkillSet, false)
+    if (!from24 && !from23) {
       logger?.info(`agent team: ${blueprint.name} has a customized whitelist; not upgraded`)
       continue
     }
-    const nextTools = [...existingTools]
-    for (const tool of additions.tools) {
-      if (!nextTools.includes(tool)) nextTools.push(tool)
+
+    let nextTools = existingTools.filter(tool => !spec.removeTools.includes(tool))
+    let nextSkills = [...existingSkills]
+    if (from23) {
+      for (const tool of additions24.tools) if (!nextTools.includes(tool)) nextTools.push(tool)
+      for (const skill of additions24.skills) if (!nextSkills.includes(skill)) nextSkills.push(skill)
     }
-    const nextSkills = [...existingSkills]
-    for (const skill of additions.skills) {
-      if (!nextSkills.includes(skill)) nextSkills.push(skill)
-    }
-    if (nextTools.length !== existingTools.length || nextSkills.length !== existingSkills.length) {
+    for (const tool of spec.addTools) if (!nextTools.includes(tool)) nextTools.push(tool)
+    for (const skill of spec.addSkills) if (!nextSkills.includes(skill)) nextSkills.push(skill)
+
+    const priorPromptMatched = existing.systemPrompt === legacySystemPrompt(prior24)
+      || existing.systemPrompt === legacySystemPrompt(prior23)
+    if (priorPromptMatched) existing.systemPrompt = systemPrompt(blueprint)
+    if (nextTools.length !== existingTools.length
+      || nextSkills.length !== existingSkills.length
+      || priorPromptMatched) {
       existing.tools = nextTools
       existing.skills = nextSkills
       upgraded.push(blueprint.name)
@@ -351,11 +417,27 @@ function upgradeAgentStore(
   return { agents, upgraded }
 }
 
+/** The pre-2.5.0 expert prompt (kept verbatim for migration comparisons). */
+function legacySystemPrompt(blueprint: AgentBlueprint): string {
+  return [
+    `你是 PolyMechanism Studio 的${blueprint.displayName}（子代理名 ${blueprint.name}）。`,
+    `执行任务时以 ${blueprint.preset} preset 运行，只能使用给定的工具白名单与技能；`,
+    '不要做其他专家的工作，也不要派发子代理。',
+    OUTPUT_RULE,
+    blueprint.contract,
+  ].join('')
+}
+
 function systemPrompt(blueprint: AgentBlueprint): string {
   return [
     `你是 PolyMechanism Studio 的${blueprint.displayName}（子代理名 ${blueprint.name}）。`,
     `执行任务时以 ${blueprint.preset} preset 运行，只能使用给定的工具白名单与技能；`,
     '不要做其他专家的工作，也不要派发子代理。',
+    '做任何检索/文献/记忆前，先用 domain_route 判断领域并用 domain_scope 设 active domain；'
+      + 'KB/Zotero/lit-library 调用必须带 domain；文献结论默认 kind=pdf；'
+      + '跨域只在 crossDomain=true 时查 relatedDomains，并标明来源 domain。',
+    '领域经验只写 domain_remember（Reviewer 只 recall），不得调用原始 cognition_remember/recall；'
+      + '记忆不是证据，没有 evidenceId 就写 gaps。',
     OUTPUT_RULE,
     blueprint.contract,
   ].join('')

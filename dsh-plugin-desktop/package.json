@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-desktop",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "description": "PolyMechanism Studio: an AI research desktop composed as a DeepSeek Harness Cordis plugin (forked from DSH Desktop)",
   "desktopName": "dsh-desktop.desktop",
   "license": "MIT",
@@ -131,7 +131,7 @@
     }
   },
   "scripts": {
-    "build": "node ../scripts/prepare-science-libs.mjs && yarn workspace @polymechanism/pm-domain build && yarn workspace @polymechanism/pm-core build && yarn workspace pm-research build && node scripts/clean.mjs && node ../scripts/run-parallel.mjs \"tsdown\" \"vite build --config vite.client.config.ts\" \"vite build --config vite.native-ui.config.ts\" \"tsc -p tsconfig.json --emitDeclarationOnly\" \"tsc -p tsconfig.client.json --emitDeclarationOnly\"",
+    "build": "node ../scripts/prepare-science-libs.mjs && yarn workspace @polymechanism/pm-domain build && yarn workspace @polymechanism/pm-core build && yarn workspace pm-research build && yarn workspace dsh-domain-router build && node scripts/clean.mjs && node ../scripts/run-parallel.mjs \"tsdown\" \"vite build --config vite.client.config.ts\" \"vite build --config vite.native-ui.config.ts\" \"tsc -p tsconfig.json --emitDeclarationOnly\" \"tsc -p tsconfig.client.json --emitDeclarationOnly\"",
     "typecheck": "node ../scripts/run-parallel.mjs \"tsc -p tsconfig.native-ui.json --noEmit\" \"tsc -p tsconfig.tests.json --noEmit\" \"tsc -p tsconfig.tests.client.json --noEmit\"",
     "test": "vitest run",
     "verify:closure": "node --test scripts/runtime-closure.spec.mjs && node scripts/verify-runtime-closure.mjs",
@@ -349,10 +349,11 @@
     "adm-zip": "^0.6.0",
     "dsh-agent-skill": "file:../vendor/dsh-agent-skill/dsh-agent-skill-0.3.0-pm2.tgz",
     "dsh-cite-verify": "0.2.3",
-    "dsh-cognition-engine": "file:../vendor/dsh-cognition-engine/dsh-cognition-engine-0.14.0-pm2.tgz",
+    "dsh-cognition-engine": "file:../vendor/dsh-cognition-engine/dsh-cognition-engine-0.14.0-pm3.tgz",
     "dsh-community-market": "0.1.0-dev.0",
     "dsh-doc-router": "0.6.3",
-    "dsh-kb-rag": "file:../vendor/dsh-kb-rag/dsh-kb-rag-1.6.8-pm1.tgz",
+    "dsh-domain-router": "workspace:*",
+    "dsh-kb-rag": "file:../vendor/dsh-kb-rag/dsh-kb-rag-1.6.8-pm2.tgz",
     "dsh-lit-harvest": "0.1.2",
     "dsh-lit-library": "0.2.1",
     "dsh-preview-stl": "0.1.1",
