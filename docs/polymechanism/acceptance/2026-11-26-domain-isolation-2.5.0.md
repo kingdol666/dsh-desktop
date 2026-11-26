@@ -49,6 +49,9 @@
 
 - 左侧栏「文献」+ keyed `main` 页；领域选择、论文/报告/手记计数、文档表、搜索、
   未入库 PDF 扫描、索引健康、右栏 PDF 打开。
+  > 2.5.0 的 `openPdf` 未声明 `layout`/`sidebarRight` 注入，点击「打开」会显示
+  > `cannot get property "sidebarRight" without inject`；已由 2.5.1 修复（scoped
+  > `ctx.inject`），见 [2026-11-26-domain-isolation-2.5.1.md](2026-11-26-domain-isolation-2.5.1.md)。
 - 真实 dev app：侧栏出现「文献」，页面渲染，**0 console errors**。
 - `/api/pm-domain/domains` 真实工作区返回 3 领域：
   PVA 4 papers/4 reports/1 note；waxs 4；generic 4。
@@ -112,6 +115,20 @@
 
 > 注意：用同一 Electron appName 启动 dev 与 packaged 两个实例会争 `%LOCALAPPDATA%` 缓存，
 > packaged 实例可能直接退出；测试时需隔离 `LOCALAPPDATA` 或先停掉另一个实例。
+
+### 3.5 2.4.0 → 2.5.0 应用内更新 E2E
+
+- 2.4.0 应用内检查到 2.5.0，下载 `PolyMechanism-Studio-2.5.0-x64-Setup.exe`
+  383,027,311 字节，下载 SHA-256 与 Release 一致 → 重启安装 → 版本 2.5.0。
+- 安装版启动日志：`agent team: upgraded physicist, characterization, modeler,
+  literature, reviewer whitelists`。
+- 真实 profile 18 bundles（含 `dsh-domain-router`）；`agents.json` 工具数
+  physicist 23 / characterization 24 / modeler 26 / literature 38 / reviewer 16，
+  均含 `domain_route`、无 `cognition_recall`。
+- 安装版「文献」页读取真实工作区：domain `pva-optical-film`，4 论文 / 4 报告 /
+  1 手记 / 0 向量（关键词回退）；论文表 4 篇 PVA PDF 带标题/DOI/chunks。
+- 点击论文「打开」在 2.5.0 报 `sidebarRight without inject`（见 1.5 注），
+  2.5.1 修复后 dev 实测右栏 PDF 渲染 22 页 canvas、0 console 错误。
 
 ## 4. 已知限制
 

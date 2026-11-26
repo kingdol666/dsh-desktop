@@ -33,6 +33,11 @@ interface SidebarRightLike {
   openResource(address: string): void
 }
 
+interface PreviewServices {
+  layout?: LayoutLike
+  sidebarRight?: SidebarRightLike
+}
+
 function sessionsOf(ctx: ClientContext): SessionsLike {
   return (ctx as unknown as { sessions: SessionsLike }).sessions
 }
@@ -63,11 +68,15 @@ function fileAddress(sessionId: string, path: string): string {
   return `dsh-resource://file/session/${encodeURIComponent(sessionId)}/${encoded}`
 }
 
-function openPdf(ctx: ClientContext, workspace: string, path: string): void {
+function openPdf(
+  services: PreviewServices,
+  ctx: ClientContext,
+  workspace: string,
+  path: string,
+): void {
   const sessionId = sessionForWorkspace(ctx, workspace)
   if (sessionId === undefined) throw new Error('没有对应工作区的会话；先打开一个该工作区的会话')
-  const layout = (ctx as unknown as { layout?: LayoutLike }).layout
-  const sidebarRight = (ctx as unknown as { sidebarRight?: SidebarRightLike }).sidebarRight
+  const { layout, sidebarRight } = services
   if (layout === undefined || sidebarRight === undefined) throw new Error('右侧预览服务尚未就绪')
   // A global main page unmounts the session surface; return to the conversation
   // first, then hand the resource address to the right sidebar on the next frame.
@@ -93,9 +102,21 @@ function LiteratureIcon({ size = 18, active = false }: { size?: number; active?:
 export function applyLiterature(ctx: ClientContext): void {
   ctx.effect(() => installLiteratureStyles(), 'dsh-plugin-desktop: literature styles')
   const locale = ctx.locale.getSnapshot().active
+  // `layout` is owned by the shell and `sidebarRight` by the right-bar plugin;
+  // resolve both through a scoped inject so the page can outlive either reload.
+  const services: PreviewServices = {}
+  ctx.inject(['layout', 'sidebarRight'], (scope: ClientContext) => {
+    const resolved = scope as unknown as { layout: LayoutLike; sidebarRight: SidebarRightLike }
+    services.layout = resolved.layout
+    services.sidebarRight = resolved.sidebarRight
+    scope.effect(() => () => {
+      delete services.layout
+      delete services.sidebarRight
+    }, 'dsh-plugin-desktop: literature preview services')
+  })
   const face: LiteraturePageInjected = {
     workspaces: () => workspaceList(ctx),
-    openPdf: (workspace, path) => { openPdf(ctx, workspace, path) },
+    openPdf: (workspace, path) => { openPdf(services, ctx, workspace, path) },
     locale,
   }
   ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({

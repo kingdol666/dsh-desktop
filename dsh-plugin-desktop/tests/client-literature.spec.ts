@@ -27,6 +27,10 @@ function fakeContext(): { ctx: ClientContext; registered: Registered[] } {
       },
     },
     effect(fn: () => void) { fn(); return () => {} },
+    inject(_names: string[], mount: (scope: unknown) => void) {
+      mount({ layout: { selectPanel() {} }, sidebarRight: { openResource() {} }, effect(fn: () => void) { fn(); return () => {} } })
+      return () => {}
+    },
   } as unknown as ClientContext
   return { ctx, registered }
 }
@@ -58,11 +62,48 @@ describe('Literature page registration', () => {
         register(options: Record<string, unknown>, component?: unknown) { return { ...options, component } },
       },
       effect(fn: () => void) { fn(); return () => {} },
+      inject(_names: string[], mount: (scope: unknown) => void) {
+        mount({ layout: { selectPanel() {} }, sidebarRight: { openResource() {} }, effect(fn: () => void) { fn(); return () => {} } })
+        return () => {}
+      },
     } as unknown as ClientContext
     applyLiterature(ctx)
     const main = registered.find(entry => entry.name === 'main')
     const inject = main?.options.inject as (() => { workspaces: () => readonly string[] }) | undefined
     expect(inject).toBeTypeOf('function')
     expect(inject?.().workspaces()).toEqual(['D:/ws', 'D:/other'])
+  })
+
+  it('opens a PDF through the injected layout and right sidebar', async () => {
+    const registered: Registered[] = []
+    const calls: string[] = []
+    const ctx = {
+      locale: { getSnapshot: () => ({ active: 'zh' }) },
+      sessions: { list: { getSnapshot: () => ({ byId: { a: { cwd: 'D:/ws' } } }) } },
+      slots: {
+        inject(name: string, mount: () => unknown) {
+          const options = mount() as Record<string, unknown>
+          registered.push({ name, options, component: (options as { component?: unknown }).component })
+          return () => {}
+        },
+        register(options: Record<string, unknown>, component?: unknown) { return { ...options, component } },
+      },
+      effect(fn: () => void) { fn(); return () => {} },
+      inject(_names: string[], mount: (scope: unknown) => void) {
+        mount({
+          layout: { selectPanel: (panel: string | null) => calls.push(`panel:${String(panel)}`) },
+          sidebarRight: { openResource: (address: string) => calls.push(`open:${address}`) },
+          effect(fn: () => void) { fn(); return () => {} },
+        })
+        return () => {}
+      },
+    } as unknown as ClientContext
+    applyLiterature(ctx)
+    const main = registered.find(entry => entry.name === 'main')
+    const face = main?.options.inject as (() => { openPdf: (workspace: string, path: string) => void }) | undefined
+    face?.().openPdf('D:/ws', 'D:\\ws\\p.pdf')
+    expect(calls).toEqual(['panel:null'])
+    await new Promise(resolve => setTimeout(resolve, 120))
+    expect(calls[1]).toMatch(/^open:dsh-resource:\/\/file\/session\/a\//)
   })
 })
