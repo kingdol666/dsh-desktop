@@ -109,4 +109,29 @@ architecture / security / performance）审查，修复了审查发现的领域�
 说明：首轮打包（383,044,610 字节）缺少最后一笔 `domain_remember` 响应投影修复，
 已重建 domain-router 后完整重跑 `dist:win` 门禁并重新打包；上表为最终产物。
 最终 `win-unpacked` 已确认同时包含 domain-router 最终 bundle（`MEMORY_WRITE_FAILED`
-标记）与 cognition pm4 过滤代码。2.5.1→2.5.2 应用内更新 E2E 结果见后续验收记录。
+标记）与 cognition pm4 过滤代码。
+
+## 6. 2.5.1 → 2.5.2 应用内更新 E2E
+
+在安装版 2.5.1（CDP 9339）上实测完整更新链路：
+
+1. `POST /api/desktop/updates/check`（主 shell origin）→ `{"accepted":true}`；
+   生命周期检测到 2.5.2 并弹出「已可用，现在下载此更新？」对话框 → 点击「下载」。
+2. 下载完成（约 60 秒）：`~/Downloads/PolyMechanism-Studio-2.5.2-windows.exe`，
+   383,047,267 字节，SHA-256 `0240d2cf…b91` 与 Release 资产逐字节一致。
+3. 「已可安装，现在重启并运行安装程序？」对话框 → 点击「重启并安装」；
+   应用退出，NSIS 安装器（`PolyMechanism-Studio-2.5.2-windows`）运行约 100 秒完成。
+4. 安装目录确认：`resources/app/package.json` = `2.5.2`；
+   内置 `dsh-cognition-engine` = `0.14.0-pm4` 且含召回过滤代码；
+   `dsh-domain-router/lib` 含 `MEMORY_WRITE_FAILED`/`STATE_WRITE_FAILED` 修复标记。
+5. 安装版 2.5.2 文献页实测（CDP）：shell URL `dsh-desktop-version=2.5.2`；
+   「文献」启动器进入文献页；领域选择器存在；4 篇论文各带「打开」；
+   点击第 1 篇 → 右栏渲染 22 页 canvas（首页 963×1361）；本次运行 0 console error。
+
+过程中发现并修正的测试工具问题（不影响产品）：
+- `trigger-update.mjs` 最初把更新检查 fetch 发到 `desktop-dialog` 页面
+  （CSP `connect-src 'none'` 拒绝），已改为选择主 shell 的 `http://127.0.0.1` target。
+- 更新确认对话框约 1 分钟后自动消失，自动化点击需在出现时立即捕获
+  （新增 `.omc/catch-update-dialog.mjs` 快速轮询并点击指定按钮文本）。
+- 一次更新检查返回「未能获取更新信息」：GitHub API 未认证配额耗尽（403，
+  remaining=0），等待重置后恢复；属环境限制而非产品缺陷。
