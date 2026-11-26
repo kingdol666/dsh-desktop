@@ -114,6 +114,7 @@
 | 项 | 值 |
 |---|---|
 | 文件 | `PolyMechanism-Studio-2.5.0-x64-Setup.exe` |
-| 大小 | 构建后填写 |
-| SHA-256 | 构建后填写 |
-| 构建 | 待验证 |
+| 大小 | 383,027,311 字节 |
+| SHA-256 | `63326192ba2989d956862baca672def9fa6cedd85abe1c16b3036a7fecc40e8d` |
+| 构建 | `Windows installer verification passed` |
+| 打包内插件 | `dsh-domain-router 0.1.0`、`dsh-kb-rag 1.6.8-pm2`、`dsh-cognition-engine 0.14.0-pm3`；`app/skills/domain-routing/SKILL.md` |

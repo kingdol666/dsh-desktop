@@ -76,4 +76,6 @@
 ### 安装包
 
 - `PolyMechanism-Studio-2.5.0-x64-Setup.exe`
-- 大小/SHA-256 构建后填写
+- 383,027,311 字节
+- SHA-256 `63326192ba2989d956862baca672def9fa6cedd85abe1c16b3036a7fecc40e8d`
+- 构建日志：`Windows installer verification passed`
