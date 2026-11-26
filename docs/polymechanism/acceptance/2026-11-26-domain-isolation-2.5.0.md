@@ -91,6 +91,8 @@
   - strict `DOMAIN_REQUIRED` 拒绝
   - 真实 PVA KB：4 hits 全部 `pva-optical-film`；`crossDomain` 5 hits 含 `waxs-methods`
   - cognition workspace isolation：同 workspace 可见、另一 workspace 不可见
+  - 真实 `domain_remember`/`domain_recall`：domain_scope 绑定 PR-1 后写入并召回成功，
+    标签含 project/domain/workspace；随后 forget
   - 六组委派矩阵/禁止调用/真实链路仍通过
 
 ### 3.3 真实 dev app

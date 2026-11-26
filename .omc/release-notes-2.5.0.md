@@ -58,9 +58,14 @@
   - strict `DOMAIN_REQUIRED` 拒绝；真实 PVA KB 4 hits 全部 `pva-optical-film`；
     `crossDomain` 5 hits 含 `waxs-methods`
   - cognition workspace isolation：同 workspace 可见，另一 workspace 不可见
+  - 真实 `domain_remember`/`domain_recall`：绑定 PR-1 后写入/召回成功，随后 forget
   - 2.4.0→2.5.0 真实 store 迁移：五专家全部 upgraded，cognition 移除、domain 工具加入
 - 真实 dev app：左侧栏「文献」页渲染，控制台 0 错误；`/api/pm-domain/domains` 返回
   3 领域（PVA 4 papers/4 reports/1 note；waxs 4；generic 4）。
+- 打包版 2.5.0（win-unpacked，隔离 DSH_HOME/APPDATA/LOCALAPPDATA）：URL version=2.5.0，
+  「文献」页出现，`/api/pm-domain/domains` 返回 3 领域，控制台 0 错误；打包内
+  `dsh-domain-router 0.1.0`/`dsh-kb-rag 1.6.8-pm2`/`dsh-cognition-engine 0.14.0-pm3`
+  已确认。
 
 ### 已知限制
 
