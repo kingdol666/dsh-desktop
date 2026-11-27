@@ -37,15 +37,6 @@ export interface DesktopNativeCopy {
   readonly macInstallInstructions: string
   readonly windowsInstallQuestion: string
   readonly restartAndInstall: string
-  readonly saveInstallerTitle: string
-  readonly saveAndDownload: string
-  readonly diskImage: string
-  readonly windowsInstaller: string
-  readonly removeInstallerTitle: string
-  readonly updateInstalled: (version: string) => string
-  readonly removeInstallerQuestion: (path: string) => string
-  readonly deleteInstaller: string
-  readonly keepInstaller: string
   readonly terminalErrorTitle: string
   readonly terminalErrorMessage: string
   readonly diagnosticsErrorTitle: string
@@ -118,15 +109,6 @@ const COPY: Record<DesktopLocale, DesktopNativeCopy> = {
     macInstallInstructions: 'The disk image has opened. Replace PolyMechanism Studio in Applications, then reopen it.',
     windowsInstallQuestion: 'Restart PolyMechanism Studio and run the installer now?',
     restartAndInstall: 'Restart and Install',
-    saveInstallerTitle: 'Save Update Installer',
-    saveAndDownload: 'Save and Download',
-    diskImage: 'Disk Image',
-    windowsInstaller: 'Windows Installer',
-    removeInstallerTitle: 'Remove Update Installer',
-    updateInstalled: version => `PolyMechanism Studio ${version} has been installed.`,
-    removeInstallerQuestion: path => `Delete the downloaded installer to free disk space?\n\n${path}`,
-    deleteInstaller: 'Delete Installer',
-    keepInstaller: 'Keep Installer',
     terminalErrorTitle: 'Unable to Open PolyMechanism Terminal',
     terminalErrorMessage: 'Could not start the terminal. Please try again.',
     diagnosticsErrorTitle: 'Unable to Export Diagnostics',
@@ -197,15 +179,6 @@ const COPY: Record<DesktopLocale, DesktopNativeCopy> = {
     macInstallInstructions: '磁盘映像已打开。请替换“应用程序”中的 PolyMechanism Studio，然后重新打开。',
     windowsInstallQuestion: '现在重启 PolyMechanism Studio 并运行安装程序？',
     restartAndInstall: '重启并安装',
-    saveInstallerTitle: '保存更新安装包',
-    saveAndDownload: '保存并下载',
-    diskImage: '磁盘映像',
-    windowsInstaller: 'Windows 安装程序',
-    removeInstallerTitle: '删除更新安装包',
-    updateInstalled: version => `PolyMechanism Studio ${version} 已安装。`,
-    removeInstallerQuestion: path => `是否删除下载的安装包以释放磁盘空间？\n\n${path}`,
-    deleteInstaller: '删除安装包',
-    keepInstaller: '保留安装包',
     terminalErrorTitle: '无法打开 PolyMechanism 终端',
     terminalErrorMessage: '未能启动终端。请重试。',
     diagnosticsErrorTitle: '无法导出诊断信息',

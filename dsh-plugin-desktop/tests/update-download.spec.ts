@@ -13,9 +13,11 @@ import {
   desktopUpdateFilename,
   downloadDesktopUpdate,
   pendingDesktopUpdateArtifact,
+  prepareDesktopUpdateCache,
   recordDesktopUpdateArtifact,
   resolveDesktopInstallerUrl,
   resolveDesktopUpdateArtifact,
+  sweepDesktopUpdateCache,
   type DesktopDownloadPlatform,
   type UpdateArtifactRequest,
   type UpdateArtifactResponse,
@@ -464,6 +466,42 @@ describe('desktop update installer download', () => {
       request,
     }), 'invalid-options')
     expect(requested).toBe(false)
+  })
+})
+
+describe('desktop update cache directory', () => {
+  it('creates the fixed updates cache directory under user data', async () => {
+    const userDataPath = await temporaryDirectory()
+
+    const cache = await prepareDesktopUpdateCache(userDataPath)
+
+    expect(cache).toBe(join(userDataPath, 'updates'))
+    const entry = await readdir(userDataPath)
+    expect(entry).toContain('updates')
+  })
+
+  it('rejects a relative user-data path and a linked cache directory', async () => {
+    await expectFailure(prepareDesktopUpdateCache('relative/user-data'), 'invalid-options')
+
+    const userDataPath = await temporaryDirectory()
+    const linked = `${userDataPath}-link`
+    temporaryRoots.push(linked)
+    await symlink(userDataPath, linked, process.platform === 'win32' ? 'junction' : 'dir')
+    await expectFailure(prepareDesktopUpdateCache(linked), 'invalid-options')
+  })
+
+  it('removes only abandoned partial downloads from the cache', async () => {
+    const userDataPath = await temporaryDirectory()
+    const cache = await prepareDesktopUpdateCache(userDataPath)
+    const partial = join(cache, '.PolyMechanism-Studio-2.1.0-windows.exe.1234.abcd.partial')
+    const installer = join(cache, 'PolyMechanism-Studio-2.1.0-windows.exe')
+    await writeFile(partial, 'partial')
+    await writeFile(installer, windowsArtifact())
+
+    await expect(sweepDesktopUpdateCache(userDataPath)).resolves.toBe(1)
+
+    await expect(access(partial)).rejects.toMatchObject({ code: 'ENOENT' })
+    await expect(access(installer)).resolves.toBeUndefined()
   })
 })
 

@@ -15,8 +15,10 @@ const updater = vi.hoisted(() => ({
   download: vi.fn(),
   filename: vi.fn(),
   pending: vi.fn(),
+  prepareCache: vi.fn(),
   record: vi.fn(),
   resolve: vi.fn(),
+  sweepCache: vi.fn(),
   resolveInstaller: vi.fn(async () => ({
     name: 'PolyMechanism-Studio-2.1.0-x64-Setup.exe',
     url: 'https://github.com/kingdol666/polymechanism-studio/releases/download/v2.1.0/PolyMechanism-Studio-2.1.0-x64-Setup.exe',
@@ -76,9 +78,11 @@ vi.mock('../src/update-download.ts', async (importOriginal) => ({
   desktopUpdateFilename: updater.filename,
   downloadDesktopUpdate: updater.download,
   pendingDesktopUpdateArtifact: updater.pending,
+  prepareDesktopUpdateCache: updater.prepareCache,
   recordDesktopUpdateArtifact: updater.record,
   resolveDesktopInstallerUrl: updater.resolveInstaller,
   resolveDesktopUpdateArtifact: updater.resolve,
+  sweepDesktopUpdateCache: updater.sweepCache,
 }))
 
 vi.mock('node:child_process', async (importOriginal) => ({
@@ -394,10 +398,14 @@ describe('Electron desktop runtime', () => {
     ))
     updater.pending.mockReset()
     updater.pending.mockResolvedValue(undefined)
+    updater.prepareCache.mockReset()
+    updater.prepareCache.mockResolvedValue('/tmp/dsh-desktop-user-data/updates')
     updater.record.mockReset()
     updater.record.mockResolvedValue(undefined)
     updater.resolve.mockReset()
     updater.resolve.mockResolvedValue(undefined)
+    updater.sweepCache.mockReset()
+    updater.sweepCache.mockResolvedValue(0)
     diagnostics.export.mockReset()
     electron.loadURL.mockReset()
     electron.loadURL.mockResolvedValue(undefined)
@@ -2689,22 +2697,13 @@ describe('Electron desktop runtime', () => {
     electron.dialog.showMessageBox.mockResolvedValueOnce({ response: 0, checkboxChecked: false })
     await expect(runtime.updates.confirmDownload('2.1.0')).resolves.toBe(true)
     const controller = new AbortController()
-    electron.dialog.showSaveDialog.mockResolvedValueOnce({
-      canceled: false,
-      filePath: '/tmp/Downloads/PolyMechanism-Studio-2.1.0-mac.dmg',
-    })
     await runtime.updates.downloadAndOpen('2.1.0', controller.signal)
-    expect(electron.dialog.showSaveDialog).toHaveBeenCalledWith(
-      activeWindow,
-      expect.objectContaining({
-        defaultPath: join('/tmp/Downloads', 'PolyMechanism-Studio-2.1.0-mac.dmg'),
-        filters: [{ name: 'Disk Image', extensions: ['dmg'] }],
-      }),
-    )
+    expect(electron.dialog.showSaveDialog).not.toHaveBeenCalled()
+    expect(updater.prepareCache).toHaveBeenCalledWith('/tmp/dsh-desktop-user-data')
     expect(updater.download).toHaveBeenCalledWith({
       platform: 'darwin',
       version: '2.1.0',
-      destinationPath: '/tmp/Downloads/PolyMechanism-Studio-2.1.0-mac.dmg',
+      destinationPath: join('/tmp/dsh-desktop-user-data', 'updates', 'PolyMechanism-Studio-2.1.0-mac.dmg'),
       downloadUrl: expect.stringMatching(/^https:\/\/github\.com\/kingdol666\/polymechanism-studio\/releases\/download\//),
       request: expect.any(Function),
       signal: controller.signal,
@@ -2749,10 +2748,6 @@ describe('Electron desktop runtime', () => {
     const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
     const runtime = new ElectronDesktopRuntime(async () => {})
     runtime.schedule({ ...spec, requestQuit })
-    electron.dialog.showSaveDialog.mockResolvedValueOnce({
-      canceled: false,
-      filePath: 'C:\\Updates\\PolyMechanism-Studio-2.1.0-windows.exe',
-    })
 
     const pending = runtime.updates.downloadAndOpen('2.1.0', new AbortController().signal)
     await vi.waitFor(() => { expect(childProcess.spawn).toHaveBeenCalledOnce() })
@@ -2786,10 +2781,6 @@ describe('Electron desktop runtime', () => {
     const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
     const runtime = new ElectronDesktopRuntime(async () => {})
     runtime.schedule({ ...spec, requestQuit })
-    electron.dialog.showSaveDialog.mockResolvedValueOnce({
-      canceled: false,
-      filePath: 'C:\\Updates\\PolyMechanism-Studio-2.1.0-windows.exe',
-    })
 
     const pending = runtime.updates.downloadAndOpen('2.1.0', new AbortController().signal)
     await vi.waitFor(() => { expect(childProcess.spawn).toHaveBeenCalledOnce() })
@@ -2812,10 +2803,6 @@ describe('Electron desktop runtime', () => {
     electron.dialog.showMessageBox.mockResolvedValueOnce({ response: 1, checkboxChecked: false })
     const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
     const runtime = new ElectronDesktopRuntime(async () => {})
-    electron.dialog.showSaveDialog.mockResolvedValueOnce({
-      canceled: false,
-      filePath: 'C:\\Updates\\PolyMechanism-Studio-2.1.0-windows.exe',
-    })
 
     await runtime.updates.downloadAndOpen('2.1.0', new AbortController().signal)
 
@@ -2828,10 +2815,6 @@ describe('Electron desktop runtime', () => {
     updater.download.mockResolvedValueOnce('C:\\Updates\\PolyMechanism-Studio-2.1.0-windows.exe')
     updater.record.mockRejectedValueOnce(new Error('read-only user data'))
     electron.dialog.showMessageBox.mockResolvedValueOnce({ response: 1, checkboxChecked: false })
-    electron.dialog.showSaveDialog.mockResolvedValueOnce({
-      canceled: false,
-      filePath: 'C:\\Updates\\PolyMechanism-Studio-2.1.0-windows.exe',
-    })
     const logger = { error: vi.fn(), errorCause: vi.fn(), info: vi.fn() }
     const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
     const runtime = new ElectronDesktopRuntime(async () => {}, undefined, logger)
@@ -2845,21 +2828,27 @@ describe('Electron desktop runtime', () => {
     expect(childProcess.spawn).not.toHaveBeenCalled()
   })
 
-  it('does not download when the update destination picker is cancelled', async () => {
+  it('downloads into the fixed cache directory without a save dialog', async () => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    updater.download.mockResolvedValueOnce('C:\\Updates\\PolyMechanism-Studio-2.1.0-windows.exe')
+    updater.prepareCache.mockResolvedValueOnce('C:\\Users\\me\\AppData\\Roaming\\PolyMechanism Studio\\updates')
+    electron.dialog.showMessageBox.mockResolvedValueOnce({ response: 1, checkboxChecked: false })
     const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
     const runtime = new ElectronDesktopRuntime(async () => {})
 
     await runtime.updates.downloadAndOpen('2.1.0', new AbortController().signal)
 
-    expect(electron.dialog.showSaveDialog).toHaveBeenCalledOnce()
-    expect(updater.download).not.toHaveBeenCalled()
+    expect(electron.dialog.showSaveDialog).not.toHaveBeenCalled()
+    expect(updater.prepareCache).toHaveBeenCalledWith('/tmp/dsh-desktop-user-data')
+    expect(updater.download).toHaveBeenCalledWith(expect.objectContaining({
+      destinationPath: join(
+        'C:\\Users\\me\\AppData\\Roaming\\PolyMechanism Studio\\updates',
+        'PolyMechanism-Studio-2.1.0-windows.exe',
+      ),
+    }))
   })
 
-  it.each([
-    [0, true],
-    [1, false],
-  ])('resolves the post-install artifact choice response=%s remove=%s', async (response, remove) => {
+  it('removes the installed update installer automatically', async () => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
     const artifact = {
       platform: 'win32' as const,
@@ -2867,7 +2856,6 @@ describe('Electron desktop runtime', () => {
       path: 'C:\\Updates\\PolyMechanism-Studio-2.0.1-windows.exe',
     }
     updater.pending.mockResolvedValueOnce(artifact)
-    electron.dialog.showMessageBox.mockResolvedValueOnce({ response, checkboxChecked: false })
     const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
     const runtime = new ElectronDesktopRuntime(async () => {})
     runtime.schedule(spec)
@@ -2875,15 +2863,11 @@ describe('Electron desktop runtime', () => {
     await runtime.mountScheduled()
     await vi.waitFor(() => { expect(updater.resolve).toHaveBeenCalledOnce() })
 
-    expect(electron.dialog.showMessageBox).toHaveBeenCalledWith(
+    expect(electron.dialog.showMessageBox).not.toHaveBeenCalledWith(
       electron.browserWindows[0],
-      expect.objectContaining({
-        title: 'Remove Update Installer',
-        detail: expect.stringContaining(artifact.path),
-        buttons: ['Delete Installer', 'Keep Installer'],
-      }),
+      expect.objectContaining({ title: 'Remove Update Installer' }),
     )
-    expect(updater.resolve).toHaveBeenCalledWith('/tmp/dsh-desktop-user-data', artifact, remove)
+    expect(updater.resolve).toHaveBeenCalledWith('/tmp/dsh-desktop-user-data', artifact, true)
   })
 
   it('rejects a macOS handoff when the operating system cannot open the DMG', async () => {
@@ -2892,10 +2876,6 @@ describe('Electron desktop runtime', () => {
     electron.shell.openPath.mockResolvedValueOnce('Launch Services rejected the image')
     const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
     const runtime = new ElectronDesktopRuntime(async () => {})
-    electron.dialog.showSaveDialog.mockResolvedValueOnce({
-      canceled: false,
-      filePath: '/tmp/PolyMechanism-Studio-2.1.0-mac.dmg',
-    })
 
     await expect(runtime.updates.downloadAndOpen('2.1.0', new AbortController().signal))
       .rejects.toThrow('Launch Services rejected the image')
@@ -2912,10 +2892,6 @@ describe('Electron desktop runtime', () => {
     const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
     const runtime = new ElectronDesktopRuntime(async () => {})
     const controller = new AbortController()
-    electron.dialog.showSaveDialog.mockResolvedValueOnce({
-      canceled: false,
-      filePath: '/tmp/PolyMechanism-Studio-2.1.0-mac.dmg',
-    })
 
     const pending = runtime.updates.downloadAndOpen('2.1.0', controller.signal)
     await vi.waitFor(() => { expect(electron.shell.openPath).toHaveBeenCalledOnce() })

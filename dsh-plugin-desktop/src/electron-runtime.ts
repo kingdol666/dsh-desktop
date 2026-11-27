@@ -59,9 +59,11 @@ import {
   desktopUpdateFilename,
   downloadDesktopUpdate,
   pendingDesktopUpdateArtifact,
+  prepareDesktopUpdateCache,
   recordDesktopUpdateArtifact,
   resolveDesktopInstallerUrl,
   resolveDesktopUpdateArtifact,
+  sweepDesktopUpdateCache,
   type DesktopUpdateArtifact,
   type UpdateArtifactResponse,
 } from './update-download.ts'
@@ -820,12 +822,6 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
       : await this.generation.showMessageBox(options)
   }
 
-  private async showUpdateSaveDialog(options: Electron.SaveDialogOptions): Promise<Electron.SaveDialogReturnValue> {
-    return this.generation === undefined
-      ? await dialog.showSaveDialog(options)
-      : await this.generation.showSaveDialog(options)
-  }
-
   /** Ask before making the fixed download endpoint's counted request. */
   private async confirmUpdateDownload(
     version: string,
@@ -899,8 +895,10 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
     if (platform === undefined) {
       throw new Error(`dsh-plugin-desktop: updates are unavailable on ${this.platform}`)
     }
-    const destinationPath = await this.chooseUpdateDestination(version, channel)
-    if (destinationPath === undefined) return
+    const destinationPath = join(
+      await prepareDesktopUpdateCache(app.getPath('userData')),
+      desktopUpdateFilename(platform, version, channel),
+    )
     signal.throwIfAborted()
     const asset = await resolveDesktopInstallerUrl({
       platform,
@@ -965,29 +963,6 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
     spec.requestQuit(0)
   }
 
-  private async chooseUpdateDestination(
-    version: string,
-    channel: DesktopReleaseChannel = 'stable',
-  ): Promise<string | undefined> {
-    if (this.platform !== 'darwin' && this.platform !== 'win32') return undefined
-    const copy = desktopNativeCopy(this.currentLocale)
-    const filename = desktopUpdateFilename(this.platform, version, channel)
-    const extension = this.platform === 'darwin' ? 'dmg' : 'exe'
-    const result = await this.showUpdateSaveDialog({
-      title: copy.saveInstallerTitle,
-      defaultPath: join(app.getPath('downloads'), filename),
-      buttonLabel: copy.saveAndDownload,
-      filters: [{
-        name: this.platform === 'darwin'
-          ? copy.diskImage
-          : copy.windowsInstaller,
-        extensions: [extension],
-      }],
-      properties: ['createDirectory', 'showOverwriteConfirmation', 'dontAddToRecent'],
-    })
-    return result.canceled ? undefined : result.filePath
-  }
-
   private offerUpdateArtifactCleanup(): Promise<void> {
     if (this.updateCleanupTask !== undefined) return this.updateCleanupTask
     const task = this.performUpdateArtifactCleanup().finally(() => {
@@ -1000,20 +975,24 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
   private async performUpdateArtifactCleanup(): Promise<void> {
     if (this.platform !== 'darwin' && this.platform !== 'win32') return
     const userDataPath = app.getPath('userData')
+    // Interrupted downloads leave hidden partial files behind; they can never
+    // be resumed, so drop them before deciding about the retained installer.
+    try {
+      await sweepDesktopUpdateCache(userDataPath)
+    } catch (cause) {
+      this.logError(`dsh-plugin-desktop: failed to sweep the update cache: ${cause instanceof Error ? cause.message : String(cause)}`)
+    }
     const artifact = await pendingDesktopUpdateArtifact(userDataPath, PRODUCT_VERSION, this.platform)
     if (artifact === undefined) return
-    const copy = desktopNativeCopy(this.currentLocale)
-    const result = await this.showUpdateMessageBox({
-      type: 'question',
-      title: copy.removeInstallerTitle,
-      message: copy.updateInstalled(artifact.version),
-      detail: copy.removeInstallerQuestion(artifact.path),
-      buttons: [copy.deleteInstaller, copy.keepInstaller],
-      defaultId: 1,
-      cancelId: 1,
-      noLink: true,
-    })
-    await resolveDesktopUpdateArtifact(userDataPath, artifact, result.response === 0)
+    // The running version already reached the target, so the cached installer
+    // has served its purpose. Remove it silently instead of asking the user to
+    // manage a file the app owns; a failed removal (e.g. a mounted macOS disk
+    // image) keeps the record so the next launch retries.
+    try {
+      await resolveDesktopUpdateArtifact(userDataPath, artifact, true)
+    } catch (cause) {
+      this.logError(`dsh-plugin-desktop: failed to remove the installed update installer: ${cause instanceof Error ? cause.message : String(cause)}`)
+    }
   }
 
   /** Start the downloaded NSIS installer visibly before releasing the current process. */

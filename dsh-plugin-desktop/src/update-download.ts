@@ -1,7 +1,7 @@
 /** Headless, confirmation-gated downloads for PolyMechanism Studio installers. */
 
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto'
-import { chmod, lstat, mkdir, open, readFile, rename, unlink } from 'node:fs/promises'
+import { chmod, lstat, mkdir, open, readdir, readFile, rename, unlink } from 'node:fs/promises'
 import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import {
@@ -353,6 +353,47 @@ export async function recordDesktopUpdateArtifact(
     mode: PRIVATE_FILE_MODE,
     dirMode: PRIVATE_DIRECTORY_MODE,
   })
+}
+
+/**
+ * Ensure the fixed installer cache directory exists and return it.
+ *
+ * Updates download into this directory instead of asking the user for a
+ * destination: the app owns the file, so it can be removed automatically once
+ * the installed version reaches the target. The directory sits beside the
+ * pending-installer record so the whole cache can be inspected in one place.
+ * @param userDataPath - Electron user-data root (absolute path to a real directory).
+ * @returns Absolute path of `<userData>/updates`.
+ */
+export async function prepareDesktopUpdateCache(userDataPath: string): Promise<string> {
+  const root = validatedUserDataPath(userDataPath)
+  const rootStat = await lstat(root)
+  if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) {
+    throw new UpdateDownloadError('invalid-options', 'The update user-data path must be a real directory.')
+  }
+  const directory = join(root, 'updates')
+  await preparePrivateDirectory(directory)
+  return directory
+}
+
+/**
+ * Remove abandoned partial downloads left by an interrupted process.
+ *
+ * A download writes into a hidden `.name.pid.uuid.partial` file and renames it
+ * on success, so anything still matching that shape after startup cannot be in
+ * use by this process (Desktop runs one instance) and is safe to delete.
+ * @param userDataPath - Electron user-data root (absolute path to a real directory).
+ * @returns Number of abandoned partial files removed.
+ */
+export async function sweepDesktopUpdateCache(userDataPath: string): Promise<number> {
+  const directory = await prepareDesktopUpdateCache(userDataPath)
+  let removed = 0
+  for (const name of await readdir(directory)) {
+    if (!name.startsWith('.') || !name.endsWith('.partial')) continue
+    await unlinkIfPresent(join(directory, name))
+    removed += 1
+  }
+  return removed
 }
 
 /** Return a retained installer only after the running version reaches its target. */
