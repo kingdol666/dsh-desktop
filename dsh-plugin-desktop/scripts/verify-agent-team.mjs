@@ -353,6 +353,67 @@ try {
     await tools.get('cognition_forget').execute({ id: domainStored.result.stored.id }, domainExec)
     process.stdout.write(`verify-agent-team: domain memory ok id=${domainStored.result.stored.id}\n`)
   }
+  {
+    // --- real tool call: competitive mechanism screening over an orthogonal matrix ---
+    const csvPath = join(WORKSPACE, 'mechanism-orthogonal.csv')
+    writeFileSync(csvPath, [
+      'stretch_ratio,crystallinity,birefringence',
+      '1.0,6.5,0.5',
+      '1.5,13.51,1.6',
+      '2.0,22.63,2.7',
+      '2.5,33.46,3.8',
+      '3.0,46.0,4.9',
+      '3.5,59.8,6.0',
+      '',
+    ].join('\n'), 'utf8')
+    const screenExec = {
+      agent: { id: 'verify-mechanism-screen', session: { header: { cwd: WORKSPACE, agentPreset: 'polymer-scientist' } } },
+      signal: new AbortController().signal,
+    }
+    const screened = parseToolResult(await tools.get('pm_mechanism_screen').execute({
+      projectId: 'PR-1',
+      dataPath: csvPath,
+      requiredResponses: ['crystallinity', 'birefringence'],
+      record: false,
+      hypotheses: JSON.stringify([
+        {
+          id: 'H1',
+          name: 'strain-induced crystallization',
+          rationale: 'affine stretch raises orientation and nucleation density',
+          terms: [
+            { response: 'crystallinity', form: 'power', factors: ['stretch_ratio'] },
+            { response: 'birefringence', form: 'linear', factors: ['stretch_ratio'] },
+          ],
+        },
+        {
+          id: 'H2',
+          name: 'thermal-only',
+          rationale: 'thermal history alone would not track draw ratio',
+          terms: [{ response: 'crystallinity', form: 'linear', factors: ['stretch_ratio'] }],
+        },
+      ]),
+    }, screenExec))
+    if (screened?.ok !== true) {
+      throw new Error(`pm_mechanism_screen failed: ${JSON.stringify(screened).slice(0, 500)}`)
+    }
+    const analysis = screened.data?.analysis
+    const ranking = Array.isArray(analysis?.ranking) ? analysis.ranking : []
+    const survivors = Array.isArray(analysis?.survivors) ? analysis.survivors : []
+    const eliminated = Array.isArray(analysis?.eliminated) ? analysis.eliminated : []
+    if (analysis?.best !== 'H1' || !survivors.includes('H1')) {
+      throw new Error(`mechanism screening did not recover H1: ${JSON.stringify(analysis).slice(0, 700)}`)
+    }
+    if (!eliminated.some(item => item.id === 'H2')) {
+      throw new Error(`mechanism screening did not eliminate H2: ${JSON.stringify(eliminated).slice(0, 500)}`)
+    }
+    if (!Array.isArray(analysis?.nextExperiments) || analysis.nextExperiments.length === 0) {
+      throw new Error('mechanism screening produced no discriminating experiment suggestion')
+    }
+    process.stdout.write(
+      `verify-agent-team: mechanism screening ok best=${analysis.best} ranking=${ranking.join('>')} `
+      + `survivors=${survivors.join(',')} eliminated=${eliminated.map(item => item.id).join(',')}\n`,
+    )
+  }
   if (process.env.VERIFY_DOMAIN_WORKSPACE) {
     const exec = {
       agent: { id: 'verify-domain-kb', session: { header: { cwd: process.env.VERIFY_DOMAIN_WORKSPACE } } },
@@ -594,9 +655,9 @@ try {
   forbidTool('reviewer', ['write', 'pm_hypothesis_transition', 'delegate_agent', 'pm_sim_md_run', 'zotero_note', 'domain_remember', 'cognition_context', 'cognition_recall', 'cognition_remember'])
   requireTool('characterization', ['pm_waxs_pro', 'pm_evidence_record', 'pyenv_discover', 'domain_route', 'domain_remember'])
   forbidTool('characterization', ['pm_sim_md_run', 'delegate_agent', 'cognition_context', 'cognition_recall', 'cognition_remember'])
-  requireTool('physicist', ['pm_hypothesis_propose', 'pm_sim_flory_huggins', 'domain_route', 'domain_remember'])
+  requireTool('physicist', ['pm_hypothesis_propose', 'pm_mechanism_screen', 'pm_sim_flory_huggins', 'domain_route', 'domain_remember'])
   forbidTool('physicist', ['delegate_agent', 'write', 'cognition_context', 'cognition_recall', 'cognition_remember'])
-  requireTool('modeler', ['pm_sim_flory_huggins', 'pm_sim_md_run', 'pyenv_create', 'domain_route', 'domain_remember'])
+  requireTool('modeler', ['pm_sim_flory_huggins', 'pm_mechanism_screen', 'pm_sim_md_run', 'pyenv_create', 'domain_route', 'domain_remember'])
   forbidTool('modeler', ['delegate_agent', 'cognition_context', 'cognition_recall', 'cognition_remember'])
   const forbidden = [
     await expectDenied('literature', 'pm_sim_flory_huggins'),

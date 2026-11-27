@@ -42,6 +42,7 @@ const KB_TOOLS = Object.freeze([
 const PM_REGRESSION_TOOLS = Object.freeze([
   'pm_literature_read', 'pm_literature_extract',
   'pm_literature_search', 'pm_literature_screen', 'pm_literature_download',
+  'pm_mechanism_screen',
 ])
 const REQUIRED_SKILLS = Object.freeze([
   'zotero',

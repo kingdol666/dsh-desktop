@@ -6,6 +6,7 @@ import type { PmResearchEngine } from './service.ts'
 import { actingPreset, canUseTool, type PresetResolver } from './permissions.ts'
 import { renderJson as render, toToolJson } from './tool-json.ts'
 import {
+  readCsvColumns,
   readCsvSeries,
   resolveDataPath,
   runScience,
@@ -250,6 +251,87 @@ export function registerScienceTools(ctx: Context, engine: PmResearchEngine, res
           signal: series.y,
           model: args.model,
         }), result => `${args.model.toUpperCase()} fit: params ${JSON.stringify(result.params)}; r² ${String((result.fit as { r2?: unknown } | undefined)?.r2)}`, resolvePreset)
+      },
+    }))
+
+    scope.tools.register(defineTool({
+      name: 'pm_mechanism_screen',
+      description: '竞争机理高通量筛选：对全部候选机理按数据集逐响应拟合（linear/interaction/quadratic/log/power/exp_saturation/exp_decay/arrhenius），输出量化排名、淘汰原因、逐对判别实验建议与缺口清单。每个机理必须给出科学依据（rationale）并覆盖 requiredResponses；只有全部响应都达到拟合与方向判据的机理才算解释得通。',
+      parameters: {
+        ...commonParameters(),
+        dataPath: { type: 'string', required: true, description: '工作区内正交实验 CSV（列=条件因子+测量响应）' },
+        hypotheses: { type: 'string', required: true, description: 'JSON 数组字符串：每项 {id,name,rationale,terms:[{response,form,factors,coefficient_signs?}],predictions?:[{response,direction,factor}],weight?}' },
+        requiredResponses: { type: 'array', items: { type: 'string' }, description: '每个机理必须解释的响应列；缺失即判为未覆盖' },
+        uncertaintyColumn: { type: 'string', description: '可选不确定度列（标准差），用于加权最小二乘' },
+        minR2: { type: 'number', description: '单响应最低 R²（默认 0.8）' },
+      },
+      output: { schema: { type: 'object', additionalProperties: true }, render },
+      async execute(args: ScienceArgs & {
+        dataPath: string
+        hypotheses: string
+        requiredResponses?: string[]
+        uncertaintyColumn?: string
+        minR2?: number
+      }, exec) {
+        const auth = authorize('pm_mechanism_screen', args, exec, resolvePreset)
+        if (!auth.ok) return toToolJson(auth)
+        try {
+          let hypotheses: unknown
+          try {
+            hypotheses = JSON.parse(args.hypotheses)
+          } catch {
+            return toToolJson({
+              ok: false,
+              error: { code: 'INVALID_HYPOTHESES', message: 'hypotheses must be a JSON array string' },
+            })
+          }
+          if (!Array.isArray(hypotheses) || hypotheses.length === 0) {
+            return toToolJson({
+              ok: false,
+              error: { code: 'INVALID_HYPOTHESES', message: 'hypotheses must be a non-empty JSON array' },
+            })
+          }
+          const root = sessionWorkspace(exec.agent)
+          const path = resolveDataPath(args.dataPath, root)
+          const dataset = await readCsvColumns(path)
+          const options: Record<string, unknown> = {}
+          if (args.requiredResponses !== undefined) options.requiredResponses = args.requiredResponses
+          if (args.uncertaintyColumn !== undefined) options.uncertaintyColumn = args.uncertaintyColumn
+          if (args.minR2 !== undefined) options.minR2 = args.minR2
+          const result = await runScience('mechanism_screen', {
+            columns: dataset.columns,
+            rows: dataset.rows,
+            hypotheses,
+            options,
+          }, { signal: exec.signal })
+          const ranking = Array.isArray(result.ranking) ? result.ranking : []
+          const survivors = Array.isArray(result.survivors) ? result.survivors : []
+          const claimSupport = args.claimSupport
+            ?? `机理筛选：最优 ${String(result.best ?? '(none)')}；存活 ${String(survivors.length)}/${String(ranking.length)}`
+          if (args.record === false) {
+            return toToolJson({ ok: true, data: { analysis: result, evidence: null } })
+          }
+          const recorded = await engine.recordAnalysis(args.projectId, {
+            tool: 'pm_mechanism_screen',
+            result,
+            dataPath: path,
+            claimSupport,
+            ...(args.polarity === undefined ? {} : { polarity: args.polarity }),
+            ...(args.strength === undefined ? {} : { strength: args.strength }),
+            recordedBy: auth.actor,
+          })
+          return toToolJson({
+            ok: true,
+            data: {
+              analysis: result,
+              evidence: recorded.evidence,
+              artifactPath: recorded.artifactPath,
+              deduped: recorded.deduped,
+            },
+          })
+        } catch (cause) {
+          return toToolJson(failure(cause))
+        }
       },
     }))
 

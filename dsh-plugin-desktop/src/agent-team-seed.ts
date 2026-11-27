@@ -102,6 +102,7 @@ const BLUEPRINTS: readonly AgentBlueprint[] = Object.freeze([
       'pm_sim_tg_blend',
       'pm_sim_diffusion',
       'pm_model_fit',
+      'pm_mechanism_screen',
       'pm_experiment_plan',
       'read',
       'grep',
@@ -168,6 +169,7 @@ const BLUEPRINTS: readonly AgentBlueprint[] = Object.freeze([
       'pm_sim_diffusion',
       'pm_sim_md_run',
       'pm_model_fit',
+      'pm_mechanism_screen',
       'pm_experiment_plan',
       'pm_analysis_report',
       'pyenv_discover',
@@ -329,6 +331,14 @@ const UPGRADE_2_5_0: Readonly<Record<string, {
   },
 })
 
+/** 2.5.x -> 2.6.0: the mechanism-screening engine for the mechanism-facing
+ * experts. Extended only when the stored whitelist is still a pristine subset
+ * of the previous (2.5.x) blueprint; user-edited lists are left untouched. */
+const UPGRADE_MECHANISM_SCREEN: Readonly<Record<string, readonly string[]>> = Object.freeze({
+  physicist: ['pm_mechanism_screen'],
+  modeler: ['pm_mechanism_screen'],
+})
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -341,13 +351,16 @@ function isShellTool(name: string): boolean {
   return name === 'pwsh' || name === 'bash'
 }
 
-/** Extend pristine 2.3.0/2.4.0 expert stores with 2.5.0 domain tools.
+/** Extend pristine 2.3.0/2.4.0/2.5.x expert stores with newer tool surfaces.
  *
- * A store is upgraded only when its tools/skills are still a subset of a
- * previous release's blueprint. Custom whitelists and user-edited prompts are
- * preserved. The 2.4.0 prior blueprint is reconstructed from the live blueprint
- * by undoing the 2.5.0 add/remove sets, so this function does not need a second
- * large literal that could drift. */
+ * Stage 1 (2.5.0): replace raw cognition with domain-scoped memory tools and
+ * add the domain protocol skill. Stage 2 (2.6.0): give the mechanism-facing
+ * experts the quantitative screening engine. Each stage is applied only when
+ * the stored tools/skills are still a subset of the previous release's
+ * blueprint; custom whitelists and user-edited prompts are preserved. Prior
+ * blueprints are reconstructed from the live blueprint by undoing the add
+ * sets, so this function does not need separate large literals that could
+ * drift. */
 function upgradeAgentStore(
   store: Record<string, unknown>,
   logger?: AgentTeamSeedLogger,
@@ -357,58 +370,79 @@ function upgradeAgentStore(
   const upgraded: string[] = []
   for (const blueprint of BLUEPRINTS) {
     const spec = UPGRADE_2_5_0[blueprint.name]
-    if (spec === undefined) continue
+    const extension = UPGRADE_MECHANISM_SCREEN[blueprint.name] ?? []
     const existing = records.find((agent) => agent.id === blueprint.id)
       ?? records.find((agent) => agent.name === blueprint.name)
     if (existing === undefined) continue
     const existingTools = asStringArray(existing.tools)
     const existingSkills = asStringArray(existing.skills)
-    const alreadyCurrent = spec.removeTools.every(tool => !existingTools.includes(tool))
+    const already25 = spec === undefined || (
+      spec.removeTools.every(tool => !existingTools.includes(tool))
       && spec.addTools.every(tool => existingTools.includes(tool))
-      && spec.addSkills.every(skill => existingSkills.includes(skill))
-    if (alreadyCurrent) continue
+      && spec.addSkills.every(skill => existingSkills.includes(skill)))
+    const hasExtension = extension.every(tool => existingTools.includes(tool))
+    if (already25 && hasExtension) continue
 
-    // Reconstruct the 2.4.0 blueprint: undo the 2.5.0 additions and restore the
-    // raw cognition tools that 2.5.0 removes.
-    const prior24Tools = blueprint.tools.filter(tool => !spec.addTools.includes(tool))
-    for (const tool of spec.removeTools) if (!prior24Tools.includes(tool)) prior24Tools.push(tool)
-    const prior24Skills = blueprint.skills.filter(skill => !spec.addSkills.includes(skill))
-    const prior24 = { ...blueprint, tools: prior24Tools, skills: prior24Skills }
-    const additions24 = UPGRADE_ADDITIONS[blueprint.name] ?? { tools: [], skills: [] }
-    const prior23Tools = prior24Tools.filter(tool => !additions24.tools.includes(tool))
-    const prior23Skills = prior24Skills.filter(skill => !additions24.skills.includes(skill))
-    const prior23 = { ...blueprint, tools: prior23Tools, skills: prior23Skills }
-
-    const prior24ToolSet = new Set(prior24Tools)
-    const prior24SkillSet = new Set(prior24Skills)
-    const prior23ToolSet = new Set(prior23Tools)
-    const prior23SkillSet = new Set(prior23Skills)
-    const subset = (values: readonly string[], allowed: ReadonlySet<string>, shellAware: boolean): boolean =>
-      values.every(value => (shellAware && isShellTool(value)) || allowed.has(value))
-    const from24 = subset(existingTools, prior24ToolSet, true)
-      && subset(existingSkills, prior24SkillSet, false)
-    const from23 = subset(existingTools, prior23ToolSet, true)
-      && subset(existingSkills, prior23SkillSet, false)
-    if (!from24 && !from23) {
-      logger?.info(`agent team: ${blueprint.name} has a customized whitelist; not upgraded`)
-      continue
-    }
-
-    let nextTools = existingTools.filter(tool => !spec.removeTools.includes(tool))
+    let nextTools = [...existingTools]
     let nextSkills = [...existingSkills]
-    if (from23) {
-      for (const tool of additions24.tools) if (!nextTools.includes(tool)) nextTools.push(tool)
-      for (const skill of additions24.skills) if (!nextSkills.includes(skill)) nextSkills.push(skill)
-    }
-    for (const tool of spec.addTools) if (!nextTools.includes(tool)) nextTools.push(tool)
-    for (const skill of spec.addSkills) if (!nextSkills.includes(skill)) nextSkills.push(skill)
+    let changed = false
+    let promptMatched = false
 
-    const priorPromptMatched = existing.systemPrompt === legacySystemPrompt(prior24)
-      || existing.systemPrompt === legacySystemPrompt(prior23)
-    if (priorPromptMatched) existing.systemPrompt = systemPrompt(blueprint)
-    if (nextTools.length !== existingTools.length
+    if (!already25 && spec !== undefined) {
+      // Reconstruct the 2.4.0 blueprint: undo the 2.5.0 additions and restore
+      // the raw cognition tools that 2.5.0 removes.
+      const prior24Tools = blueprint.tools.filter(tool => !spec.addTools.includes(tool))
+      for (const tool of spec.removeTools) if (!prior24Tools.includes(tool)) prior24Tools.push(tool)
+      const prior24Skills = blueprint.skills.filter(skill => !spec.addSkills.includes(skill))
+      const prior24 = { ...blueprint, tools: prior24Tools, skills: prior24Skills }
+      const additions24 = UPGRADE_ADDITIONS[blueprint.name] ?? { tools: [], skills: [] }
+      const prior23Tools = prior24Tools.filter(tool => !additions24.tools.includes(tool))
+      const prior23Skills = prior24Skills.filter(skill => !additions24.skills.includes(skill))
+      const prior23 = { ...blueprint, tools: prior23Tools, skills: prior23Skills }
+
+      const prior24ToolSet = new Set(prior24Tools)
+      const prior24SkillSet = new Set(prior24Skills)
+      const prior23ToolSet = new Set(prior23Tools)
+      const prior23SkillSet = new Set(prior23Skills)
+      const subset = (values: readonly string[], allowed: ReadonlySet<string>, shellAware: boolean): boolean =>
+        values.every(value => (shellAware && isShellTool(value)) || allowed.has(value))
+      const from24 = subset(existingTools, prior24ToolSet, true)
+        && subset(existingSkills, prior24SkillSet, false)
+      const from23 = subset(existingTools, prior23ToolSet, true)
+        && subset(existingSkills, prior23SkillSet, false)
+      if (!from24 && !from23) {
+        logger?.info(`agent team: ${blueprint.name} has a customized whitelist; not upgraded`)
+        continue
+      }
+
+      nextTools = existingTools.filter(tool => !spec.removeTools.includes(tool))
+      if (from23) {
+        for (const tool of additions24.tools) if (!nextTools.includes(tool)) nextTools.push(tool)
+        for (const skill of additions24.skills) if (!nextSkills.includes(skill)) nextSkills.push(skill)
+      }
+      for (const tool of spec.addTools) if (!nextTools.includes(tool)) nextTools.push(tool)
+      for (const skill of spec.addSkills) if (!nextSkills.includes(skill)) nextSkills.push(skill)
+      promptMatched = existing.systemPrompt === legacySystemPrompt(prior24)
+        || existing.systemPrompt === legacySystemPrompt(prior23)
+      changed = true
+    }
+
+    if (!hasExtension && extension.length > 0) {
+      const priorTools = blueprint.tools.filter(tool => !extension.includes(tool))
+      const stillPristine = nextTools.every(tool => isShellTool(tool) || priorTools.includes(tool))
+      if (stillPristine) {
+        for (const tool of extension) if (!nextTools.includes(tool)) nextTools.push(tool)
+        promptMatched = promptMatched || existing.systemPrompt === preMechanismSystemPrompt(blueprint)
+        changed = true
+      } else if (already25) {
+        logger?.info(`agent team: ${blueprint.name} has a customized whitelist; mechanism screening tool not added`)
+      }
+    }
+
+    if (promptMatched) existing.systemPrompt = systemPrompt(blueprint)
+    if (changed && (nextTools.length !== existingTools.length
       || nextSkills.length !== existingSkills.length
-      || priorPromptMatched) {
+      || promptMatched)) {
       existing.tools = nextTools
       existing.skills = nextSkills
       upgraded.push(blueprint.name)
@@ -428,7 +462,8 @@ function legacySystemPrompt(blueprint: AgentBlueprint): string {
   ].join('')
 }
 
-function systemPrompt(blueprint: AgentBlueprint): string {
+/** The 2.5.x expert prompt (kept verbatim so pristine stores upgrade cleanly). */
+function preMechanismSystemPrompt(blueprint: AgentBlueprint): string {
   return [
     `你是 PolyMechanism Studio 的${blueprint.displayName}（子代理名 ${blueprint.name}）。`,
     `执行任务时以 ${blueprint.preset} preset 运行，只能使用给定的工具白名单与技能；`,
@@ -441,6 +476,28 @@ function systemPrompt(blueprint: AgentBlueprint): string {
     OUTPUT_RULE,
     blueprint.contract,
   ].join('')
+}
+
+/** Mechanism protocol appended only to experts given the screening engine. */
+const MECHANISM_RULE = '遇到机理问题必须数据先行：先用 data-analysis 汇总正交实验与检测数据，'
+  + '再用 pm_mechanism_screen 对全部候选机理做量化筛选（requiredResponses 覆盖全部关键响应）；'
+  + '每个假设必须写明科学依据、量化预测与判别实验；只有能解释全部数据、无方向矛盾的机理才可上报；'
+  + '数据不全时写 gaps 并给出需要人类补齐的清单，不得编造数据；机理结论必须附 R²/效应量/evidenceIds。'
+
+function systemPrompt(blueprint: AgentBlueprint): string {
+  const parts = [
+    `你是 PolyMechanism Studio 的${blueprint.displayName}（子代理名 ${blueprint.name}）。`,
+    `执行任务时以 ${blueprint.preset} preset 运行，只能使用给定的工具白名单与技能；`,
+    '不要做其他专家的工作，也不要派发子代理。',
+    '做任何检索/文献/记忆前，先用 domain_route 判断领域并用 domain_scope 设 active domain；'
+      + 'KB/Zotero/lit-library 调用必须带 domain；文献结论默认 kind=pdf；'
+      + '跨域只在 crossDomain=true 时查 relatedDomains，并标明来源 domain。',
+    '领域经验只写 domain_remember（Reviewer 只 recall），不得调用原始 cognition_remember/recall；'
+      + '记忆不是证据，没有 evidenceId 就写 gaps。',
+  ]
+  if (blueprint.tools.includes('pm_mechanism_screen')) parts.push(MECHANISM_RULE)
+  parts.push(OUTPUT_RULE, blueprint.contract)
+  return parts.join('')
 }
 
 /** Build the seed payload, filtering every tool/skill against the live registry.

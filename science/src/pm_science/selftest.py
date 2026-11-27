@@ -33,6 +33,7 @@ from pm_science.viscoelastic import rouse_spectrum, shift_factors  # noqa: E402
 from pm_science.waxs import waxs_crystallinity  # noqa: E402
 from pm_science.waxs_pro import air_remove, orientation_hermans, peak_fit_pro  # noqa: E402
 from pm_science.report import render_report  # noqa: E402
+from pm_science.mechanism_screen import screen as mechanism_screen  # noqa: E402
 
 
 def check(results: dict[str, bool]) -> int:
@@ -340,6 +341,76 @@ def main() -> int:
     )
 
     md_checks(checks)
+
+    # 15) Mechanism screening: recover the true mechanism, eliminate decoys and
+    # direction contradictions, and require coverage of every measured response.
+    lam = np.array([1.0, 1.5, 2.0, 2.5, 3.0, 3.5])
+    crystallinity = 6.5 * lam ** 1.8
+    birefringence = 0.5 + 2.2 * (lam - 1.0)
+    modulus = 900.0 + 120.0 * (lam - 1.0)
+    penalty_data = {
+        "columns": ["stretch_ratio", "crystallinity", "birefringence", "modulus"],
+        "rows": [[float(a), float(b), float(c), float(d)]
+                 for a, b, c, d in zip(lam, crystallinity, birefringence, modulus)],
+        "options": {"requiredResponses": ["crystallinity", "birefringence"]},
+        "hypotheses": [
+            {
+                "id": "H1",
+                "name": "strain-induced crystallization",
+                "rationale": "affine stretch raises orientation and nucleation density",
+                "terms": [
+                    {"response": "crystallinity", "form": "power", "factors": ["stretch_ratio"]},
+                    {"response": "birefringence", "form": "linear", "factors": ["stretch_ratio"]},
+                ],
+                "predictions": [{"response": "modulus", "direction": "+", "factor": "stretch_ratio"}],
+            },
+            {
+                "id": "H2",
+                "name": "linear additivity",
+                "rationale": "purely additive contribution",
+                "terms": [{"response": "crystallinity", "form": "linear", "factors": ["stretch_ratio"]}],
+            },
+            {
+                "id": "H3",
+                "name": "extensibility saturation",
+                "rationale": "finite chain extensibility bounds the response",
+                "terms": [{"response": "crystallinity", "form": "exp_saturation", "factors": ["stretch_ratio"]}],
+            },
+        ],
+    }
+    result = mechanism_screen(penalty_data)
+    checks["mechanism_screen_recovers_true_model"] = (
+        result["best"] == "H1"
+        and result["survivors"] == ["H1"]
+        and any("required response not modeled: birefringence" in reason
+                for item in result["eliminated"] if item["id"] == "H2" for reason in item["reasons"])
+    )
+    h1 = next(item for item in result["hypotheses"] if item["id"] == "H1")
+    power_term = next(term for term in h1["terms"] if term.get("form") == "power")
+    checks["mechanism_screen_quantifies_fit"] = (
+        power_term["r2"] > 0.999
+        and abs(float(power_term["params"]["p"]) - 1.8) < 0.05
+        and isinstance(power_term.get("looRmse"), float)
+        and result["nextExperiments"] != []
+    )
+    contradiction = {
+        "columns": ["stretch_ratio", "modulus"],
+        "rows": [[float(a), float(b)] for a, b in zip(lam, 900.0 - 120.0 * (lam - 1.0))],
+        "hypotheses": [{
+            "id": "HC",
+            "name": "orientation stiffening",
+            "rationale": "higher orientation should raise modulus",
+            "terms": [{"response": "modulus", "form": "linear", "factors": ["stretch_ratio"]}],
+            "predictions": [{"response": "modulus", "direction": "+", "factor": "stretch_ratio"}],
+        }],
+    }
+    contradiction_result = mechanism_screen(contradiction)
+    checks["mechanism_screen_eliminates_direction_violation"] = (
+        contradiction_result["survivors"] == []
+        and contradiction_result["hypotheses"][0]["explainsAll"] is False
+        and any("prediction modulus" in reason
+                for reason in contradiction_result["eliminated"][0]["reasons"])
+    )
 
     exit_code = check(checks)
     print(json.dumps({"summary": {k: bool(v) for k, v in checks.items()}}, ensure_ascii=False))

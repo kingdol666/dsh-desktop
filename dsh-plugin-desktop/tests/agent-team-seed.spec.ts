@@ -46,6 +46,7 @@ const TOOLS = [
   'pm_analysis_report',
   'pm_knowledge_propose',
   'pm_sim_md_run',
+  'pm_mechanism_screen',
   'pm_literature_read',
   'pm_literature_extract',
   'pm_literature_search',
@@ -290,6 +291,47 @@ describe('seedAgentTeam', () => {
     const after = JSON.parse(readFileSync(file, 'utf8'))
     const preserved = after.agents.find((agent: { name: string }) => agent.name === 'reviewer')
     expect(preserved.tools).toContain('my_custom_tool')
+  })
+
+  it('adds the mechanism screening tool to a pristine 2.5.x store', async () => {
+    const dir = home()
+    await seedAgentTeam(dir, TOOLS, SKILLS)
+    const file = join(dir, 'agent-skill', 'agents.json')
+    const store = JSON.parse(readFileSync(file, 'utf8'))
+    for (const name of ['physicist', 'modeler']) {
+      const agent = store.agents.find((entry: { name: string }) => entry.name === name)
+      agent.tools = agent.tools.filter((tool: string) => tool !== 'pm_mechanism_screen')
+    }
+    writeFileSync(file, JSON.stringify(store, null, 2))
+
+    const result = await seedAgentTeam(dir, TOOLS, SKILLS)
+    expect(result.upgraded).toEqual(expect.arrayContaining(['physicist', 'modeler']))
+    const after = JSON.parse(readFileSync(file, 'utf8'))
+    for (const name of ['physicist', 'modeler']) {
+      const upgraded = after.agents.find((entry: { name: string }) => entry.name === name)
+      expect(upgraded.tools).toContain('pm_mechanism_screen')
+      expect(upgraded.systemPrompt).toContain('pm_mechanism_screen')
+    }
+    const literature = after.agents.find((entry: { name: string }) => entry.name === 'literature')
+    expect(literature.tools).not.toContain('pm_mechanism_screen')
+  })
+
+  it('leaves a customized 2.5.x physicist whitelist without the mechanism tool', async () => {
+    const dir = home()
+    await seedAgentTeam(dir, TOOLS, SKILLS)
+    const file = join(dir, 'agent-skill', 'agents.json')
+    const store = JSON.parse(readFileSync(file, 'utf8'))
+    const physicist = store.agents.find((agent: { name: string }) => agent.name === 'physicist')
+    physicist.tools = physicist.tools.filter((tool: string) => tool !== 'pm_mechanism_screen')
+    physicist.tools.push('my_custom_tool')
+    writeFileSync(file, JSON.stringify(store, null, 2))
+
+    const result = await seedAgentTeam(dir, TOOLS, SKILLS)
+    expect(result.upgraded ?? []).not.toContain('physicist')
+    const after = JSON.parse(readFileSync(file, 'utf8'))
+    const preserved = after.agents.find((agent: { name: string }) => agent.name === 'physicist')
+    expect(preserved.tools).toContain('my_custom_tool')
+    expect(preserved.tools).not.toContain('pm_mechanism_screen')
   })
 
   it('backs up and rebuilds a corrupt store', async () => {

@@ -26,6 +26,15 @@ describe('tool permission matrix', () => {
     expect(canUseTool('pm_knowledge_review', 'polymer-scientist')).toBe(false)
   })
 
+  it('lets physicist, modeler and scientist run mechanism screening', () => {
+    for (const preset of ['polymer-physicist', 'polymer-modeler', 'polymer-scientist']) {
+      expect(canUseTool('pm_mechanism_screen', preset), preset).toBe(true)
+    }
+    for (const preset of ['polymer-characterization', 'polymer-literature', 'polymer-reviewer']) {
+      expect(canUseTool('pm_mechanism_screen', preset), preset).toBe(false)
+    }
+  })
+
   it('denies unattributed callers and unknown tools closed', () => {
     expect(canUseTool('pm_evidence_query', undefined)).toBe(false)
     expect(canUseTool('nonexistent_tool', 'polymer-scientist')).toBe(false)

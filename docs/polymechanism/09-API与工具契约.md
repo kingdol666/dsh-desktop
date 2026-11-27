@@ -165,6 +165,18 @@ pm_model_fit
   // 服务端调用 science engine；结果归档并自动登记证据（record 默认 true）
   returns: { analysis:{params,fit:{rmse,r2},halfTime}, evidence, artifactPath }
 
+pm_mechanism_screen
+  parameters: { projectId:{type:'string',required:true},
+                dataPath:{type:'string',required:true},              // 工作区正交实验 CSV（条件列 + 响应列）
+                hypotheses:{type:'string',required:true},            // JSON 数组：{id,name,rationale,terms:[{response,form,factors}],predictions?}
+                requiredResponses:{type:'string[]'},                 // 每个机理必须解释的响应；缺失即判未覆盖
+                uncertaintyColumn?:string, minR2?:number }
+  // 对每个候选机理逐响应拟合（linear/interaction/quadratic/log/power/exp/arrhenius），
+  // 按 R²/adjR²/AICc/方向一致/覆盖率给出 explainsAll 与排名；输出淘汰原因、
+  // 两两判别实验建议与缺口。结果归档并自动登记证据（record 默认 true）。
+  returns: { analysis:{ranking,best,survivors,eliminated,hypotheses,coverage,
+             discriminators,nextExperiments,gaps}, evidence, artifactPath }
+
 pm_experiment_plan
   parameters: { factors:[{name, levels:[...], unit?}], response:{name, effectSize, sigma, unit?},
                 alpha?:number, power?:number, replicates?:number, blocking?:string[], seed?:number }
@@ -397,6 +409,7 @@ interface PmScience   { caeRun(i); caeStudy(i); opticsAnalyze(i); characterizati
 | pm_saxs_analyze | ✓ | — | ✓ | — | — | — |
 | pm_hermans_analyze | ✓ | ✓ | ✓ | — | — | — |
 | pm_model_fit | ✓ | ✓ | — | ✓ | — | — |
+| pm_mechanism_screen | ✓ | ✓ | — | ✓ | — | — |
 | pm_sim_chain_mechanics / viscoelastic / chain_stats | ✓ | ✓ | — | ✓ | — | — |
 | pm_sim_rubber_elasticity / flory_huggins / tg_blend / diffusion | ✓ | ✓ | — | ✓ | — | — |
 | pm_sim_crystallization | ✓ | — | ✓ | ✓ | — | — |

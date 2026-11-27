@@ -361,6 +361,12 @@ def _report(args: dict[str, object]) -> dict[str, object]:
     )
 
 
+def _mechanism_screen(args: dict[str, object]) -> dict[str, object]:
+    from pm_science.mechanism_screen import screen
+
+    return screen(args)
+
+
 HANDLERS = {
     "waxs": _waxs,
     "ftir": _ftir,
@@ -383,6 +389,7 @@ HANDLERS = {
     "md_run": _md_run,
     "waxs_pro": _waxs_pro,
     "report": _report,
+    "mechanism_screen": _mechanism_screen,
 }
 
 

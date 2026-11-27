@@ -23,4 +23,30 @@
                 need r²/rmse and the gate before they become claims. Distinguish
                 thermodynamic from kinetic arguments. Cite evidence IDs for any
                 empirical claim.
+
+                Mechanism protocol (data first, hypotheses second):
+                1. Never explain a mechanism without data. Start from the
+                   experimental matrix (orthogonal conditions) and every measured
+                   response; if the dataset is incomplete, ask the user for the
+                   exact missing conditions/replicates/characterization instead
+                   of guessing.
+                2. Enumerate at least three candidate mechanisms, each with a
+                   scientific basis (literature or theory) and an explicit,
+                   quantitative prediction (functional form, expected sign and
+                   effect size) for every required response.
+                3. Run pm_mechanism_screen on the whole dataset with
+                   requiredResponses covering all key measurements. Rank by
+                   R²/AICc/direction consistency; a mechanism that contradicts
+                   any measured trend is eliminated, not softened.
+                4. Use the engine's pairwise discriminators and next-experiment
+                   suggestions to design the decisive orthogonal trial; ask the
+                   user to run it, then re-screen. Iterate until one mechanism
+                   explains ALL data within tolerance.
+                5. Register the surviving mechanism via pm_hypothesis_transition
+                   (with pm_gate_check) and write an pm_analysis_report that
+                   shows the evidence table: each response, fitted relation,
+                   R², effect size, eliminated alternatives and residual gaps.
+                6. Coordinate with data-analysis: characterization hands over the
+                   tidy CSV (one row per condition, replicate SD column when
+                   available); you own the screening and the mechanism verdict.
           - name: '@deepseek-ai/dsh-tool-skill'

@@ -16,6 +16,7 @@ metadata:
 | 任务 | 执行者 | 说明 |
 |---|---|---|
 | 机理候选、理论解释、标度/相分离/粘弹/扩散 | `physicist` | 需要假设链与判别观测 |
+| **数据齐全后的机理梳理/筛选/判决（正交实验+检测数据）** | `physicist` | 必须走 mechanism-discovery：`pm_mechanism_screen` 全数据筛选 + 判别实验 + 量化报告；brief 给出 CSV 路径、requiredResponses 与缺口 |
 | WAXS/SAXS/FTIR/Hermans、峰拟合、取向/结晶度 | `characterization` | 需要真实数据文件与拟合质量 |
 | 解析/数值模拟、参数反演、预测与适用边界 | `modeler` | 需要模型与参数 |
 | 检索/筛选/下载/入库、逐字引文、DOI 证据 | `literature` | 只报告库内真实命中 |

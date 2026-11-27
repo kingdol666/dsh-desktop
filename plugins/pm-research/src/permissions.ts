@@ -89,6 +89,7 @@ export const TOOL_PERMISSIONS: Readonly<Record<string, readonly string[]>> = Obj
   'pm_saxs_analyze': Object.freeze(['polymer-characterization', 'polymer-scientist']),
   'pm_hermans_analyze': Object.freeze(['polymer-physicist', 'polymer-characterization', 'polymer-scientist']),
   'pm_model_fit': Object.freeze(['polymer-physicist', 'polymer-characterization', 'polymer-modeler', 'polymer-scientist']),
+  'pm_mechanism_screen': Object.freeze(['polymer-physicist', 'polymer-modeler', 'polymer-scientist']),
   'pm_literature_read': Object.freeze(['polymer-literature', 'polymer-scientist']),
   'pm_literature_extract': Object.freeze(['polymer-literature', 'polymer-scientist']),
   'pm_literature_search': Object.freeze(['polymer-literature', 'polymer-scientist']),

@@ -28,6 +28,7 @@ export type ScienceTool =
   | 'flory'
   | 'tg_blend'
   | 'diffusion'
+  | 'mechanism_screen'
 
 /** Optional per-call overrides (timeout only; the interpreter is repository-fixed). */
 export interface ScienceConfig {
@@ -296,6 +297,38 @@ export async function readCsvSeries(path: string, selection: CsvSelection = {}):
   }
   if (x.length < 10) throw new ScienceFailure('DATA_TOO_SHORT', `${path} has fewer than 10 numeric rows`)
   return zi >= 0 ? { x, y, z, header } : { x, y, header }
+}
+
+/** One delimited dataset with every column preserved as text. */
+export interface CsvColumns {
+  readonly columns: readonly string[]
+  readonly rows: readonly (readonly string[])[]
+}
+
+/**
+ * Read a whole delimited dataset for multi-factor screening.
+ *
+ * Unlike {@link readCsvSeries}, every column is kept so the screening engine
+ * can fit several responses and factors at once. Comment lines and blank lines
+ * are skipped; the caller validates which columns carry numeric values.
+ * @param path - absolute file path (already checked against the workspace).
+ * @param minRows - minimal accepted data-row count.
+ * @returns header names plus raw cell rows.
+ */
+export async function readCsvColumns(path: string, minRows = 5): Promise<CsvColumns> {
+  const text = await readFile(path, 'utf8')
+  const lines = text.split(/\r?\n/u).filter(line => line.trim() !== '' && !line.trimStart().startsWith('#'))
+  if (lines.length < minRows + 1) {
+    throw new ScienceFailure('DATA_TOO_SHORT', `${path} has fewer than ${String(minRows)} data rows`)
+  }
+  const delimiter = lines[0]!.includes('\t') ? '\t' : lines[0]!.includes(';') ? ';' : ','
+  const columns = lines[0]!.split(delimiter).map(cell => cell.trim().replace(/^"|"$/gu, ''))
+  const rows: string[][] = []
+  for (const line of lines.slice(1)) {
+    const cells = line.split(delimiter).map(cell => cell.trim().replace(/^"|"$/gu, ''))
+    rows.push(cells)
+  }
+  return { columns, rows }
 }
 
 /** Session runtime face needed to resolve the safety root. */

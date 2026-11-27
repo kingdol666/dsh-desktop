@@ -208,6 +208,7 @@ export function registeredTools(): readonly string[] {
     'pm_saxs_analyze',
     'pm_hermans_analyze',
     'pm_model_fit',
+    'pm_mechanism_screen',
     'pm_literature_read',
     'pm_literature_extract',
     'pm_literature_search',
