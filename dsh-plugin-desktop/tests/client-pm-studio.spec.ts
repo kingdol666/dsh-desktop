@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PmHeroBrandMark, PmSidebarBrandName } from '../src/client/pm-studio/brand.tsx'
 import { PmHomeConsole, type PmHomeConsoleProps } from '../src/client/pm-studio/home-console.tsx'
+import { applyEvidenceTab } from '../src/client/pm-studio/evidence-tab.ts'
 import { applyPmStudio } from '../src/client/pm-studio/index.ts'
 import { installPmStudioStyles } from '../src/client/pm-studio/styles.ts'
 
@@ -51,19 +52,19 @@ describe('PolyMechanism brand occupants', () => {
     expect(markup).not.toContain('DeepSeek')
   })
 
-  it('renders the hero protocol, headline and subtitle as one lockup', () => {
+  it('renders the material research heading and task guidance without a hard-coded project', () => {
     const markup = renderToStaticMarkup(createElement(PmHeroBrandMark, { size: 34, locale: LOCALE } as never))
-    expect(markup).toContain('PVA–OPTICAL / 01')
-    expect(markup).toContain('从分子链')
-    expect(markup).toContain('可验证的机理')
+    expect(markup).toContain('材料研究')
+    expect(markup).toContain('检验机理')
+    expect(markup).not.toContain('PVA–OPTICAL')
     expect(markup).toContain('role="heading"')
   })
 
   it('renders English copy through the same locale face', () => {
     const english = { getSnapshot: () => 'en', subscribe: () => () => {} }
     const markup = renderToStaticMarkup(createElement(PmHeroBrandMark, { size: 34, locale: english } as never))
-    expect(markup).toContain('From molecular chains to')
-    expect(markup).toContain('verifiable mechanisms')
+    expect(markup).toContain('Materials research')
+    expect(markup).toContain('test mechanisms')
   })
 
   it('owns the document title and studio marker, and removes them on dispose', async () => {
@@ -91,6 +92,54 @@ describe('PolyMechanism brand occupants', () => {
     for (const dispose of disposers.reverse()) dispose()
     expect(document.body.dataset.pmStudio).toBeUndefined()
     expect(document.getElementById('pm-studio-design-styles')).toBeNull()
+  })
+
+  it('registers research navigation on the existing global panel seats', () => {
+    const register = vi.fn()
+    const disposers: (() => void)[] = []
+    const ctx = {
+      effect(factory: () => (() => void) | undefined) {
+        const dispose = factory()
+        if (dispose) disposers.push(dispose)
+      },
+      on: () => () => {},
+      slots: { inject: (_: string, callback: () => void) => callback(), register },
+      theme: { getTheme: () => ({ active: { colorScheme: 'dark' } }) },
+      locale: { getSnapshot: () => ({ active: 'zh' }), subscribe: () => () => {} },
+      inject: vi.fn(),
+    }
+    try {
+      applyPmStudio(ctx as never)
+      expect(document.body.dataset.pmTheme).toBe('dark')
+      expect(register).toHaveBeenCalledWith(expect.objectContaining({ name: 'sidebar.panellist', id: 'pm-research-desk' }), expect.any(Function))
+      expect(register).toHaveBeenCalledWith(expect.objectContaining({ name: 'main', key: 'pm-research-desk' }), expect.any(Function))
+    } finally {
+      for (const dispose of disposers.reverse()) dispose()
+    }
+  })
+
+  it('opens research evidence only in the session that owns the header', () => {
+    let mounted = 's1'
+    const openTab = vi.fn()
+    const registerTab = vi.fn()
+    const registerSlot = vi.fn()
+    const scope = {
+      effect: (factory: () => unknown) => factory(),
+      slots: { inject: (_: string, callback: () => void) => callback(), register: registerSlot },
+      sidebarRight: { mounted: { getSnapshot: () => mounted }, openTab },
+      sidebarRightTabs: { register: registerTab },
+    }
+    applyEvidenceTab({ inject: (_: readonly string[], fn: (value: typeof scope) => void) => fn(scope) } as never, LOCALE)
+    expect(registerTab).toHaveBeenCalledWith(expect.objectContaining({ kind: 'pm-research-evidence' }))
+    expect(registerSlot).toHaveBeenCalledWith(expect.objectContaining({ name: 'sidebar.right.pane.tab', key: 'pm-research-evidence' }), expect.any(Function))
+    const entry = registerSlot.mock.calls.find(([registration]) => registration.name === 'conversation.session.header.utilities')?.[0]
+    expect(entry).toBeDefined()
+    const { open } = entry.inject('s1')
+    open()
+    expect(openTab).toHaveBeenCalledExactlyOnceWith('pm-research-evidence')
+    mounted = 's2'
+    open()
+    expect(openTab).toHaveBeenCalledTimes(1)
   })
 
   it('gates the console on the conversation phase, not a lagging summary', () => {
@@ -130,7 +179,7 @@ describe('PmHomeConsole', () => {
     root = createRoot(container)
     await act(async () => { root!.render(createElement(PmHomeConsole, consoleProps())) })
 
-    expect(container.textContent).toContain('研究脉冲不可用')
+    expect(container.textContent).toContain('无法读取研究概况')
     expect(container.textContent).not.toContain('仿真引擎降级')
   })
 

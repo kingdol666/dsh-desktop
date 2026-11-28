@@ -120,9 +120,42 @@ describe('community market browser plugin', () => {
     expect(styles).toMatch(/\.dshMarketConfirmModal\s*\{[^}]*width: min\(600px, calc\(100vw - 48px\)\)/su)
     expect(styles).toMatch(/\.dshMarketSourceModal\s*\{[^}]*width: min\(600px, calc\(100vw - 48px\)\)/su)
     expect(styles).toMatch(/\.dshMarketOverlayPanel\s*\{[^}]*width: min\(800px, 100%\);[^}]*height: min\(700px, 100%\)/su)
-    expect(styles).toMatch(/@media \(max-width: 680px\)[\s\S]*\.dshMarketOverlayPanel\s*\{[^}]*width: 100%;[^}]*height: 100%/u)
+    expect(styles).toMatch(/@media \(max-width: 680px\)[\s\S]*\.dshMarketOverlayPanel\s*\{[^}]*width: 100%;[^}]*height: 100%;[^}]*border-radius: 0/u)
 
     b.dispose()
+  })
+
+  it('applies the Studio theme only to the market overlay and surface', () => {
+    const b = bench()
+    const market = document.createElement('div')
+    market.innerHTML = `
+      <div class="dshMarketOverlayPanel">
+        <section class="dshMarketRoot"><button class="dshMarketCard"></button></section>
+      </div>
+      <section class="dshMarketRoot"><button class="dshMarketCard"></button></section>
+      <div class="dshMarketModal"><article class="dshMarketReceipt"></article></div>
+    `
+    document.body.append(market)
+    b.apply()
+
+    // jsdom exposes the winning declaration without resolving custom properties.
+    const radii = () => Array.from(
+      market.querySelectorAll('.dshMarketOverlayPanel, .dshMarketCard, .dshMarketReceipt'),
+      element => getComputedStyle(element).borderRadius,
+    )
+    try {
+      expect(radii()).toEqual(['24px', '10px', '10px', '10px'])
+      document.body.dataset.pmStudio = ''
+      expect(radii()).toEqual([
+        'var(--pm-radius-card, 24px)', 'var(--pm-radius-card, 10px)', 'var(--pm-radius-card, 10px)', '10px',
+      ])
+      delete document.body.dataset.pmStudio
+      expect(radii()).toEqual(['24px', '10px', '10px', '10px'])
+    } finally {
+      delete document.body.dataset.pmStudio
+      market.remove()
+      b.dispose()
+    }
   })
 
   it('registers one shared Market surface in official settings and sidebar slots without fetching', () => {

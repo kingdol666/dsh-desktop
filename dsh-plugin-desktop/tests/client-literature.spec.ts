@@ -14,7 +14,7 @@ interface Registered {
 function fakeContext(): { ctx: ClientContext; registered: Registered[] } {
   const registered: Registered[] = []
   const ctx = {
-    locale: { getSnapshot: () => ({ active: 'zh' }) },
+    locale: { getSnapshot: () => ({ active: 'zh' }), subscribe: () => () => {} },
     sessions: { list: { getSnapshot: () => ({ byId: {} }) } },
     slots: {
       inject(name: string, mount: () => unknown) {
@@ -51,7 +51,7 @@ describe('Literature page registration', () => {
   it('exposes a workspace face that deduplicates session cwds', () => {
     const registered: Registered[] = []
     const ctx = {
-      locale: { getSnapshot: () => ({ active: 'zh' }) },
+      locale: { getSnapshot: () => ({ active: 'zh' }), subscribe: () => () => {} },
       sessions: { list: { getSnapshot: () => ({ byId: { a: { cwd: 'D:/ws' }, b: { cwd: 'D:/ws' }, c: { cwd: 'D:/other' } } }) } },
       slots: {
         inject(name: string, mount: () => unknown) {
@@ -77,8 +77,10 @@ describe('Literature page registration', () => {
   it('opens a PDF through the injected layout and right sidebar', async () => {
     const registered: Registered[] = []
     const calls: string[] = []
+    let mountedSession: string | undefined
+    let mountWrongSession = false
     const ctx = {
-      locale: { getSnapshot: () => ({ active: 'zh' }) },
+      locale: { getSnapshot: () => ({ active: 'zh' }), subscribe: () => () => {} },
       sessions: { list: { getSnapshot: () => ({ byId: { a: { cwd: 'D:/ws' } } }) } },
       slots: {
         inject(name: string, mount: () => unknown) {
@@ -91,8 +93,14 @@ describe('Literature page registration', () => {
       effect(fn: () => void) { fn(); return () => {} },
       inject(_names: string[], mount: (scope: unknown) => void) {
         mount({
-          layout: { selectPanel: (panel: string | null) => calls.push(`panel:${String(panel)}`) },
-          sidebarRight: { openResource: (address: string) => calls.push(`open:${address}`) },
+          layout: { selectPanel: (panel: string | null) => {
+            calls.push(`panel:${String(panel)}`)
+            mountedSession = mountWrongSession ? 'b' : 'a'
+          } },
+          sidebarRight: {
+            mounted: { getSnapshot: () => mountedSession },
+            openResource: (address: string) => calls.push(`open:${address}`),
+          },
           effect(fn: () => void) { fn(); return () => {} },
         })
         return () => {}
@@ -100,11 +108,14 @@ describe('Literature page registration', () => {
     } as unknown as ClientContext
     applyLiterature(ctx)
     const main = registered.find(entry => entry.name === 'main')
-    const face = main?.options.inject as (() => { openPdf: (workspace: string, path: string) => void }) | undefined
-    face?.().openPdf('D:/ws', 'D:\\ws\\p.pdf')
-    expect(calls).toEqual(['panel:null'])
-    await new Promise(resolve => setTimeout(resolve, 120))
+    const face = main?.options.inject as (() => { openPdf: (workspace: string, path: string) => Promise<void> }) | undefined
+    await face?.().openPdf('D:/ws', 'D:\\ws\\p.pdf')
+    expect(calls[0]).toBe('panel:null')
     expect(calls[1]).toMatch(/^open:dsh-resource:\/\/file\/session\/a\//)
+
+    mountWrongSession = true
+    await expect(face?.().openPdf('D:/ws', 'D:\\ws\\p.pdf')).rejects.toThrow('PM_LIT_PDF_SESSION_MISMATCH')
+    expect(calls.filter(call => call.startsWith('open:'))).toHaveLength(1)
   })
 
   it('cancels a pending PDF open when the preview services reload', async () => {
@@ -112,7 +123,7 @@ describe('Literature page registration', () => {
     const calls: string[] = []
     let disposeServices: (() => void) | undefined
     const ctx = {
-      locale: { getSnapshot: () => ({ active: 'zh' }) },
+      locale: { getSnapshot: () => ({ active: 'zh' }), subscribe: () => () => {} },
       sessions: { list: { getSnapshot: () => ({ byId: { a: { cwd: 'D:/ws' } } }) } },
       slots: {
         inject(name: string, mount: () => unknown) {
@@ -138,10 +149,10 @@ describe('Literature page registration', () => {
     } as unknown as ClientContext
     applyLiterature(ctx)
     const main = registered.find(entry => entry.name === 'main')
-    const face = main?.options.inject as (() => { openPdf: (workspace: string, path: string) => void }) | undefined
-    face?.().openPdf('D:/ws', 'D:\\ws\\p.pdf')
+    const face = main?.options.inject as (() => { openPdf: (workspace: string, path: string) => Promise<void> }) | undefined
+    const pending = face?.().openPdf('D:/ws', 'D:\\ws\\p.pdf').catch(cause => cause)
     disposeServices?.()
-    await new Promise(resolve => setTimeout(resolve, 120))
+    await pending
     expect(calls).toEqual(['panel:null'])
   })
 })

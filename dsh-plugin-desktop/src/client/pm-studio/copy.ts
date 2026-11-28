@@ -33,14 +33,10 @@ export interface PmQuickCopy {
 export interface PmStudioCopy {
   readonly brandTag: string
   readonly consoleLabel: string
-  readonly kicker: string
-  readonly protocol: string
-  readonly headlineLead: string
-  readonly headlineAccent: string
-  readonly headlineTail: string
-  readonly subLead: string
-  readonly subMid: string
-  readonly subTail: string
+  readonly deskLabel: string
+  readonly evidenceTab: string
+  readonly headline: string
+  readonly heroDescription: string
   readonly stationLabel: string
   readonly experts: Readonly<Record<string, PmExpertCopy>>
   readonly ready: string
@@ -67,15 +63,11 @@ export interface PmStudioCopy {
 export const PM_STUDIO_ZH: PmStudioCopy = Object.freeze({
   brandTag: 'STUDIO',
   consoleLabel: '科研控制台',
-  kicker: 'PolyMechanism · 科研工作台',
-  protocol: 'PVA–OPTICAL / 01',
-  headlineLead: '从分子链，到',
-  headlineAccent: '可验证的机理',
-  headlineTail: '。',
-  subLead: '提出假设',
-  subMid: '设计判别实验',
-  subTail: '让每一条结论都落在证据上',
-  stationLabel: 'EXPERT STATION',
+  deskLabel: '研究工作台',
+  evidenceTab: '研究证据',
+  headline: '材料研究工作台',
+  heroDescription: '从研究问题或实验数据开始，用文献和表征观测检验机理。',
+  stationLabel: '研究专家',
   experts: Object.freeze({
     'polymer-scientist': Object.freeze({ label: '科学家', hint: '课题拆解与证据化结论' }),
     'polymer-physicist': Object.freeze({ label: '物理', hint: '机理、模型与适用窗口' }),
@@ -106,10 +98,10 @@ export const PM_STUDIO_ZH: PmStudioCopy = Object.freeze({
       prompt: '评审当前机理图谱中的候选边：逐条检查适用条件、理论依据与证据强度，给出每条边的证据 ID 或明确标注缺失，并指出哪些边可以晋升、哪些需要补实验。',
     }),
   ]),
-  pulseLabel: 'PROJECT PULSE',
-  pulseLoading: '研究脉冲加载中…',
+  pulseLabel: '研究概况',
+  pulseLoading: '正在读取研究概况…',
   pulseEmpty: '尚无研究项目 · 从一次课题拆解开始',
-  pulseUnavailable: '研究脉冲不可用 · 检查 Host 的 /pm/overview',
+  pulseUnavailable: '无法读取研究概况 · 请检查研究服务是否启用',
   evidenceUnit: '条证据',
   hypothesisUnit: '个假设',
   knowledgeUnit: '张待审知识卡',
@@ -127,14 +119,10 @@ export const PM_STUDIO_ZH: PmStudioCopy = Object.freeze({
 export const PM_STUDIO_EN: PmStudioCopy = Object.freeze({
   brandTag: 'STUDIO',
   consoleLabel: 'Research console',
-  kicker: 'PolyMechanism · Research Workbench',
-  protocol: 'PVA–OPTICAL / 01',
-  headlineLead: 'From molecular chains to ',
-  headlineAccent: 'verifiable mechanisms',
-  headlineTail: '.',
-  subLead: 'Propose hypotheses',
-  subMid: 'design discriminating experiments',
-  subTail: 'land every conclusion on evidence',
+  deskLabel: 'Research desk',
+  evidenceTab: 'Research evidence',
+  headline: 'Materials research workbench',
+  heroDescription: 'Start with a research question or experimental data, then use literature and observations to test mechanisms.',
   stationLabel: 'EXPERT STATION',
   experts: Object.freeze({
     'polymer-scientist': Object.freeze({ label: 'Scientist', hint: 'Framing and evidence-backed conclusions' }),

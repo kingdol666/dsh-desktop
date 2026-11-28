@@ -9,24 +9,32 @@
  * mode, which also keeps an ordinary browser preview untouched.
  */
 
+import { PM_WORKBENCH_VISUAL_CSS } from './workbench-visual.ts'
+
 const STYLE_ID = 'pm-studio-design-styles'
 
 const CSS = `
 body[data-pm-studio] {
-  --pm-brand: #4f6bff;
-  --pm-brand-strong: #3d53d9;
-  --pm-brand-soft: #edf0ff;
-  --pm-brand-ink: #2f3fa8;
-  --pm-brand-glow: rgba(79, 107, 255, 0.13);
+  --pm-brand: #254eb0;
+  --pm-brand-strong: #1c3e92;
+  --pm-brand-soft: #e9effc;
+  --pm-brand-ink: #23468f;
+  --pm-on-brand: #ffffff;
+  --pm-accent: var(--pm-brand);
+  --pm-brand-glow: rgba(37, 78, 176, 0.14);
 
   --pm-surface: #ffffff;
-  --pm-surface-subtle: #f2f4f8;
-  --pm-surface-hover: #eef1f7;
-  --pm-text-1: #12151c;
-  --pm-text-2: #596174;
-  --pm-text-3: #667085;
-  --pm-border: #e5e8ef;
-  --pm-border-strong: #d7dce7;
+  --pm-surface-subtle: #f7f9fc;
+  --pm-surface-rail: #f1f4f8;
+  --pm-surface-hover: #e8eef6;
+  --pm-text-1: #182337;
+  --pm-text-2: #46556a;
+  --pm-text-3: #536279;
+  --pm-border: #dce3ec;
+  --pm-border-strong: #bdcada;
+  --pm-radius-control: 6px;
+  --pm-radius-card: 8px;
+  --pm-floating-shadow: 0 12px 32px rgba(24, 35, 55, 0.16);
 
   --pm-teal: #0e9f87;
   --pm-teal-soft: #e5f6f1;
@@ -59,20 +67,23 @@ body[data-pm-studio] {
 }
 
 body[data-pm-studio][data-pm-theme="dark"] {
-  --pm-brand: #6e86ff;
-  --pm-brand-strong: #8b9dff;
-  --pm-brand-soft: #171f3d;
-  --pm-brand-ink: #b7c2ff;
-  --pm-brand-glow: rgba(110, 134, 255, 0.16);
+  --pm-brand: #9bb7ff;
+  --pm-brand-strong: #b8cdff;
+  --pm-brand-soft: #233351;
+  --pm-brand-ink: #c0d1ff;
+  --pm-on-brand: #122240;
+  --pm-brand-glow: rgba(155, 183, 255, 0.16);
 
-  --pm-surface: #121821;
-  --pm-surface-subtle: #141a24;
-  --pm-surface-hover: #182030;
-  --pm-text-1: #e9edf6;
-  --pm-text-2: #9aa4b8;
-  --pm-text-3: #7d889d;
-  --pm-border: #1d2431;
-  --pm-border-strong: #2a3242;
+  --pm-surface: #141b25;
+  --pm-surface-subtle: #181f2a;
+  --pm-surface-rail: #111822;
+  --pm-surface-hover: #202c3b;
+  --pm-text-1: #edf2f9;
+  --pm-text-2: #b1bed0;
+  --pm-text-3: #a1b0c5;
+  --pm-border: #2e3a4b;
+  --pm-border-strong: #52647d;
+  --pm-floating-shadow: 0 12px 32px rgba(0, 0, 0, 0.42);
 
   --pm-teal: #2cc3a8;
   --pm-teal-soft: #0f2b26;
@@ -132,16 +143,6 @@ body[data-pm-studio] [class*="_composerHero"] [class*="_headline"] {
   line-height: inherit;
 }
 
-body[data-pm-studio] [class*="_composerHero"] [class*="_headline"]::before {
-  content: "";
-  position: absolute;
-  inset: -120px -220px -40px;
-  z-index: -1;
-  border-radius: 50%;
-  background: radial-gradient(closest-side, var(--pm-brand-glow), transparent 72%);
-  pointer-events: none;
-}
-
 body[data-pm-studio] [class*="_composerHero"] [class*="_fishHitbox"] {
   display: block;
   flex: 1 1 100%;
@@ -149,111 +150,35 @@ body[data-pm-studio] [class*="_composerHero"] [class*="_fishHitbox"] {
 }
 
 body[data-pm-studio] .pm-hero-lockup {
-  position: relative;
-  isolation: isolate;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0;
+  display: grid;
+  justify-items: center;
+  gap: 9px;
   width: 100%;
+  color: var(--pm-brand);
   font-family: var(--pm-font);
 }
 
-/* The handoff's single molecular polyline; static, decorative, and behind the
-   copy so it never competes with the composer. */
-body[data-pm-studio] .pm-hero-lattice {
-  position: absolute;
-  top: -90px;
-  right: -240px;
-  z-index: -1;
-  width: 520px;
-  height: 390px;
-  color: var(--pm-border-strong);
-  opacity: 0.38;
-  pointer-events: none;
-}
-
-body[data-pm-studio] .pm-hero-lattice svg {
-  width: 100%;
-  height: 100%;
-}
-
-body[data-pm-studio] .pm-hero-kicker {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  color: var(--pm-text-3);
-  font-family: var(--pm-mono);
-  font-size: 11px;
-  font-weight: 550;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-body[data-pm-studio] .pm-hero-kicker > svg {
-  flex: none;
-  color: var(--pm-brand);
-}
-
-body[data-pm-studio] .pm-hero-rule {
-  width: 22px;
-  height: 1px;
-  background: var(--pm-border-strong);
-}
-
-body[data-pm-studio] .pm-hero-protocol {
-  padding: 2px 7px;
-  border: 1px solid color-mix(in srgb, var(--pm-brand) 24%, transparent);
-  border-radius: 999px;
-  background: var(--pm-brand-soft);
-  color: var(--pm-brand-ink);
-  letter-spacing: 0.12em;
-}
-
-body[data-pm-studio] .pm-hero-title-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  column-gap: 12px;
-  row-gap: 8px;
-  margin-top: 13px;
-  min-width: 0;
-}
-
-body[data-pm-studio] .pm-hero-title-row > svg {
-  flex: none;
-  color: var(--pm-brand);
-}
+body[data-pm-studio] .pm-hero-lockup > svg { margin-bottom: 4px; }
 
 body[data-pm-studio] .pm-hero-title {
   margin: 0;
   color: var(--pm-text-1);
   font-family: var(--pm-font);
-  font-size: clamp(28px, 2.7vw, 40px);
-  font-weight: 640;
-  letter-spacing: -0.028em;
+  font-size: clamp(26px, 2.7vw, 40px);
+  font-weight: 670;
+  letter-spacing: -0.027em;
   line-height: 1.16;
   text-align: center;
   text-wrap: balance;
 }
 
-body[data-pm-studio] .pm-hero-accent {
-  color: var(--pm-brand);
-}
-
 body[data-pm-studio] .pm-hero-sub {
-  margin-top: 11px;
+  max-width: 43rem;
   color: var(--pm-text-2);
-  font-size: 13.5px;
+  font-size: 14px;
   line-height: 1.6;
   text-align: center;
-  text-wrap: pretty;
-}
-
-body[data-pm-studio] .pm-hero-sep {
-  margin: 0 7px;
-  color: var(--pm-text-3);
+  text-wrap: balance;
 }
 
 /* ---------- Research console (blank home only) ---------- */
@@ -494,41 +419,57 @@ body[data-pm-studio] .pm-console-failure {
 
 /* ---------- Composer ---------- */
 
+/* Keep the renderer's editor, shortcut and attachment mechanics. These
+   anchors only change the visual hierarchy of the existing controls. */
+body[data-pm-studio] [data-conversation-region="chat"] {
+  color: var(--pm-text-1);
+  background-color: var(--pm-surface);
+  font-family: var(--pm-font);
+}
+
+body[data-pm-studio] [class$="_header"]:has(> [data-conversation-header-leading]):not([class*="_headerBlank"]) {
+  border-bottom: 1px solid var(--pm-border);
+  background-color: var(--pm-surface);
+}
+
+body[data-pm-studio] [data-chat-flow] [class$="_userStack"] > [class$="_bubble"] {
+  background-color: var(--pm-surface-rail);
+  border: 1px solid var(--pm-border);
+  border-radius: 12px 12px 4px 12px;
+  color: var(--pm-text-1);
+}
+
 body[data-pm-studio] [data-composer-card] {
-  border: 1px solid var(--pm-border) !important;
-  border-radius: 10px !important;
+  border: 1px solid var(--pm-border-strong) !important;
+  border-radius: 12px !important;
   background: var(--pm-surface) !important;
-  box-shadow: var(--pm-shadow-card) !important;
-  transition: border-color 160ms ease, box-shadow 160ms ease;
+  box-shadow: none !important;
+  transition: border-color 160ms ease;
 }
 
 body[data-pm-studio] [data-composer-card]:focus-within {
-  border-color: color-mix(in srgb, var(--pm-brand) 52%, var(--pm-border)) !important;
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--pm-brand) 10%, transparent), var(--pm-shadow-card) !important;
+  border-color: var(--pm-brand) !important;
+  box-shadow: 0 0 0 1px var(--pm-brand) !important;
 }
 
-body[data-pm-studio] [data-composer-card] button[class*="_primary"] {
-  border-radius: 50% !important;
+body[data-pm-studio] [data-composer-card] button[class$="_primary"] {
+  border-radius: var(--pm-radius-card) !important;
   background: var(--pm-brand) !important;
-  color: #ffffff !important;
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--pm-brand) 35%, transparent);
+  color: var(--pm-on-brand) !important;
+  box-shadow: none;
 }
 
-body[data-pm-studio] [data-composer-card] button[class*="_primary"]:hover {
+body[data-pm-studio] [data-composer-card] button[class$="_primary"]:not(:disabled):hover {
   background: var(--pm-brand-strong) !important;
 }
 
-/* The upstream placeholder lives in a dedicated node; replace its copy without
-   touching the editor's accessible name (which still comes from the host). */
-body[data-pm-studio] [data-composer-placeholder] {
-  font-size: 0;
+body[data-pm-studio] [data-composer-card] button[class$="_primary"]:disabled {
+  background: var(--pm-surface-hover) !important;
+  color: var(--pm-text-3) !important;
 }
 
-body[data-pm-studio] [data-composer-placeholder]::after {
-  content: "描述课题、贴上表征数据，或让我设计一组判别实验…";
+body[data-pm-studio] [data-composer-placeholder] {
   color: var(--pm-text-3);
-  font-size: 14px;
-  line-height: 1.6;
 }
 
 /* ---------- Sidebar ---------- */
@@ -548,23 +489,64 @@ body[data-pm-studio] [class*="_logoRow"] [class*="_brandMark"] > svg {
   color: var(--pm-brand);
 }
 
-body[data-pm-studio] [class$="_newSession"] {
-  height: 36px;
-  margin: 4px 14px 12px;
-  border: 1px solid color-mix(in srgb, var(--pm-brand) 28%, var(--pm-border));
-  border-radius: 6px;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--pm-brand) 10%, var(--pm-surface)),
-    color-mix(in srgb, var(--pm-brand) 4%, var(--pm-surface))
-  );
-  color: var(--pm-brand-ink);
-  transition: border-color 140ms ease, background-color 140ms ease;
+/* Shared main-slot chrome lets plugin faces that consume the upstream palette
+   match Studio without reaching into their components or sandboxed viewers. */
+body[data-pm-studio] .dshDesktopConversationSurface {
+  --dsw-alias-bg-base: var(--pm-surface);
+  --dsw-alias-bg-layer-1: var(--pm-surface-subtle);
+  --dsw-alias-label-primary: var(--pm-text-1);
+  --dsw-alias-label-secondary: var(--pm-text-2);
+  --dsw-alias-border-l1: var(--pm-border);
 }
 
-body[data-pm-studio] [class$="_newSession"]:hover {
-  border-color: color-mix(in srgb, var(--pm-brand) 52%, var(--pm-border));
-  background: color-mix(in srgb, var(--pm-brand) 12%, var(--pm-surface));
+body[data-pm-studio] .dshDesktopConversationSurface,
+body[data-pm-studio] .dshDesktopMacCaptionRow,
+body[data-pm-studio] .dshDesktopWindowsCaptionRow {
+  background-color: var(--pm-surface);
+}
+
+body[data-pm-studio] .dshDesktopSidebarSurface {
+  border-color: var(--pm-border);
+}
+
+/* Preserve the native material option; only recolor opaque Web chrome. */
+body[data-pm-studio]:not([data-dsh-desktop-material="transparent"]) .dshDesktopSidebarSurface,
+body[data-pm-studio]:not([data-dsh-desktop-material="transparent"]) [class*="_root"]:has(> [class$="_logoRow"]) {
+  --dsw-specific-sidebar-fill: var(--pm-surface-rail);
+  background-color: var(--pm-surface-rail);
+}
+
+/* DockKit keeps a transparent, measurable panel mounted even at a zero-width
+   track. Only paint the panel once the Desktop frame allocates it space. */
+body[data-pm-studio] .dshDesktopFrame:not([data-rightbar-collapsed]) [data-sidebar-right-panel] {
+  --dsw-alias-bg-base: var(--pm-surface-subtle);
+  --dsw-alias-border-l1: var(--pm-border);
+  background-color: var(--pm-surface-subtle);
+}
+
+body[data-pm-studio] [data-sidebar-right-panel] [data-dockkit-strip] {
+  border-color: var(--pm-border);
+}
+
+body[data-pm-studio] .dshDesktopSidebarSurface [class$="_newSession"],
+body[data-pm-studio] [class$="_root"]:has(> [class$="_logoRow"]) [class$="_newSession"] {
+  min-height: 36px;
+  border: 1px solid var(--pm-brand);
+  border-radius: var(--pm-radius-control);
+  background: var(--pm-brand);
+  color: var(--pm-on-brand);
+  /* Switch the foreground and fill together when the system theme changes. */
+  transition: none;
+}
+
+body[data-pm-studio] [class$="_root"]:not([class$="_collapsed"], [class*="_collapsed "]):has(> [class$="_logoRow"]) [class$="_newSession"] {
+  margin: 4px 14px 12px;
+}
+
+body[data-pm-studio] .dshDesktopSidebarSurface [class$="_newSession"]:hover,
+body[data-pm-studio] [class$="_root"]:has(> [class$="_logoRow"]) [class$="_newSession"]:hover {
+  border-color: var(--pm-brand-strong);
+  background: var(--pm-brand-strong);
 }
 
 body[data-pm-studio] [class*="_newSessionContent"] {
@@ -573,38 +555,64 @@ body[data-pm-studio] [class*="_newSessionContent"] {
 }
 
 body[data-pm-studio] [class*="_panelList"] [class*="_panelRow"] {
-  border-radius: 6px;
+  border-radius: var(--pm-radius-control);
 }
 
 body[data-pm-studio] [class*="_panelList"] [class*="_panelActive"] {
-  background: var(--pm-surface);
-  box-shadow: 0 1px 2px rgba(18, 21, 28, 0.05), 0 0 0 1px var(--pm-border);
+  background: var(--pm-brand-soft);
+  color: var(--pm-brand-ink);
+  box-shadow: none;
 }
 
-body[data-pm-studio] [data-sidebar-scrollport] [class*="_projectRow"],
-body[data-pm-studio] [data-sidebar-scrollport] [class*="_sessionRow"] {
-  border-radius: 6px;
+body[data-pm-studio] [class*="_sidebarCol"] :is([class*="_projectRow"], [class*="_sessionRow"]) {
+  border-radius: var(--pm-radius-control);
 }
 
-body[data-pm-studio] [data-sidebar-scrollport] [class*="_projectRow"]:hover,
-body[data-pm-studio] [data-sidebar-scrollport] [class*="_sessionRow"]:hover {
+body[data-pm-studio] [class*="_sidebarCol"] :is([class*="_projectRow"], [class*="_sessionRow"]):hover {
   background: var(--pm-surface-hover);
 }
 
-body[data-pm-studio] [data-sidebar-scrollport] [class*="_sessionRow"][class*="_selected"] {
+body[data-pm-studio] [class*="_sidebarCol"] [class*="_sessionRow"][class*="_selected"] {
   background: var(--pm-brand-soft);
   color: var(--pm-brand-ink);
 }
 
-body[data-pm-studio] [data-sidebar-scrollport] [class*="_sectionHeader"] {
+body[data-pm-studio] [class*="_sidebarCol"] [class*="_sectionHeader"] {
   color: var(--pm-text-3);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.08em;
 }
 
 /* ---------- Focus and motion ---------- */
 
+body[data-pm-studio] .dshDesktopPmEvidenceButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  padding-inline: 9px;
+  border: 1px solid var(--pm-border);
+  border-radius: var(--pm-radius-control);
+  background: var(--pm-surface);
+  color: var(--pm-text-1);
+  font: 600 12px/1 var(--pm-font);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+body[data-pm-studio] .dshDesktopPmEvidenceButton:hover {
+  background: var(--pm-brand-soft);
+  color: var(--pm-brand-ink);
+}
+
+@media (max-width: 1100px) {
+  body[data-pm-studio] .dshDesktopPmEvidenceButton > span { display: none; }
+}
+
+body[data-pm-studio] .dshDesktopPmEvidenceButton:focus-visible,
+body[data-pm-studio] [data-composer-card] button:focus-visible,
+body[data-pm-studio] [class$="_newSession"]:focus-visible,
 body[data-pm-studio] .pm-expert:focus-visible,
 body[data-pm-studio] .pm-quick:focus-visible {
   outline: 2px solid var(--pm-brand);
@@ -1023,7 +1031,7 @@ export function installPmStudioStyles(): () => void {
   style.id = STYLE_ID
   style.dataset.plugin = 'dsh-plugin-desktop'
   style.dataset.pluginCss = 'dsh-plugin-desktop/pm-studio'
-  style.textContent = CSS
+  style.textContent = CSS + PM_WORKBENCH_VISUAL_CSS
   document.head.appendChild(style)
   return () => { style.remove() }
 }

@@ -418,6 +418,122 @@ const CSS = `
    the dark palette's light text. An opaque option fill keeps that list readable;
    the closed control is unchanged, and macOS's native menu ignores it. */
 body[data-ds-dark-theme] select :is(option, optgroup) { background-color: var(--dsw-alias-bg-layer-2); }
+
+/* Keep the shared compatibility presentation on the original rules above. */
+body[data-pm-studio]:is([data-dsh-desktop-mode="advanced"], [data-dsh-desktop-mode="extended"]) {
+  & .dshDesktopSettings {
+    container: desktop-settings / inline-size;
+    color: var(--pm-text-1);
+    font: 13px/20px var(--pm-font);
+  }
+  & .dshDesktopSettingsGroup { border-color: var(--pm-border); }
+  & .dshDesktopSettingsGroup h3 { font-size: 14px; line-height: 20px; }
+  & :is(.dshDesktopSettingsChoice, .dshDesktopSettingsToggleRow, .dshDesktopSettingsMaterialField,
+        .dshDesktopSettingsUpdateRow, .dshDesktopSettingsUrls, .dshDesktopSettingsUrlRow) {
+    border-color: var(--pm-border);
+    border-radius: var(--pm-radius-card);
+    background: var(--pm-surface);
+    color: var(--pm-text-1);
+  }
+  & .dshDesktopSettingsChoice[data-actionable="true"]:not([data-selected="true"]):hover {
+    background: var(--pm-surface-hover);
+  }
+  & .dshDesktopSettingsChoice[data-selected="true"] {
+    border-color: var(--pm-accent);
+    background: var(--pm-brand-soft);
+    box-shadow: none;
+  }
+  & :is(.dshDesktopSettingsHeader p, .dshDesktopSettingsGroupIntro, .dshDesktopSettingsHint,
+        .dshDesktopSettingsChoiceBody, .dshDesktopSettingsField, .dshDesktopSettingsLanFingerprint,
+        .dshDesktopSettingsDialog p, .dshDesktopSettingsButtonSecondary) {
+    color: var(--pm-text-2);
+  }
+  & :is(.dshDesktopSettingsChoiceLink, .dshDesktopSettingsUrls a) { color: var(--pm-brand-ink); }
+  & :is(.dshDesktopSettingsUrls a, .dshDesktopSettingsLanStatus code, .dshDesktopSettingsLanFingerprint code) {
+    font-family: var(--pm-mono);
+  }
+  & :is(.dshDesktopSettingsBadge, .dshDesktopSettingsNotice, .dshDesktopSettingsLanStatus) {
+    background: var(--pm-surface-subtle);
+    color: var(--pm-text-2);
+  }
+  & .dshDesktopSettingsChoice[data-selected="true"] .dshDesktopSettingsBadge {
+    background: var(--pm-surface);
+    color: var(--pm-brand-ink);
+  }
+  & :is(.dshDesktopSettingsInput, .dshDesktopSettingsSelect, .dshDesktopSettingsButton, .dshDesktopSettingsHeaderButton) {
+    border-color: var(--pm-border-strong);
+    border-radius: var(--pm-radius-control);
+    background: var(--pm-surface);
+    color: var(--pm-text-1);
+  }
+  & .dshDesktopSettingsInput::placeholder { color: var(--pm-text-3); }
+  /* Match the native select's opaque popup to its own surface in both themes. */
+  & .dshDesktopSettingsSelect :is(option, optgroup) { background-color: var(--pm-surface); }
+  & .dshDesktopSettingsInput:focus-visible { border-color: var(--pm-accent); box-shadow: none; }
+  & :is(.dshDesktopSettingsButton, .dshDesktopSettingsHeaderButton, .dshDesktopSettingsUrlCopy):hover:not(:disabled),
+  & .dshDesktopNativeActions[data-placement="settings"] .dshDesktopActionMenuItem:hover:not(:disabled) {
+    background: var(--pm-surface-hover);
+  }
+  & .dshDesktopSettingsToggle { background: var(--pm-text-3); }
+  & .dshDesktopSettingsToggle[aria-checked="true"] { background: var(--pm-accent); }
+  & .dshDesktopSettingsToggleKnob { background: var(--pm-surface); box-shadow: none; }
+  & .dshDesktopSettingsToggle[aria-checked="true"] .dshDesktopSettingsToggleKnob { background: var(--pm-on-brand); }
+  & .dshDesktopSettingsDetails { border-color: var(--pm-border); }
+
+  /* Darken the status inks against the light palette without introducing new colors. */
+  & :is(.dshDesktopSettingsError, .dshDesktopSettingsButtonDanger, .dshDesktopSettingsDialog h3,
+        .dshDesktopSettingsLanStatus[data-state="failed"] .dshDesktopSettingsBadge,
+        .dshDesktopNativeActions[data-placement="settings"] .dshDesktopNativeActionError) {
+    color: color-mix(in srgb, var(--pm-rose) 65%, var(--pm-text-1));
+  }
+  & .dshDesktopSettingsError { background: color-mix(in srgb, var(--pm-rose) 10%, var(--pm-surface)); }
+  & :is(.dshDesktopSettingsSuccess, .dshDesktopSettingsLanStatus[data-state="ready"] .dshDesktopSettingsBadge) {
+    background: var(--pm-teal-soft);
+    color: color-mix(in srgb, var(--pm-teal) 65%, var(--pm-text-1));
+  }
+  & .dshDesktopSettingsDeleteWarning { color: color-mix(in srgb, var(--pm-amber) 65%, var(--pm-text-1)); }
+  & .dshDesktopSettingsDialog,
+  & .dshDesktopNativeActions[data-placement="settings"] .dshDesktopActionMenu {
+    border-color: var(--pm-border);
+    border-radius: 10px;
+    background: var(--pm-surface);
+    box-shadow: var(--pm-floating-shadow);
+  }
+  & .dshDesktopNativeActions[data-placement="settings"] .dshDesktopActionMenuItem {
+    border-radius: var(--pm-radius-control);
+    color: var(--pm-text-1);
+  }
+  & :is(.dshDesktopSettingsChoice, .dshDesktopSettingsInput, .dshDesktopSettingsSelect, .dshDesktopSettingsToggle,
+        .dshDesktopSettingsButton, .dshDesktopSettingsHeaderButton, .dshDesktopSettingsChoiceLink,
+        .dshDesktopSettingsUrls a, .dshDesktopSettingsUrlCopy,
+        .dshDesktopNativeActions[data-placement="settings"] .dshDesktopActionMenuItem):focus-visible {
+    outline: 2px solid var(--pm-accent);
+    outline-offset: 2px;
+  }
+
+  & :is(.dshDesktopSettingsChoiceCopy, .dshDesktopSettingsToggleLabel, .dshDesktopSettingsMaterialCopy) {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  & .dshDesktopSettingsDialogActions { flex-wrap: wrap; }
+  @container desktop-settings (max-width: 480px) {
+    & :is(.dshDesktopSettingsChoice, .dshDesktopSettingsMaterialField, .dshDesktopSettingsUpdateRow,
+          .dshDesktopSettingsForm) {
+      align-items: stretch;
+      flex-direction: column;
+      gap: 8px;
+    }
+    & .dshDesktopSettingsChoiceAside { margin-left: 0; }
+    & .dshDesktopSettingsDeleteConfirm { align-items: flex-start; }
+    & .dshDesktopSettingsDeleteWarning { text-align: start; }
+    & .dshDesktopSettingsDeleteActions { justify-content: flex-start; }
+    & .dshDesktopSettingsSelect { min-width: 0; }
+    & .dshDesktopSettingsUrlRow a { white-space: normal; overflow-wrap: anywhere; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    & :is(.dshDesktopSettingsToggle, .dshDesktopSettingsToggleKnob) { transition: none; }
+  }
+}
 `
 
 /** Install one scoped stylesheet; tolerate headless Client boot. */

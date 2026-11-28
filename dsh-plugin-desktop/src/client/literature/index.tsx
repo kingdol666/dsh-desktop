@@ -30,6 +30,7 @@ interface LayoutLike {
 }
 
 interface SidebarRightLike {
+  readonly mounted: { getSnapshot(): string | undefined }
   openResource(address: string): void
 }
 
@@ -39,16 +40,18 @@ interface PreviewServices {
 }
 
 type PreviewTimer = ReturnType<typeof setTimeout>
+type PreviewSchedule = (callback: () => void, onCancel: () => void) => void
 
 function schedulePreview(
-  pendingTimers: Set<PreviewTimer>,
+  pendingTimers: Map<PreviewTimer, () => void>,
   callback: () => void,
+  onCancel: () => void,
 ): void {
   const timer = setTimeout(() => {
     pendingTimers.delete(timer)
     callback()
   }, 80)
-  pendingTimers.add(timer)
+  pendingTimers.set(timer, onCancel)
 }
 
 function sessionsOf(ctx: ClientContext): SessionsLike {
@@ -91,20 +94,35 @@ function openPdf(
   ctx: ClientContext,
   workspace: string,
   path: string,
-  schedule: (callback: () => void) => void,
-): void {
+  schedule: PreviewSchedule,
+): Promise<void> {
   const sessionId = sessionForWorkspace(ctx, workspace)
-  if (sessionId === undefined) throw new Error('没有对应工作区的会话；先打开一个该工作区的会话')
+  if (sessionId === undefined) return Promise.reject(new Error('PM_LIT_PDF_NO_WORKSPACE_SESSION'))
   const { layout, sidebarRight } = services
-  if (layout === undefined || sidebarRight === undefined) throw new Error('右侧预览服务尚未就绪')
-  // A global main page unmounts the session surface; return to the conversation
-  // first, then hand the resource address to the right sidebar on the next frame.
+  if (layout === undefined || sidebarRight === undefined) return Promise.reject(new Error('PM_LIT_PDF_PREVIEW_UNAVAILABLE'))
+  // The global main panel unmounts the Session surface; restore Conversation and
+  // open only after the right bar reports the exact workspace Session on screen.
   layout.selectPanel(null)
   const expectedSidebarRight = sidebarRight
-  schedule(() => {
-    // A shell reload may dispose this provider while the delayed callback is pending.
-    if (services.sidebarRight !== expectedSidebarRight) return
-    expectedSidebarRight.openResource(fileAddress(sessionId, workspacePath(workspace, path)))
+  return new Promise((resolve, reject) => {
+    schedule(() => {
+      if (services.sidebarRight !== expectedSidebarRight) {
+        reject(new Error('PM_LIT_PDF_PREVIEW_UNAVAILABLE'))
+        return
+      }
+      // openResource acts on the mounted Session. Never send a different
+      // workspace's file to that Session; leave the tab unopened on mismatch.
+      if (expectedSidebarRight.mounted.getSnapshot() !== sessionId) {
+        reject(new Error('PM_LIT_PDF_SESSION_MISMATCH'))
+        return
+      }
+      try {
+        expectedSidebarRight.openResource(fileAddress(sessionId, workspacePath(workspace, path)))
+        resolve()
+      } catch (cause) {
+        reject(cause)
+      }
+    }, () => reject(new Error('PM_LIT_PDF_PREVIEW_UNAVAILABLE')))
   })
 }
 
@@ -125,17 +143,19 @@ function LiteratureIcon({ size = 18, active = false }: { size?: number; active?:
 /** Register the Literature launcher and page for the Desktop client. */
 export function applyLiterature(ctx: ClientContext): void {
   ctx.effect(() => installLiteratureStyles(), 'dsh-plugin-desktop: literature styles')
-  const locale = ctx.locale.getSnapshot().active
   // `layout` is owned by the shell and `sidebarRight` by the right-bar plugin;
   // resolve both through a scoped inject so the page can outlive either reload.
   const services: PreviewServices = {}
-  const pendingTimers = new Set<PreviewTimer>()
+  const pendingTimers = new Map<PreviewTimer, () => void>()
   ctx.inject(['layout', 'sidebarRight'], (scope: ClientContext) => {
     const resolved = scope as unknown as { layout: LayoutLike; sidebarRight: SidebarRightLike }
     services.layout = resolved.layout
     services.sidebarRight = resolved.sidebarRight
     scope.effect(() => () => {
-      for (const timer of pendingTimers) clearTimeout(timer)
+      for (const [timer, cancel] of pendingTimers) {
+        clearTimeout(timer)
+        cancel()
+      }
       pendingTimers.clear()
       delete services.layout
       delete services.sidebarRight
@@ -143,16 +163,20 @@ export function applyLiterature(ctx: ClientContext): void {
   })
   const face: LiteraturePageInjected = {
     workspaces: () => workspaceList(ctx),
-    openPdf: (workspace, path) => {
-      openPdf(services, ctx, workspace, path, callback => schedulePreview(pendingTimers, callback))
-    },
-    locale,
+    openPdf: (workspace, path) => openPdf(
+      services,
+      ctx,
+      workspace,
+      path,
+      (callback, onCancel) => schedulePreview(pendingTimers, callback, onCancel),
+    ),
+    locale: ctx.locale,
   }
   ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
     name: 'sidebar.panellist',
     id: PANEL_ID,
     order: 20,
-    label: () => literatureCopy(locale).title,
+    label: () => literatureCopy(ctx.locale.getSnapshot().active).title,
   }, LiteratureIcon))
   ctx.slots.inject('main', () => ctx.slots.register({
     name: 'main',

@@ -10,6 +10,7 @@
 import type { InjectFace } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SidebarBrandMarkOwnerProps } from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type { HeroBrandMarkOwnerProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import { DESKTOP_PRODUCT_NAME } from '../../product-identity.ts'
 import { DesktopProductMark } from '../DesktopFrameTitlebarView.tsx'
 import { usePmStudioCopy, type PmLocaleFace } from './copy.ts'
 
@@ -46,7 +47,7 @@ export function PmSidebarBrandName({ locale }: PmBrandInjected) {
   const copy = usePmStudioCopy(locale)
   return (
     <span className="pm-wordmark" translate="no">
-      <span className="pm-wordmark-name">PolyMechanism</span>
+      <span className="pm-wordmark-name">{DESKTOP_PRODUCT_NAME.replace(/\s+Studio$/u, '')}</span>
       <span className="pm-wordmark-tag">{copy.brandTag}</span>
     </span>
   )
@@ -63,41 +64,9 @@ export function PmHeroBrandMark({ size, className, locale }: HeroBrandMarkOwnerP
   const copy = usePmStudioCopy(locale)
   return (
     <span className="pm-hero-lockup" data-pm-hero-lockup>
-      <span className="pm-hero-lattice" aria-hidden="true">
-        <svg viewBox="0 0 520 390" fill="none">
-          <path d="M40 330 L118 286 L196 330 L274 286 L352 330 L430 286" stroke="currentColor" strokeWidth="1" />
-          <path d="M118 286 L118 210 L196 166 L274 210 L274 286" stroke="currentColor" strokeWidth="1" />
-          <path d="M196 166 L196 90 L274 46 L352 90 L352 166" stroke="currentColor" strokeWidth="1" />
-          <path d="M396 96 L438 120 L438 168 L396 192 L354 168 L354 120 Z" stroke="currentColor" strokeWidth="1" />
-          <path d="M438 120 L480 96 L522 120 L522 168 L480 192 L438 168 Z" stroke="currentColor" strokeWidth="1" />
-          <circle cx="118" cy="210" r="4.5" fill="none" stroke="currentColor" strokeWidth="1" />
-          <circle cx="196" cy="166" r="4.5" fill="none" stroke="currentColor" strokeWidth="1" />
-          <circle cx="274" cy="210" r="4.5" fill="none" stroke="currentColor" strokeWidth="1" />
-          <circle cx="352" cy="286" r="4.5" fill="none" stroke="currentColor" strokeWidth="1" />
-          <circle cx="396" cy="144" r="7" fill="none" stroke="var(--pm-brand)" strokeWidth="1.5" />
-          <circle cx="480" cy="144" r="4.5" fill="none" stroke="currentColor" strokeWidth="1" />
-        </svg>
-      </span>
-      <span className="pm-hero-kicker">
-        <PmMark size={Math.min(size, 18)} className={className} />
-        <span className="pm-hero-rule" aria-hidden="true" />
-        {copy.kicker}
-        <span className="pm-hero-protocol">{copy.protocol}</span>
-      </span>
-      <span className="pm-hero-title-row">
-        <span className="pm-hero-title" role="heading" aria-level={1}>
-          {copy.headlineLead}
-          <span className="pm-hero-accent">{copy.headlineAccent}</span>
-          {copy.headlineTail}
-        </span>
-      </span>
-      <span className="pm-hero-sub">
-        {copy.subLead}
-        <span className="pm-hero-sep">·</span>
-        {copy.subMid}
-        <span className="pm-hero-sep">·</span>
-        {copy.subTail}
-      </span>
+      <PmMark size={Math.max(32, Math.min(size, 42))} className={className} />
+      <span className="pm-hero-title" role="heading" aria-level={1}>{copy.headline}</span>
+      <span className="pm-hero-sub">{copy.heroDescription}</span>
     </span>
   )
 }

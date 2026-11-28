@@ -1,18 +1,11 @@
-/**
- * PolyMechanism research workbench: a read-only window onto the Host's project
- * state (ledger, hypotheses, mechanism graph, knowledge cards) plus one-click
- * literature actions that hand a prepared prompt to the composer.
- *
- * The overlay is rendered through a portal so the dock above the composer only
- * carries a slim launcher. Copy is zh-first to match the studio console; the
- * labels stay inside this module until the l10n pass moves them into copy.ts.
- */
+/** Stable project overview and evidence inspector, exposed as a main panel and dock dialog. */
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
-import { BookOpen, FlaskConical, GitBranch, Network, RefreshCw, ShieldCheck, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, BookOpen, ExternalLink, FlaskConical, FolderOpen, LayoutDashboard, Network, RefreshCw, ShieldAlert, ShieldCheck, Wrench, X } from 'lucide-react'
+import type { PmLocaleFace } from './copy.ts'
+import { pmWorkbenchCopy, type PmWorkbenchCopy } from './workbench-copy.ts'
 
-/** One project row from GET /pm/projects. */
 interface PmProjectSummary {
   readonly id: string
   readonly title: string
@@ -20,7 +13,6 @@ interface PmProjectSummary {
   readonly domain: string
 }
 
-/** One evidence row as rendered by the workbench. */
 interface PmEvidenceRow {
   readonly id: string
   readonly claimSupport: string
@@ -29,18 +21,19 @@ interface PmEvidenceRow {
   readonly sourceRef: { readonly type: string; readonly ref: string }
   readonly hash: string
   readonly recordedAt: string
+  readonly observationId?: string
+  readonly payload?: Readonly<Record<string, unknown>>
 }
 
-/** One hypothesis row. */
 interface PmHypothesisRow {
   readonly id: string
   readonly statement: string
   readonly status: string
   readonly competitors: readonly string[]
-  readonly transitions: readonly { readonly to: string; readonly rationale: string; readonly at: string }[]
+  readonly transitions: readonly { readonly to: string; readonly rationale: string; readonly at: string; readonly evidenceIds?: readonly string[] }[]
+  readonly evidenceIds?: readonly string[]
 }
 
-/** One mechanism node / edge. */
 interface PmNode { readonly id: string; readonly name: string; readonly type: string; readonly symbol?: string; readonly unit?: string }
 interface PmEdge {
   readonly id: string
@@ -48,15 +41,19 @@ interface PmEdge {
   readonly to: string
   readonly relation: string
   readonly applicability: string
-  readonly confidence: number
   readonly equation?: string
   readonly evidenceIds: readonly string[]
 }
+interface PmCardRow {
+  readonly id: string
+  readonly title: string
+  readonly body: string
+  readonly status: string
+  readonly kind: string
+  readonly links?: { readonly evidenceIds?: readonly string[] }
+}
 
-/** One knowledge card. */
-interface PmCardRow { readonly id: string; readonly title: string; readonly body: string; readonly status: string; readonly kind: string }
-
-/** Aggregated project state from GET /pm/projects/:id/state. */
+// A display projection of GET /pm/projects/:id/state, not a write model.
 interface PmProjectState {
   readonly project: PmProjectSummary & { readonly question?: string; readonly createdAt?: string }
   readonly evidence: readonly PmEvidenceRow[]
@@ -65,341 +62,539 @@ interface PmProjectState {
   readonly knowledge: readonly PmCardRow[]
   readonly ledger: { readonly verified: boolean; readonly chainLength: number; readonly brokenAt?: string }
 }
+interface PmEnvelope<T> {
+  readonly ok: boolean
+  readonly data?: T
+  readonly error?: { readonly code?: string; readonly message?: string }
+}
 
-/** Envelope shared by every pm route. */
-interface PmEnvelope<T> { readonly ok: boolean; readonly data?: T; readonly error?: { readonly message?: string } }
+type TabId = keyof PmWorkbenchCopy['tabs']
+type Locale = string | PmLocaleFace
+interface LoadError { readonly code: string; readonly message?: string }
+type LoadResult<T> = { readonly data: T } | { readonly error: LoadError }
 
-type TabId = 'overview' | 'evidence' | 'hypotheses' | 'mechanism' | 'knowledge' | 'tools'
+const TABS = Object.freeze({
+  overview: LayoutDashboard, evidence: ShieldCheck, hypotheses: FlaskConical,
+  mechanism: Network, knowledge: BookOpen, tools: Wrench,
+} satisfies Record<TabId, typeof Network>)
+const TAB_ORDER = Object.freeze(['overview', 'evidence', 'hypotheses', 'mechanism', 'knowledge', 'tools'] as const)
+const WORKFLOW = Object.freeze(['evidence', 'hypotheses', 'mechanism'] as const)
+const TOOL_GROUPS = Object.freeze([
+  'pm_literature_search / screen / download / read / extract · kb_* · Zotero',
+  'pm_waxs_analyze / pm_ftir_analyze / pm_saxs_analyze / pm_hermans_analyze / pm_model_fit',
+  'pm_sim_chain_mechanics / rubber_elasticity / viscoelastic / chain_stats / crystallization / flory_huggins / tg_blend / diffusion / md_run',
+  'pm_mechanism_query / propose_edge / import_seed · pm_hypothesis_propose / transition · pm_gate_check',
+  'pm_knowledge_propose / review',
+] as const)
+const skipSubscribe = () => () => {}
 
-const TABS: readonly { readonly id: TabId; readonly label: string; readonly Icon: typeof BookOpen }[] = [
-  { id: 'overview', label: '概览', Icon: ShieldCheck },
-  { id: 'evidence', label: '证据', Icon: FlaskConical },
-  { id: 'hypotheses', label: '假设', Icon: GitBranch },
-  { id: 'mechanism', label: '机理', Icon: Network },
-  { id: 'knowledge', label: '知识', Icon: BookOpen },
-  { id: 'tools', label: '工具', Icon: FlaskConical },
-]
+function useCopy(locale: Locale | undefined): PmWorkbenchCopy {
+  const face = typeof locale === 'object' ? locale : undefined
+  const getSnapshot = face?.getSnapshot ?? (() => typeof locale === 'string' ? locale : 'zh')
+  return pmWorkbenchCopy(useSyncExternalStore(face?.subscribe ?? skipSubscribe, getSnapshot, getSnapshot))
+}
 
-const LITERATURE_PROMPT = [
-  '请作为文献专家完成一次文献作业：',
-  '1) 用 pm_literature_search 检索我的课题关键词（高分子、双轴拉伸、取向、双折射、WAXS/FTIR/SAXS 任一相关方向）；',
-  '2) 对 core/important 候选读摘要做终审（accept / review / reject + 理由）；',
-  '3) 用 pm_literature_download 下载选中的 PDF（机构网络内合法访问），失败的给出 DOI 直链；',
-  '4) 精读后用 pm_literature_extract 把测量类结论登记为证据（区分“论文测量的”与“论文解释的”）；',
-  '5) 汇总成一张证据表并说明缺口。',
-].join('\n')
-
-async function readEnvelope<T>(path: string): Promise<T> {
-  const response = await fetch(path, { cache: 'no-store', headers: { accept: 'application/json' } })
-  const payload = await response.json() as PmEnvelope<T>
-  if (!response.ok || payload.ok !== true || payload.data === undefined) {
-    throw new Error(payload.error?.message ?? `HTTP ${String(response.status)}`)
+async function readEnvelope<T>(path: string): Promise<LoadResult<T>> {
+  let response: Response
+  try {
+    response = await fetch(path, { cache: 'no-store', headers: { accept: 'application/json' } })
+  } catch {
+    return { error: { code: 'NETWORK' } }
   }
-  return payload.data
+  try {
+    const payload = await response.json() as PmEnvelope<T> | null
+    if (response.ok && payload?.ok === true && payload.data !== undefined) return { data: payload.data }
+    return { error: {
+      code: payload?.error?.code ?? (response.ok ? 'INVALID_RESPONSE' : `HTTP ${response.status}`),
+      ...(payload?.error?.message === undefined ? {} : { message: payload.error.message }),
+    } }
+  } catch {
+    return { error: { code: response.ok ? 'INVALID_RESPONSE' : `HTTP ${response.status}` } }
+  }
 }
 
-function polarityLabel(value: PmEvidenceRow['polarity']): string {
-  return value === 'supports' ? '支持' : value === 'refutes' ? '反驳' : '中性'
+function localize(labels: Readonly<Record<string, string>>, value: string): string {
+  return Object.hasOwn(labels, value) ? labels[value]! : value
 }
 
-function strengthLabel(value: PmEvidenceRow['strength']): string {
-  return value === 'strong' ? '强' : value === 'moderate' ? '中' : '弱'
+function doiLink(source: PmEvidenceRow['sourceRef']): string | undefined {
+  if (source.type !== 'doi') return undefined
+  const parts = source.ref.trim().replace(/^(?:https:\/\/(?:dx\.)?doi\.org\/|doi:\s*)/iu, '').split('/')
+  if (!/^10\.\d{4,}$/u.test(parts[0] ?? '') || parts.length < 2 || parts.some(part => part === '' || part === '.' || part === '..')) return undefined
+  return `https://doi.org/${parts.map(part => encodeURIComponent(part.toWellFormed())).join('/')}`
 }
 
-/** Injection handed to the workbench registration. */
+/** Injection handed to the conversation dock workbench launcher. */
 export interface PmWorkbenchInjected {
-  /** Fill the composer draft and focus it; false when the composer is not ready. */
-  applyPrompt(text: string): boolean
+  /** Fill and focus the composer draft without sending; false if it is unavailable. */
+  readonly applyPrompt: (text: string) => boolean
+  readonly locale?: Locale
 }
 
-/** Slim launcher row plus the portal overlay. */
-export function PmWorkbench(props: PmWorkbenchInjected) {
-  const [open, setOpen] = useState(false)
-  const [projects, setProjects] = useState<readonly PmProjectSummary[]>([])
-  const [projectId, setProjectId] = useState('')
-  const [state, setState] = useState<PmProjectState | null>(null)
-  const [tab, setTab] = useState<TabId>('overview')
-  const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
-  const [error, setError] = useState('')
+/** Inputs for the keyed main research surface, independent of a retained composer. */
+export interface PmResearchDeskProps {
+  readonly applyPrompt?: PmWorkbenchInjected['applyPrompt']
+  readonly locale?: Locale
+  /** Opening section on mount; defaults to the project overview. */
+  readonly initialTab?: TabId
+  /** Called only when the composer adapter reports a successfully staged draft. */
+  readonly onPromptApplied?: () => void
+  /** Navigate back to the conversation without changing its draft. */
+  readonly onOpenConversation?: () => void
+}
 
-  const loadProjects = useCallback(async () => {
-    setStatus('loading')
-    setError('')
-    try {
-      const data = await readEnvelope<{ projects: readonly PmProjectSummary[] }>('/pm/projects')
-      setProjects(data.projects)
-      setProjectId(current => data.projects.some(item => item.id === current) ? current : (data.projects[0]?.id ?? ''))
-      setStatus('ready')
-    } catch (cause) {
-      setStatus('error')
-      setError(cause instanceof Error ? cause.message : String(cause))
-    }
-  }, [])
+/** Render a read-only project desk as a keyed main panel.
+ * @param props - Optional composer or navigation actions and the active locale.
+ */
+export function PmResearchDesk(props: PmResearchDeskProps) {
+  return <ResearchDesk {...props} active />
+}
 
-  const loadState = useCallback(async (id: string) => {
-    if (id === '') { setState(null); return }
-    setStatus('loading')
-    setError('')
-    try {
-      setState(await readEnvelope<PmProjectState>(`/pm/projects/${encodeURIComponent(id)}/state`))
-      setStatus('ready')
-    } catch (cause) {
-      setStatus('error')
-      setError(cause instanceof Error ? cause.message : String(cause))
-    }
-  }, [])
+interface DeskProps extends PmResearchDeskProps {
+  readonly active: boolean
+  readonly activation?: number
+  readonly onClose?: () => void
+  readonly closeRef?: React.Ref<HTMLButtonElement>
+}
+
+function ResearchDesk({ active, activation = 0, applyPrompt, locale, initialTab = 'overview', onPromptApplied, onOpenConversation, onClose, closeRef }: DeskProps) {
+  const copy = useCopy(locale)
+  const [version, setVersion] = useState(0)
+  const request = `${activation}:${version}`
+  const [preferredProject, setPreferredProject] = useState('')
+  const [tab, setTab] = useState<TabId>(initialTab)
+  const [evidenceId, setEvidenceId] = useState<string>()
+  const [draftStatus, setDraftStatus] = useState<'staged' | 'unavailable'>()
+  const [list, setList] = useState<{ readonly request: string; readonly result: LoadResult<{ readonly projects: readonly PmProjectSummary[] }> }>()
+  const [project, setProject] = useState<{ readonly request: string; readonly id: string; readonly result: LoadResult<PmProjectState> }>()
+  const focusContent = useRef(false)
+  const contentRef = useRef<HTMLElement>(null)
+  const headingId = useId()
+
+  const currentList = list?.request === request ? list.result : undefined
+  const projects = currentList !== undefined && 'data' in currentList ? currentList.data.projects : []
+  const currentProject = projects.find(item => item.id === preferredProject) ?? projects[0]
+  const projectId = currentProject?.id
+  const result = project !== undefined && project.request === request && project.id === projectId ? project.result : undefined
+  const state = result !== undefined && 'data' in result ? result.data : undefined
+  const error = currentList !== undefined && 'error' in currentList ? currentList.error : result !== undefined && 'error' in result ? result.error : undefined
+  const loading = active && (currentList === undefined || (projectId !== undefined && result === undefined))
+  const [showLoading, setShowLoading] = useState(false)
 
   useEffect(() => {
-    if (!open) return
-    void loadProjects()
-  }, [open, loadProjects])
+    if (!active) { setDraftStatus(undefined); return }
+    let current = true
+    void readEnvelope<{ readonly projects: readonly PmProjectSummary[] }>('/pm/projects').then(result => {
+      if (!current) return
+      setList({ request, result })
+      if ('data' in result) {
+        setPreferredProject(preferred => result.data.projects.some(item => item.id === preferred) ? preferred : (result.data.projects[0]?.id ?? ''))
+      }
+    })
+    return () => { current = false }
+  }, [active, request])
 
   useEffect(() => {
-    if (!open) return
-    void loadState(projectId)
-  }, [open, projectId, loadState])
+    if (!active || projectId === undefined) return
+    let current = true
+    void readEnvelope<PmProjectState>(`/pm/projects/${encodeURIComponent(projectId)}/state`).then(result => {
+      if (current) setProject({ request, id: projectId, result })
+    })
+    return () => { current = false }
+  }, [active, request, projectId])
 
-  const refresh = useCallback(() => {
-    void loadProjects()
-    void loadState(projectId)
-  }, [loadProjects, loadState, projectId])
+  useEffect(() => {
+    if (!loading) { setShowLoading(false); return }
+    const timer = setTimeout(() => { setShowLoading(true) }, 400)
+    return () => { clearTimeout(timer) }
+  }, [loading])
 
-  const counts = useMemo(() => ({
-    evidence: state?.evidence.length ?? 0,
-    hypotheses: state?.hypotheses.length ?? 0,
-    nodes: state?.mechanism.nodes.length ?? 0,
-    edges: state?.mechanism.edges.length ?? 0,
-    cards: state?.knowledge.length ?? 0,
-  }), [state])
-
-  const nameOf = useCallback((id: string) => {
-    return state?.mechanism.nodes.find(node => node.id === id)?.name ?? id
-  }, [state])
-
-  const startLiterature = useCallback(() => {
-    if (!props.applyPrompt(LITERATURE_PROMPT)) {
-      setError('输入框尚未就绪，请在会话输入框中重试')
-      return
+  useEffect(() => {
+    const content = contentRef.current
+    if (content !== null) content.scrollTop = 0
+    if (focusContent.current) {
+      focusContent.current = false
+      content?.focus()
     }
-    setOpen(false)
-  }, [props.applyPrompt])
+  }, [tab, projectId])
 
-  const overlay = open && typeof document !== 'undefined'
-    ? createPortal(
-      <div className="pm-wb-backdrop" role="dialog" aria-modal="true" aria-label="研究工作台">
-        <div className="pm-wb">
-          <header className="pm-wb-head">
-            <div className="pm-wb-title">
-              <Network size={16} strokeWidth={1.75} aria-hidden="true" />
-              <span>研究工作台</span>
-            </div>
-            <div className="pm-wb-head-actions">
-              <select
-                className="pm-wb-select"
-                value={projectId}
-                aria-label="选择项目"
-                onChange={(event) => { setProjectId(event.target.value) }}
-              >
-                {projects.length === 0 ? <option value="">暂无项目</option> : null}
-                {projects.map(project => (
-                  <option key={project.id} value={project.id}>{project.title}（{project.id}）</option>
-                ))}
-              </select>
-              <button type="button" className="pm-wb-icon" onClick={refresh} title="刷新" aria-label="刷新">
-                <RefreshCw size={14} strokeWidth={1.75} aria-hidden="true" />
-              </button>
-              <button type="button" className="pm-wb-icon" onClick={() => { setOpen(false) }} title="关闭" aria-label="关闭">
-                <X size={14} strokeWidth={1.75} aria-hidden="true" />
-              </button>
-            </div>
-          </header>
-
-          <nav className="pm-wb-tabs" aria-label="工作台分区">
-            {TABS.map(({ id, label, Icon }) => (
-              <button
-                key={id}
-                type="button"
-                className="pm-wb-tab"
-                aria-pressed={tab === id}
-                onClick={() => { setTab(id) }}
-              >
-                <Icon size={13} strokeWidth={1.75} aria-hidden="true" />
-                {label}
-                {id === 'evidence' ? <em>{counts.evidence}</em> : null}
-                {id === 'hypotheses' ? <em>{counts.hypotheses}</em> : null}
-                {id === 'mechanism' ? <em>{counts.edges}</em> : null}
-                {id === 'knowledge' ? <em>{counts.cards}</em> : null}
-              </button>
-            ))}
-          </nav>
-
-          <div className="pm-wb-body">
-            {status === 'loading' && state === null ? <p className="pm-wb-note">正在读取项目状态…</p> : null}
-            {error !== '' ? <p className="pm-wb-note pm-wb-error">{error}</p> : null}
-            {status !== 'loading' && state === null && error === '' ? (
-              <p className="pm-wb-note">还没有项目。先在会话里让科研总控用 pm_project_create 建一个项目，或直接开始文献作业。</p>
-            ) : null}
-
-            {state !== null && tab === 'overview' ? (
-              <section className="pm-wb-grid">
-                <article className="pm-wb-card">
-                  <h3>{state.project.title}</h3>
-                  <p className="pm-wb-sub">{state.project.question ?? '未填写研究问题'} · {state.project.domain}</p>
-                  <dl className="pm-wb-stats">
-                    <div><dt>证据</dt><dd>{counts.evidence}</dd></div>
-                    <div><dt>假设</dt><dd>{counts.hypotheses}</dd></div>
-                    <div><dt>机理节点</dt><dd>{counts.nodes}</dd></div>
-                    <div><dt>机理边</dt><dd>{counts.edges}</dd></div>
-                    <div><dt>知识卡</dt><dd>{counts.cards}</dd></div>
-                  </dl>
-                  <p className={state.ledger.verified ? 'pm-wb-badge pm-wb-ok' : 'pm-wb-badge pm-wb-bad'}>
-                    {state.ledger.verified
-                      ? `证据链校验通过（${state.ledger.chainLength} 条，prevHash 逐条链接）`
-                      : `证据链断裂于 ${state.ledger.brokenAt ?? '未知记录'} — 请勿引用`}
-                  </p>
-                </article>
-                <article className="pm-wb-card">
-                  <h3>下一步</h3>
-                  <p className="pm-wb-sub">把工作台结论交给专家，或直接启动一次文献作业。</p>
-                  <div className="pm-wb-actions">
-                    <button type="button" className="pm-wb-primary" onClick={startLiterature}>
-                      <BookOpen size={14} strokeWidth={1.75} aria-hidden="true" />
-                      让文献专家开始检索
-                    </button>
-                    <button type="button" className="pm-wb-secondary" onClick={() => { props.applyPrompt('检查当前项目的证据链与科学门控，列出缺口并给出补证计划。'); setOpen(false) }}>
-                      检查证据缺口
-                    </button>
-                  </div>
-                </article>
-              </section>
-            ) : null}
-
-            {state !== null && tab === 'evidence' ? (
-              <section className="pm-wb-list">
-                {state.evidence.length === 0 ? <p className="pm-wb-note">尚无证据记录。</p> : null}
-                {state.evidence.map(row => (
-                  <article key={row.id} className="pm-wb-row">
-                    <div className="pm-wb-row-head">
-                      <code>{row.id}</code>
-                      <span className={`pm-wb-chip pm-wb-${row.polarity}`}>{polarityLabel(row.polarity)}</span>
-                      <span className="pm-wb-chip">{strengthLabel(row.strength)}</span>
-                      <span className="pm-wb-muted">{row.sourceRef.type}: {row.sourceRef.ref}</span>
-                    </div>
-                    <p>{row.claimSupport}</p>
-                    <p className="pm-wb-muted">hash {row.hash.slice(0, 12)}… · {row.recordedAt}</p>
-                  </article>
-                ))}
-              </section>
-            ) : null}
-
-            {state !== null && tab === 'hypotheses' ? (
-              <section className="pm-wb-list">
-                {state.hypotheses.length === 0 ? <p className="pm-wb-note">尚无假设。</p> : null}
-                {state.hypotheses.map(row => (
-                  <article key={row.id} className="pm-wb-row">
-                    <div className="pm-wb-row-head">
-                      <code>{row.id}</code>
-                      <span className={`pm-wb-chip pm-wb-status-${row.status}`}>{row.status}</span>
-                    </div>
-                    <p>{row.statement}</p>
-                    {row.competitors.length > 0 ? (
-                      <p className="pm-wb-muted">竞争假设：{row.competitors.join('；')}</p>
-                    ) : (
-                      <p className="pm-wb-muted">未声明竞争假设 — 科学门控会在结论阶段阻断。</p>
-                    )}
-                    {row.transitions.length > 0 ? (
-                      <p className="pm-wb-muted">
-                        轨迹：{row.transitions.map(move => `→ ${move.to}`).join(' ')}
-                      </p>
-                    ) : null}
-                  </article>
-                ))}
-              </section>
-            ) : null}
-
-            {state !== null && tab === 'mechanism' ? (
-              <section className="pm-wb-split">
-                <div>
-                  <h3 className="pm-wb-h3">节点 {counts.nodes}</h3>
-                  <ul className="pm-wb-nodes">
-                    {state.mechanism.nodes.map(node => (
-                      <li key={node.id}>
-                        <span className="pm-wb-muted">{node.type}</span>
-                        <span>{node.name}</span>
-                        {node.symbol !== undefined ? <code>{node.symbol}</code> : null}
-                        {node.unit !== undefined ? <em>{node.unit}</em> : null}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                <div>
-                  <h3 className="pm-wb-h3">边 {counts.edges}</h3>
-                  <ul className="pm-wb-edges">
-                    {state.mechanism.edges.map(edge => (
-                      <li key={edge.id}>
-                        <div className="pm-wb-row-head">
-                          <span className={`pm-wb-chip pm-wb-${edge.applicability}`}>{edge.applicability}</span>
-                          <span className="pm-wb-muted">{edge.relation}</span>
-                          <span className="pm-wb-muted">证据 {edge.evidenceIds.length}</span>
-                        </div>
-                        <p>{nameOf(edge.from)} → {nameOf(edge.to)}</p>
-                        {edge.equation !== undefined ? <code className="pm-wb-eq">{edge.equation}</code> : null}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </section>
-            ) : null}
-
-            {state !== null && tab === 'knowledge' ? (
-              <section className="pm-wb-list">
-                {state.knowledge.length === 0 ? <p className="pm-wb-note">尚无知识卡。</p> : null}
-                {state.knowledge.map(card => (
-                  <article key={card.id} className="pm-wb-row">
-                    <div className="pm-wb-row-head">
-                      <code>{card.id}</code>
-                      <span className={`pm-wb-chip pm-wb-card-${card.status}`}>{card.status}</span>
-                      <span className="pm-wb-muted">{card.kind}</span>
-                    </div>
-                    <p><strong>{card.title}</strong> — {card.body}</p>
-                  </article>
-                ))}
-              </section>
-            ) : null}
-
-            {tab === 'tools' ? (
-              <section className="pm-wb-list">
-                <article className="pm-wb-row">
-                  <h3 className="pm-wb-h3">已接入的科研能力</h3>
-                  <ul className="pm-wb-capabilities">
-                    <li><b>文献</b> pm_literature_search / screen / download / read / extract + kb_*（本地知识库）+ Zotero skill</li>
-                    <li><b>表征</b> pm_waxs_analyze / pm_ftir_analyze / pm_saxs_analyze / pm_hermans_analyze / pm_model_fit</li>
-                    <li><b>仿真</b> pm_sim_chain_mechanics / rubber_elasticity / viscoelastic / chain_stats / crystallization / flory_huggins / tg_blend / diffusion / md_run</li>
-                    <li><b>机理</b> pm_mechanism_query / propose_edge / import_seed + pm_hypothesis_propose / transition + pm_gate_check</li>
-                    <li><b>知识</b> pm_knowledge_propose / review（RSI 沉淀，reviewer 审批）</li>
-                  </ul>
-                </article>
-              </section>
-            ) : null}
-          </div>
-        </div>
-      </div>,
-      document.body,
-    )
-    : null
+  const refresh = () => { setVersion(current => current + 1) }
+  const stage = applyPrompt === undefined ? undefined : (text: string) => {
+    if (!applyPrompt(text)) { setDraftStatus('unavailable'); return }
+    setDraftStatus('staged')
+    onPromptApplied?.()
+  }
+  const navigate = (id: TabId) => {
+    focusContent.current = true
+    setTab(id)
+  }
+  const inspectEvidence = (id: string) => {
+    setEvidenceId(id)
+    navigate('evidence')
+  }
+  const counts = state === undefined ? undefined : {
+    evidence: state.evidence.length, hypotheses: state.hypotheses.length,
+    mechanism: state.mechanism.edges.length,
+  }
+  const unresolved = state?.hypotheses.filter(row => row.status === 'proposed' || row.status === 'conditional' || row.status === 'under_test').length
 
   return (
-    <>
-      <div className="pm-wb-launcher">
-        <button type="button" className="pm-wb-open" onClick={() => { setOpen(true) }}>
-          <Network size={13} strokeWidth={1.75} aria-hidden="true" />
-          研究工作台
-        </button>
-        <span className="pm-wb-launcher-hint">
-          证据链 · 假设 · 机理图谱 · 知识卡
-        </span>
-      </div>
-      {overlay}
-    </>
+    <section className="dshDesktopPmWbDesk" aria-labelledby={headingId}>
+      <header className="dshDesktopPmWbToolbar">
+        <h2 id={headingId}><Network size={16} aria-hidden="true" />{copy.title}</h2>
+        <div className="dshDesktopPmWbControls">
+          <select aria-label={copy.projectSelect} value={projectId ?? ''} disabled={projects.length === 0} onChange={event => {
+            setPreferredProject(event.target.value)
+            setProject(undefined)
+            setEvidenceId(undefined)
+          }}>
+            {projects.length === 0 ? <option value="">{loading ? copy.loading : error ? copy.projectSelect : copy.noProjects}</option> : null}
+            {projects.map(item => <option key={item.id} value={item.id}>{item.title} · {item.id}</option>)}
+          </select>
+          <button type="button" onClick={refresh} title={copy.refresh} aria-label={copy.refresh}><RefreshCw size={15} aria-hidden="true" /></button>
+          {onOpenConversation !== undefined ? (
+            <button type="button" onClick={onOpenConversation}><ArrowLeft size={15} aria-hidden="true" />{copy.openConversation}</button>
+          ) : null}
+          {onClose !== undefined ? <button ref={closeRef} type="button" onClick={onClose} title={copy.close} aria-label={copy.close}><X size={16} aria-hidden="true" /></button> : null}
+        </div>
+      </header>
+
+      {state !== undefined && unresolved !== undefined ? (
+        <div className="dshDesktopPmWbContext">
+          <strong>{state.project.title}</strong>
+          <span>{copy.openHypotheses} <b>{unresolved}</b></span>
+          <LedgerStatus ledger={state.ledger} copy={copy} />
+        </div>
+      ) : null}
+
+      <nav className="dshDesktopPmWbTabs" aria-label={copy.sections}>
+        {TAB_ORDER.map(id => {
+          const Icon = TABS[id]
+          const count = id === 'overview' || id === 'tools' || id === 'knowledge' ? undefined : counts?.[id]
+          return (
+            <button key={id} type="button" aria-label={copy.tabs[id]} aria-pressed={tab === id} onClick={() => { setTab(id) }}>
+              <Icon size={15} aria-hidden="true" />{copy.tabs[id]}
+              {count !== undefined ? <span aria-hidden="true">{count}</span> : null}
+            </button>
+          )
+        })}
+      </nav>
+
+      <section ref={contentRef} className="dshDesktopPmWbBody" tabIndex={-1} aria-label={copy.tabs[tab]} aria-busy={loading}>
+        {draftStatus === 'unavailable' ? <p className="dshDesktopPmWbNotice" role="alert">{copy.unavailable}</p> : null}
+        {draftStatus === 'staged' && onPromptApplied === undefined ? <p className="dshDesktopPmWbNotice" role="status">{copy.staged}</p> : null}
+        {loading && showLoading ? (
+          <div className="dshDesktopPmWbLoading" role="status">
+            <p>{copy.loading}</p><div aria-hidden="true"><i /><i /><i /></div>
+          </div>
+        ) : null}
+        {error !== undefined ? (
+          <div className="dshDesktopPmWbNotice" role="alert">
+            <p><code>{error.code}</code> · {copy.loadError}</p>
+            {error.message !== undefined ? <p>{error.message}</p> : null}
+            <button type="button" onClick={refresh}>{copy.retry}</button>
+          </div>
+        ) : null}
+        {!loading && error === undefined && state === undefined && tab !== 'tools' ? (
+          <div className="dshDesktopPmWbNotice">
+            <h3>{copy.noProjects}</h3><p>{copy.noProjectsHint}</p>
+            {stage !== undefined ? <button type="button" onClick={() => { stage(copy.literaturePrompt) }}><BookOpen size={15} aria-hidden="true" />{copy.literature}</button> : null}
+          </div>
+        ) : null}
+
+        {state !== undefined && counts !== undefined && unresolved !== undefined && tab === 'overview' ? (
+          <div className="dshDesktopPmWbOverview">
+            <header className="dshDesktopPmWbHero">
+              <p className="dshDesktopPmWbEyebrow"><FolderOpen size={16} aria-hidden="true" />{copy.project}<span aria-hidden="true">/</span><code>{state.project.id}</code></p>
+              <h1>{state.project.title}</h1>
+              <p>{state.project.question?.trim() || copy.noQuestion}</p>
+              <dl className="dshDesktopPmWbMeta">
+                <div><dt>{copy.status}</dt><dd>{localize(copy.projectStatuses, state.project.status)}</dd></div>
+                <div><dt>{copy.domain}</dt><dd>{state.project.domain}</dd></div>
+                {state.project.createdAt ? <div><dt>{copy.created}</dt><dd><RecordedTime value={state.project.createdAt} /></dd></div> : null}
+              </dl>
+            </header>
+            <div className="dshDesktopPmWbColumns">
+              <section className="dshDesktopPmWbPanel">
+                <header className="dshDesktopPmWbPanelHead"><h3>{copy.workflow}</h3><p>{copy.workflowHint}</p></header>
+                <ol className="dshDesktopPmWbWorkflow">
+                  {WORKFLOW.map((id, index) => {
+                    const Icon = TABS[id]
+                    const labels = { evidence: copy.evidenceCount, hypotheses: copy.hypothesisCount, mechanism: copy.mechanismCount }
+                    return (
+                      <li key={id}>
+                        <span className="dshDesktopPmWbStep" aria-hidden="true">{(index + 1).toString().padStart(2, '0')}</span>
+                        <button type="button" onClick={() => { navigate(id) }}>
+                          <Icon size={16} aria-hidden="true" />
+                          <span><strong>{copy.tabs[id]}</strong><small>{counts[id]} {labels[id]}</small></span>
+                          <ArrowRight size={15} aria-hidden="true" />
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ol>
+              </section>
+              <aside className="dshDesktopPmWbPanel">
+                <header className="dshDesktopPmWbPanelHead"><h3>{copy.inspector}</h3></header>
+                <div className="dshDesktopPmWbPanelBody">
+                  <div className="dshDesktopPmWbInspection"><LedgerStatus ledger={state.ledger} copy={copy} /><p>{copy.gateNote}</p></div>
+                  <dl className="dshDesktopPmWbRecords">
+                    <div><dt>{copy.projectId}</dt><dd><code>{state.project.id}</code></dd></div>
+                    <div><dt>{copy.ledgerRows}</dt><dd>{state.ledger.chainLength}</dd></div>
+                    <div><dt>{copy.openHypotheses}</dt><dd>{unresolved}</dd></div>
+                    {!state.ledger.verified ? <div><dt>{copy.brokenAt}</dt><dd>{state.ledger.brokenAt ?? copy.unknownRecord}</dd></div> : null}
+                  </dl>
+                  {stage !== undefined ? (
+                    <div className="dshDesktopPmWbNext">
+                      <h4>{copy.next}</h4><p>{copy.draftHint}</p>
+                      <div className="dshDesktopPmWbActions">
+                        <button type="button" onClick={() => { stage(copy.gapPrompt) }}><ShieldCheck size={15} aria-hidden="true" />{copy.checkGaps}</button>
+                        <button type="button" onClick={() => { stage(copy.literaturePrompt) }}><BookOpen size={15} aria-hidden="true" />{copy.literature}</button>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              </aside>
+            </div>
+          </div>
+        ) : null}
+
+        {state !== undefined && tab === 'evidence' ? (
+          <EvidencePane copy={copy} rows={state.evidence} evidenceId={evidenceId} onSelect={setEvidenceId} />
+        ) : null}
+        {state !== undefined && tab === 'hypotheses' ? (
+          <div className="dshDesktopPmWbList">
+            {state.hypotheses.length === 0 ? <p className="dshDesktopPmWbNotice">{copy.noHypotheses}</p> : null}
+            {state.hypotheses.map(row => (
+              <article key={row.id}>
+                <header><code>{row.id}</code><span className="dshDesktopPmWbBadge" data-tone={row.status}>{localize(copy.hypothesisStatuses, row.status)}</span></header>
+                <p>{row.statement}</p>
+                <p className="dshDesktopPmWbMuted">{row.competitors.length > 0 ? `${copy.competitors}: ${row.competitors.join(' · ')}` : copy.noCompetitors}</p>
+                <EvidenceLinks state={state} ids={row.evidenceIds} copy={copy} onSelect={inspectEvidence} />
+                {row.transitions.length > 0 ? <details>
+                  <summary>{copy.transitions}</summary>
+                  {row.transitions.map((move, index) => <div key={`${move.at}:${index}`}>
+                    <p><strong>{localize(copy.hypothesisStatuses, move.to)}</strong> · {move.rationale}</p>
+                    <EvidenceLinks state={state} ids={move.evidenceIds} copy={copy} onSelect={inspectEvidence} />
+                  </div>)}
+                </details> : null}
+              </article>
+            ))}
+          </div>
+        ) : null}
+        {state !== undefined && tab === 'mechanism' ? (
+          <div className="dshDesktopPmWbColumns">
+            <section className="dshDesktopPmWbPanel">
+              <header className="dshDesktopPmWbPanelHead"><h3>{copy.nodeCount} · {state.mechanism.nodes.length}</h3></header>
+              <div className="dshDesktopPmWbList">
+                {state.mechanism.nodes.length === 0 ? <p className="dshDesktopPmWbNotice">{copy.noNodes}</p> : null}
+                {state.mechanism.nodes.map(node => <article key={node.id}><strong>{node.name}</strong><p className="dshDesktopPmWbMuted">{[node.type, node.symbol, node.unit].filter(Boolean).join(' · ')}</p></article>)}
+              </div>
+            </section>
+            <section className="dshDesktopPmWbPanel">
+              <header className="dshDesktopPmWbPanelHead"><h3>{copy.mechanismCount} · {state.mechanism.edges.length}</h3></header>
+              <div className="dshDesktopPmWbList">
+                {state.mechanism.edges.length === 0 ? <p className="dshDesktopPmWbNotice">{copy.noEdges}</p> : null}
+                {state.mechanism.edges.map(edge => {
+                  const nameOf = (id: string) => state.mechanism.nodes.find(node => node.id === id)?.name ?? id
+                  return (
+                    <article key={edge.id}>
+                      <header><span className="dshDesktopPmWbBadge" data-tone={edge.applicability}>{localize(copy.edgeStatuses, edge.applicability)}</span><span>{edge.relation}</span></header>
+                      <p>{nameOf(edge.from)} → {nameOf(edge.to)}</p>
+                      {edge.equation !== undefined ? <code>{edge.equation}</code> : null}
+                      <EvidenceLinks state={state} ids={edge.evidenceIds} copy={copy} onSelect={inspectEvidence} />
+                    </article>
+                  )
+                })}
+              </div>
+            </section>
+          </div>
+        ) : null}
+        {state !== undefined && tab === 'knowledge' ? (
+          <div className="dshDesktopPmWbList">
+            <header className="dshDesktopPmWbPanelHead"><h3>{copy.sharedKnowledge}</h3><p>{copy.sharedKnowledgeHint}</p></header>
+            {state.knowledge.length === 0 ? <p className="dshDesktopPmWbNotice">{copy.noCards}</p> : null}
+            {state.knowledge.map(card => (
+              <article key={card.id}>
+                <header><code>{card.id}</code><span className="dshDesktopPmWbBadge" data-tone={card.status}>{localize(copy.cardStatuses, card.status)}</span><span>{card.kind}</span></header>
+                <h3>{card.title}</h3><p>{card.body}</p>
+                <EvidenceLinks state={state} ids={card.links?.evidenceIds} copy={copy} onSelect={inspectEvidence} />
+              </article>
+            ))}
+          </div>
+        ) : null}
+        {tab === 'tools' ? (
+          <section className="dshDesktopPmWbPanel">
+            <header className="dshDesktopPmWbPanelHead"><h3>{copy.toolsHeading}</h3></header>
+            <dl className="dshDesktopPmWbToolList">
+              {TOOL_GROUPS.map((tools, index) => <div key={tools}><dt>{copy.toolGroups[index]}</dt><dd><code>{tools}</code></dd></div>)}
+            </dl>
+          </section>
+        ) : null}
+      </section>
+    </section>
+  )
+}
+
+function LedgerStatus({ ledger, copy }: { readonly ledger: PmProjectState['ledger']; readonly copy: PmWorkbenchCopy }) {
+  const Icon = ledger.verified ? ShieldCheck : ShieldAlert
+  return <span className="dshDesktopPmWbBadge" data-tone={ledger.verified ? 'supports' : 'refutes'}><Icon size={14} aria-hidden="true" />{ledger.verified ? copy.ledgerVerified : copy.ledgerBroken}</span>
+}
+
+function RecordedTime({ value }: { readonly value: string }) {
+  return <time dateTime={value}>{value}</time>
+}
+
+function EvidenceLinks({ state, ids = [], copy, onSelect }: {
+  readonly state: PmProjectState
+  readonly ids?: readonly string[] | undefined
+  readonly copy: PmWorkbenchCopy
+  readonly onSelect: (id: string) => void
+}) {
+  if (ids.length === 0) return null
+  const available = new Set(state.evidence.map(row => row.id))
+  return (
+    <div className="dshDesktopPmWbActions">
+      <span>{copy.boundEvidence}</span>
+      {[...new Set(ids)].map(id => available.has(id)
+        ? <button key={id} type="button" onClick={() => { onSelect(id) }}><code>{id}</code></button>
+        : <code key={id}>{id} · {copy.missingEvidence}</code>)}
+    </div>
+  )
+}
+
+function EvidencePane({ copy, rows, evidenceId, onSelect }: {
+  readonly copy: PmWorkbenchCopy
+  readonly rows: readonly PmEvidenceRow[]
+  readonly evidenceId: string | undefined
+  readonly onSelect: (id: string) => void
+}) {
+  const dataHeading = useId()
+  const inspectorHeading = useId()
+  const inspectorId = useId()
+  const inspectorRef = useRef<HTMLElement>(null)
+  const selected = rows.find(row => row.id === evidenceId) ?? rows[0]
+  const doi = selected === undefined ? undefined : doiLink(selected.sourceRef)
+  return (
+    <div className="dshDesktopPmWbColumns">
+      <section className="dshDesktopPmWbPanel" aria-labelledby={dataHeading}>
+        <header className="dshDesktopPmWbPanelHead"><h3 id={dataHeading}>{copy.dataHeading} · {rows.length}</h3><p>{copy.dataHint}</p></header>
+        {rows.length === 0 ? <p className="dshDesktopPmWbNotice">{copy.noEvidence}</p> : (
+          <table className="dshDesktopPmWbTable" aria-labelledby={dataHeading}>
+            <thead><tr><th scope="col">{copy.entryId}</th><th scope="col">{copy.claim}</th><th scope="col">{copy.polarity}</th></tr></thead>
+            <tbody>
+              {rows.map(row => (
+                <tr key={row.id} data-selected={row.id === selected?.id}>
+                  <th scope="row"><button type="button" aria-pressed={row.id === selected?.id} aria-controls={inspectorId} onClick={() => {
+                    onSelect(row.id)
+                    // Keep the inline inspector discoverable when the two columns stack.
+                    inspectorRef.current?.focus()
+                  }}><code>{row.id}</code></button></th>
+                  <td>{row.claimSupport}</td>
+                  <td><span className="dshDesktopPmWbBadge" data-tone={row.polarity}>{copy.polarities[row.polarity]}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+      <aside ref={inspectorRef} tabIndex={-1} id={inspectorId} className="dshDesktopPmWbPanel" aria-labelledby={inspectorHeading}>
+        <header className="dshDesktopPmWbPanelHead"><h3 id={inspectorHeading}>{copy.evidenceDetail}</h3></header>
+        <div className="dshDesktopPmWbPanelBody">
+          {selected === undefined ? <p>{copy.selectEvidence}</p> : (
+            <>
+              <p className="dshDesktopPmWbEyebrow"><code>{selected.id}</code><span className="dshDesktopPmWbBadge" data-tone={selected.polarity}>{copy.polarities[selected.polarity]}</span></p>
+              <p className="dshDesktopPmWbClaim">{selected.claimSupport}</p>
+              <dl className="dshDesktopPmWbRecords">
+                <div><dt>{copy.strength}</dt><dd>{copy.strengths[selected.strength]}</dd></div>
+                <div><dt>{copy.source}</dt><dd>{localize(copy.sourceTypes, selected.sourceRef.type)} · <code>{selected.sourceRef.ref}</code></dd></div>
+                {selected.observationId !== undefined ? <div><dt>{copy.observation}</dt><dd><code>{selected.observationId}</code></dd></div> : null}
+                <div><dt>{copy.recordTime}</dt><dd><RecordedTime value={selected.recordedAt} /></dd></div>
+                <div><dt>{copy.hash}</dt><dd><code>{selected.hash}</code></dd></div>
+              </dl>
+              {selected.payload !== undefined ? <details className="dshDesktopPmWbPayload"><summary>{copy.payload}</summary><pre>{JSON.stringify(selected.payload, null, 2)}</pre></details> : null}
+              {doi !== undefined ? <a href={doi} target="_blank" rel="noopener noreferrer">{copy.openDoi}<ExternalLink size={13} aria-hidden="true" /></a> : <p className="dshDesktopPmWbMuted">{copy.sourceReferenceOnly}</p>}
+            </>
+          )}
+        </div>
+      </aside>
+    </div>
+  )
+}
+
+function showDialog(dialog: HTMLDialogElement) {
+  if (dialog.open) return
+  if (typeof dialog.showModal === 'function') dialog.showModal()
+  else dialog.setAttribute('open', '')
+}
+
+function hideDialog(dialog: HTMLDialogElement) {
+  if (!dialog.open) return
+  if (typeof dialog.close === 'function') dialog.close()
+  else dialog.removeAttribute('open')
+}
+
+/** Render the existing conversation dock launcher and modal desk.
+ * @param props - Composer draft adapter and optional live locale.
+ */
+export function PmWorkbench({ applyPrompt, locale }: PmWorkbenchInjected) {
+  const copy = useCopy(locale)
+  const [open, setOpen] = useState(false)
+  const [activation, setActivation] = useState(0)
+  const launched = activation > 0
+  const launcher = useRef<HTMLButtonElement>(null)
+  const dialog = useRef<HTMLDialogElement>(null)
+  const close = useRef<HTMLButtonElement>(null)
+  const dialogId = useId()
+
+  useEffect(() => {
+    if (open && dialog.current !== null) {
+      showDialog(dialog.current)
+      close.current?.focus()
+    }
+  }, [open])
+
+  const dismiss = useCallback(() => {
+    if (dialog.current !== null) hideDialog(dialog.current)
+    setOpen(false)
+    launcher.current?.focus()
+  }, [])
+
+  const stage = (text: string) => {
+    const element = dialog.current
+    if (element === null) return false
+    const previousFocus = document.activeElement
+    // A native modal makes the composer inert. Close synchronously before the
+    // adapter sets and focuses its draft; reopen only if the adapter cannot stage it.
+    hideDialog(element)
+    if (applyPrompt(text)) return true
+    showDialog(element)
+    if (previousFocus instanceof HTMLElement && element.contains(previousFocus)) previousFocus.focus()
+    else close.current?.focus()
+    return false
+  }
+
+  return (
+    <div className="dshDesktopPmWbLauncher">
+      <button ref={launcher} type="button" aria-haspopup="dialog" aria-expanded={open} aria-controls={launched ? dialogId : undefined} onClick={() => {
+        setActivation(current => current + 1)
+        setOpen(true)
+      }}><Network size={14} aria-hidden="true" />{copy.title}</button>
+      <span>{copy.launcherHint}</span>
+      {launched && typeof document !== 'undefined' ? createPortal(
+        <dialog id={dialogId} ref={dialog} className="dshDesktopPmWbDialog" aria-label={copy.title} role={open ? 'dialog' : undefined} aria-modal={open || undefined} onCancel={event => {
+          event.preventDefault()
+          dismiss()
+        }} onKeyDown={event => {
+          if (event.key === 'Escape' && !event.defaultPrevented) {
+            event.preventDefault()
+            event.stopPropagation()
+            dismiss()
+          }
+        }}>
+          <ResearchDesk active={open} activation={activation} {...(locale === undefined ? {} : { locale })} applyPrompt={stage} onClose={dismiss} closeRef={close} onPromptApplied={() => { setOpen(false) }} />
+        </dialog>, document.body,
+      ) : null}
+    </div>
   )
 }

@@ -61,6 +61,106 @@ button.dshNextMarketRemoveBtn:hover:not(:disabled) { background: color-mix(in sr
 .dshNextMarketSourceNoticeCopy > svg { flex: none; margin-top: 2px; color: var(--dsw-alias-state-warn-primary); }
 .dshNextMarketSourceNotice > button { flex: none; }
 @media(max-width: 560px) { .dshNextMarketChoices { grid-template-columns: 1fr; } .dshNextPluginCard { align-items: flex-start; flex-wrap: wrap; } .dshNextPluginCardMain { flex-basis: calc(100% - 68px); } .dshNextPluginCardActions { margin-left: 62px; } .dshNextPermissionRow, .dshNextMarketSourceSectionHeader, .dshNextMarketSourceHeader, .dshNextMarketSourceItem, .dshNextMarketSourceNotice { align-items: flex-start; flex-direction: column; gap: 12px; } .dshNextPermissionRow .dshNextPluginActions { max-width: none; } }
+/* Keep the shared compatibility presentation on the original rules above. */
+body[data-pm-studio]:is([data-dsh-desktop-mode="advanced"], [data-dsh-desktop-mode="extended"]) {
+  /* The source dialog is portalled, so its primitives need their own local palette. */
+  & :is(.dshNextPluginControls, .dshNextPermissionsDialog[role="dialog"]) {
+    --dsw-alias-label-primary: var(--pm-text-1);
+    --dsw-alias-label-secondary: var(--pm-text-2);
+    --dsw-alias-interactive-bg-hover: var(--pm-surface-hover);
+    --dsw-alias-border-l3: var(--pm-border-strong);
+    --dsw-radius-sm: var(--pm-radius-control);
+    color: var(--pm-text-1);
+    font: 13px/20px var(--pm-font);
+  }
+  & .dshNextPluginControls {
+    container: plugin-controls / inline-size;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+  & .dshNextPluginControls h3 { font-weight: 600; line-height: 20px; }
+  & .dshNextPluginControls :is(.dshDesktopSettingsHint, .dshDesktopSettingsGroupIntro) {
+    color: var(--pm-text-2);
+    line-height: 20px;
+  }
+  & .dshNextMarketHeader { flex-wrap: wrap; gap: 8px 16px; }
+  & .dshNextMarketHeader > div:first-child { flex: 1 1 220px; }
+  & .dshNextMarketChoices {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+    gap: 12px;
+  }
+  & .dshNextPluginCard {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    margin: 0;
+    padding: 12px;
+    border: 1px solid var(--pm-border);
+    border-radius: var(--pm-radius-card);
+    background: var(--pm-surface);
+  }
+  & .dshNextPluginCard:hover { background: var(--pm-surface-hover); }
+  & .dshNextPluginIcon {
+    border-color: var(--pm-border);
+    border-radius: var(--pm-radius-card);
+    background: var(--pm-surface-subtle);
+    color: var(--pm-text-2);
+  }
+  & .dshNextPluginCardDescription { color: var(--pm-text-2); line-height: 20px; }
+  & .dshNextPluginCardOpen::after { border-radius: var(--pm-radius-card); }
+  & .dshNextPluginCardOpen:focus-visible::after { outline-color: var(--pm-accent); }
+  & .dshNextPluginSettingsNotice { border-color: var(--pm-border); }
+
+  & .dshNextPermissionsDialog[role="dialog"] {
+    --dsw-alias-bg-module-platform: var(--pm-surface-subtle);
+    --dsw-alias-button-primary-fill: var(--pm-brand);
+    --dsw-alias-button-primary-hover: var(--pm-brand-strong);
+    --dsw-alias-label-primary-foreground: var(--pm-on-brand);
+    --dsw-alias-state-business-primary: var(--pm-brand-ink);
+    --dsw-alias-state-error-primary: color-mix(in srgb, var(--pm-rose) 65%, var(--pm-text-1));
+    --dsw-alias-state-success-primary: color-mix(in srgb, var(--pm-teal) 65%, var(--pm-text-1));
+    --dsh-scrollbar-thumb: var(--pm-border-strong);
+    --dsh-scrollbar-thumb-hover: var(--pm-text-3);
+    border: 1px solid var(--pm-border);
+    border-radius: 10px;
+    background: var(--pm-surface);
+    box-shadow: var(--pm-floating-shadow);
+  }
+  & .dshNextPermissionRow { border-color: var(--pm-border); }
+  & .dshNextMarketSourceItem {
+    border-color: var(--pm-border);
+    border-radius: var(--pm-radius-card);
+    background: var(--pm-surface-subtle);
+  }
+  & .dshNextMarketSourceUrl { font-family: var(--pm-mono); }
+  & .dshNextMarketSourceNotice {
+    background: var(--pm-amber-soft);
+    border-radius: var(--pm-radius-card);
+  }
+  & .dshNextMarketSourceNoticeCopy > svg {
+    color: color-mix(in srgb, var(--pm-amber) 65%, var(--pm-text-1));
+  }
+  & :is(.dshNextPluginControls, .dshNextPermissionsDialog[role="dialog"]) [role="switch"] {
+    --dsw-alias-border-l3: var(--pm-text-3);
+    --dsw-alias-switch-thumb: var(--pm-surface);
+    --dsw-alias-brand-primary: var(--pm-accent);
+    --dsw-alias-label-primary-foreground: var(--pm-on-brand);
+  }
+  & :is(.dshNextPluginControls, .dshNextPermissionsDialog[role="dialog"]) button:not(.dshNextPluginCardOpen):focus-visible {
+    outline: 2px solid var(--pm-accent);
+    outline-offset: 2px;
+  }
+
+  @container plugin-controls (max-width: 480px) {
+    & .dshNextPluginCard { grid-template-columns: auto minmax(0, 1fr); }
+    & .dshNextPluginCardActions { grid-column: 2; margin-left: 0; }
+    & .dshNextPluginCardActions .dshNextPluginActions { flex-wrap: wrap; }
+    & :is(.dshNextPluginCardOpen, .dshNextPluginCardDescription) {
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+  }
+}
 `
 
 export function installPluginControlsStyles(owner: string = DESKTOP_PACKAGE_NAME): () => void {

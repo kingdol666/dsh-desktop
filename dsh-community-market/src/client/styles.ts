@@ -1,3 +1,5 @@
+/** Community Market presentation and the optional Studio theme bridge. */
+
 const STYLE_ID = 'dsh-community-market/styles'
 
 const css = `
@@ -792,6 +794,69 @@ const css = `
   padding: 20px 24px 24px;
 }
 
+/* Consume Studio's inherited tokens without restyling shared primitives or
+   reaching into the portaled dialogs. Keep base specificity for mobile rules. */
+:where(body[data-pm-studio]) .dshMarketOverlayPanel {
+  border-color: var(--pm-border, var(--dsw-alias-border-inverted));
+  border-radius: var(--pm-radius-card, 24px);
+  background: var(--pm-surface-subtle, var(--dsw-alias-bg-layer-2));
+  color: var(--pm-text-1, var(--dsw-alias-label-primary));
+  box-shadow: var(--pm-floating-shadow, var(--dsw-shadow-lv3));
+}
+
+:where(body[data-pm-studio]) .dshMarketOverlayHeader {
+  border-color: var(--pm-border, var(--dsw-alias-border-l1));
+  background: var(--pm-surface, transparent);
+}
+
+:where(body[data-pm-studio]) .dshMarketRoot {
+  color: var(--pm-text-1, var(--dsw-alias-label-primary));
+}
+
+:where(body[data-pm-studio]) .dshMarketOverlayHeader p,
+:where(body[data-pm-studio] .dshMarketRoot) :is(
+  .dshMarketHeaderTitle p, .dshMarketSectionHead p, .dshMarketEmpty p,
+  .dshMarketCardName span, .dshMarketSource p, .dshMarketSourceAttribution,
+  .dshMarketSourceMeta, .dshMarketReceiptMeta, .dshMarketIndexMeta,
+  .dshMarketCategories > span:first-child, .dshMarketPaginationError
+) {
+  color: var(--pm-text-3, var(--dsw-alias-label-tertiary));
+}
+
+:where(body[data-pm-studio] .dshMarketRoot) :is(.dshMarketSummary, .dshMarketBanner) {
+  color: var(--pm-text-2, var(--dsw-alias-label-secondary));
+}
+
+:where(body[data-pm-studio] .dshMarketRoot) .dshMarketBanner {
+  border-color: var(--pm-border, var(--dsw-alias-border-l2));
+  background: var(--pm-surface-subtle, var(--dsw-alias-bg-layer-1));
+}
+
+:where(body[data-pm-studio] .dshMarketRoot) :is(.dshMarketCard, .dshMarketSource, .dshMarketReceipt) {
+  border-color: var(--pm-border, var(--dsw-alias-border-l2));
+  border-radius: var(--pm-radius-card, 10px);
+  background: var(--pm-surface, var(--dsw-alias-bg-layer-3));
+}
+
+:where(body[data-pm-studio] .dshMarketRoot) .dshMarketCard:hover {
+  border-color: var(--pm-border-strong, var(--dsw-alias-border-l3));
+  background: var(--pm-surface-hover, var(--dsw-alias-interactive-bg-hover));
+  box-shadow: none;
+}
+
+:where(body[data-pm-studio] .dshMarketRoot) .dshMarketCard:focus-visible {
+  outline-color: var(--pm-accent, var(--dsw-alias-state-business-primary));
+}
+
+:where(body[data-pm-studio] .dshMarketRoot) :is(.dshMarketGlyph, .dshMarketEmptyIcon) {
+  background: var(--pm-brand-soft, var(--dsw-alias-state-business-tertiary));
+  color: var(--pm-brand-ink, var(--dsw-alias-state-business-primary));
+}
+
+:where(body[data-pm-studio] .dshMarketRoot) .dshMarketGlyph img {
+  background: var(--pm-surface, var(--dsw-alias-bg-layer-3));
+}
+
 @media (max-width: 680px) {
   .dshMarketOverlay {
     padding: 0;
@@ -842,6 +907,7 @@ const css = `
 }
 `
 
+/** Install the Market stylesheet and return its disposer. */
 export function installMarketStyles(): () => void {
   const existing = document.querySelector<HTMLStyleElement>(`style[data-plugin="${STYLE_ID}"]`)
   if (existing !== null) return () => {}

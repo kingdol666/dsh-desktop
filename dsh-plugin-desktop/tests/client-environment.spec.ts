@@ -49,7 +49,7 @@ describe('desktop client environment', () => {
       effect,
       inject: vi.fn(),
       slots: { inject },
-      locale: { bind: () => (key: string) => key },
+      locale: { bind: () => (key: string) => key, getSnapshot: () => ({ active: 'zh' }) },
       configForms: { get: () => ({}) },
     } as unknown as ClientContext
     try {
@@ -57,6 +57,8 @@ describe('desktop client environment', () => {
       expect(inject.mock.calls.map(([name]) => name)).toEqual([
         'settings.section', 'settings.action', 'plugins.bundle.hidden',
         'sidebar.brand.mark', 'sidebar.brand.name', 'conversation.hero.brand.mark',
+        'sidebar.panellist', 'main', // Research desk
+        'sidebar.panellist', 'main', // Literature
       ])
       expect(effect.mock.calls.map(([, label]) => label)).not.toContain('desktop: independent compatibility frame styles')
     } finally {
@@ -718,7 +720,7 @@ describe('sidebar footer stacking', () => {
         register: vi.fn(() => () => {}),
         subscribe: vi.fn(() => () => {}),
       },
-      locale: { bind: () => (key: string) => key },
+      locale: { bind: () => (key: string) => key, getSnapshot: () => ({ active: 'zh' }) },
       configForms: { get: () => ({}) },
     } as unknown as ClientContext
 

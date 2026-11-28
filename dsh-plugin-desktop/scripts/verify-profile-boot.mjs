@@ -145,8 +145,13 @@ try {
     hostServicePluginDir,
     { recursive: true, force: false, errorOnExist: true },
   )
+  const studioUi = process.argv.includes('--studio-ui')
+  const researchRoot = join(home, 'studio-research')
   prepared.overlays = [
     { insert: [{ id: 'desktop-host-services-smoke-plugin', name: HOST_SERVICE_PLUGIN_NAME }] },
+    // Never let a first-use browser fixture resolve the operator's Documents.
+    { id: 'workspace-controller', config: { documentsDirectory: join(home, 'Documents') } },
+    ...(studioUi ? [{ id: 'pm-research', config: { dataRoot: researchRoot } }] : []),
     // The smoke's explicit Profile home must also own account credentials.
     { id: 'credentials', config: { dshHome: home } },
     // Isolate the bridge from the operator's real AA account on every reload.
@@ -615,6 +620,18 @@ try {
     const { verifyDesktopOnboardingBrowser } = await import('../../scripts/verify-desktop-onboarding-browser.mjs')
     await verifyDesktopOnboardingBrowser({
       url: expectedUrl, cookie,
+      headers: { [BROWSER_ACCESS.rendererHeader.name]: BROWSER_ACCESS.rendererHeader.value },
+    })
+  }
+  if (studioUi) {
+    const { seedStudioResearch, verifyDesktopStudioBrowser } = await import('./verify-studio-browser.mjs')
+    const fixture = await seedStudioResearch(researchRoot)
+    const workspacePath = join(home, 'studio-smoke-workspace')
+    mkdirSync(workspacePath, { recursive: true })
+    const { workspace } = await ctx.workspaceController.create({ path: workspacePath })
+    await ctx.sessionController.create({ workspaceId: workspace.id, agentPreset: 'minimal' })
+    await verifyDesktopStudioBrowser({
+      url: expectedUrl, cookie, fixture,
       headers: { [BROWSER_ACCESS.rendererHeader.name]: BROWSER_ACCESS.rendererHeader.value },
     })
   }

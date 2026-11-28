@@ -8,6 +8,9 @@
  */
 
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
+import { PanelsTopLeft } from 'lucide-react'
+import { createElement } from 'react'
+import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 // Type-only: pull the SlotMap merges for the brand and dock slots.
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
@@ -20,8 +23,15 @@ import type { PmLocaleFace } from './copy.ts'
 import { pmStudioCopy } from './copy.ts'
 import { PmHeroBrandMark, PmSidebarBrandMark, PmSidebarBrandName } from './brand.tsx'
 import { PmHomeConsole } from './home-console.tsx'
-import { PmWorkbench, type PmWorkbenchInjected } from './workbench.tsx'
+import { PmResearchDesk, PmWorkbench, type PmWorkbenchInjected } from './workbench.tsx'
+import { applyEvidenceTab } from './evidence-tab.ts'
 import { installPmStudioStyles } from './styles.ts'
+
+const RESEARCH_DESK = 'pm-research-desk'
+
+function ResearchDeskIcon({ size = 18 }: { size?: number }) {
+  return createElement(PanelsTopLeft, { size, strokeWidth: 1.65, 'aria-hidden': true })
+}
 
 /** The Host's preset selection result, narrowed to what the seat needs. */
 type PresetSelectResult =
@@ -89,6 +99,28 @@ export function applyPmStudio(ctx: ClientContext): void {
     inject: () => ({ locale: localeFace }),
   }, PmHeroBrandMark))
 
+  // A keyed main page removes the session surface. The dock keeps its scoped
+  // draft action; this page never guesses which session should receive a draft.
+  let openConversation: (() => void) | undefined
+  ctx.inject(['layout'], (scope: ClientContext) => {
+    scope.effect(() => {
+      openConversation = () => { scope.layout.selectPanel(null) }
+      return () => { openConversation = undefined }
+    }, 'dsh-plugin-desktop: research desk navigation')
+  })
+  ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
+    name: 'sidebar.panellist',
+    id: RESEARCH_DESK,
+    order: 10,
+    label: () => pmStudioCopy(localeFace.getSnapshot()).deskLabel,
+  }, ResearchDeskIcon))
+  ctx.slots.inject('main', () => ctx.slots.register({
+    name: 'main',
+    key: RESEARCH_DESK,
+    inject: () => ({ locale: localeFace, onOpenConversation: () => { openConversation?.() } }),
+  }, PmResearchDesk))
+  applyEvidenceTab(ctx, localeFace)
+
   // The console needs the preset seat; brand and theme must survive a profile
   // that disables agent presets, so the dependency is scoped to this surface.
   ctx.inject(['remote.agentPresets'], (scope) => {
@@ -145,6 +177,7 @@ export function applyPmStudio(ctx: ClientContext): void {
         const actx = scope.sessions.scope(sessionId)
         const conversation = actx?.get('conversation')
         return {
+          locale: localeFace,
           applyPrompt(text) {
             if (conversation === undefined || actx === undefined) return false
             try {
