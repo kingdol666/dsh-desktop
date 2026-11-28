@@ -821,7 +821,7 @@ describe('published package surface', () => {
 
   it('fixes the installed application identity', () => {
     expect(workspaceManifest.version).toBeUndefined()
-    expect(manifest.version).toBe('2.5.3')
+    expect(manifest.version).toBe('2.5.4')
     expect(manifest.build?.productName).toBe('PolyMechanism Studio')
     expect(manifest.build?.appId).toBe('studio.polymechanism.desktop')
     expect(manifest.build?.asar).toBe(false)
